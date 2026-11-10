@@ -7,6 +7,7 @@
 
 #include "bc_state.h"
 #include "display.h"
+#include "mascot.h"
 #include "scenarios.h"
 #include "settings.h"
 #include "ui.h"
@@ -70,10 +71,39 @@ static void ev(const ui::Model& m, int turn, bool shortPress = false, bool longP
   ui::handle(e, m, g_simMillis);
 }
 
+// Writes each placeholder pose as a 64 x 96 image, as a starting point for art.
+static void exportTemplates(const std::string& dir) {
+  static const char* const kNames[] = {"level0", "level1", "level2", "level3", "level4",
+                                       "final_week", "meeting_day", "no_date", "syncing"};
+  auto& c = display::canvas();
+  for (int p = 0; p < 9; ++p) {
+    c.fillScreen(display::kBg);
+    mascot::drawPlaceholder(0, 0, (bc::Pose)p, 1000, false);
+    c.drawRect(0, 0, mascot::kW, mascot::kH, display::kBg);  // drop the guide box
+    const std::string path = dir + "/" + kNames[p] + ".ppm";
+    FILE* f = fopen(path.c_str(), "wb");
+    if (!f) continue;
+    fprintf(f, "P6\n%d %d\n255\n", mascot::kW, mascot::kH);
+    const lgfx::bgr888_t* pal = c.getPalette();
+    for (int y = 0; y < mascot::kH; ++y)
+      for (int x = 0; x < mascot::kW; ++x) {
+        const auto px = pal[c.readPixelValue(x, y) & 15];
+        const uint8_t rgb[3] = {px.r, px.g, px.b};
+        fwrite(rgb, 1, 3, f);
+      }
+    fclose(f);
+    printf("wrote %s\n", path.c_str());
+  }
+}
+
 int main(int argc, char** argv) {
   if (argc > 1) g_dir = argv[1];
   display::begin(1, settings::kThemeGreen);
   g_simMillis = 1000;
+  if (argc > 2 && std::string(argv[2]) == "--templates") {
+    exportTemplates(g_dir);
+    return 0;
+  }
 
   bc::BookClubData d;
   bc::LocalNow now;

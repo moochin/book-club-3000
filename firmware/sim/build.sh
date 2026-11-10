@@ -5,6 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 LGFX=.pio/libdeps/cyd/LovyanGFX/src
 AJ=.pio/libdeps/cyd/ArduinoJson/src
+python3 ../tools/build_art.py
 mkdir -p sim/out
 SRCS=(sim/sim_main.cpp sim/stubs.cpp src/ui.cpp src/mascot.cpp src/display.cpp src/scenarios.cpp
       lib/bookclub_state/src/*.cpp)

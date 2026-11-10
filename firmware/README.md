@@ -82,7 +82,8 @@ src/sync       HTTPS fetch of bookclub.json in its own FreeRTOS task; NVS cache;
 src/settings   per-unit settings and the cached file, in NVS (Preferences)
 lib/bookclub_state   PURE: JSON parsing + computeState(data, now) -> what to show
 src/ui         draws the model it is given; turns knob events into actions
-src/mascot     placeholder figures, one per Pose (replace in the art pass)
+src/mascot     draws ../art/mascot PNGs (baked into src/art_data.h by
+               scripts/art.py before each build); placeholders for the rest
 src/display    LovyanGFX panel + one 320x240 4-bit palette canvas, scanlines
 src/input      EC11 on the hardware pulse counter, debounced push switch
 src/audio      generated Geiger ticks, knob clicks, meeting-day jingle
@@ -118,7 +119,8 @@ in `lib/bookclub_state/src/bc_state.h`.
 
 `sim/` builds the real `ui.cpp`, `mascot.cpp`, `display.cpp` and state engine
 for the PC (LovyanGFX's SDL back end), drives them with knob events and saves
-every screen as an image. Use it to check layout changes.
+every screen as an image. Use it to check layout changes; `art/preview.sh`
+wraps it for checking mascot art.
 
 ```bash
 sudo apt-get install libsdl2-dev && pio pkg install -e cyd
@@ -184,6 +186,5 @@ WiFiManager (MIT), ArduinoJson (MIT), ESP32Encoder (MIT).
 ## Not done yet
 
 - **Hardware confirmation** of the bring-up table above.
-- **Final mascot art** (build plan step 6). Replace the body of
-  `mascot::draw()`; keep the 64 × 96 box and the `Pose` enum.
+- **Final mascot art** (build plan step 6): see [`art/README.md`](../art/README.md).
 - **Case files** for `case/`.

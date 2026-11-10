@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Book-Club 3000
+Columns: 16
+#
+  3  12   5	background (transparent)
+  4  19   8	ramp 1
+  7  29  12	ramp 2
+  9  40  17	ramp 3
+ 12  53  23	ramp 4
+ 16  69  29	ramp 5
+ 20  86  37	ramp 6
+ 24 105  45	ramp 7
+ 29 126  54	ramp 8
+ 36 154  66	ramp 9
+ 44 188  81	ramp 10
+ 52 221  95	ramp 11
+ 60 255 110	ramp 12
+127  88  20	warning dim
+255 176  40	warning
+157 255 182	hot (near white)

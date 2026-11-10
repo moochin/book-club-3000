@@ -1,13 +1,14 @@
-# Runs the state-engine tests and builds the firmware. On a v* tag it also
-# publishes the binaries as a GitHub Release, for over-the-air updates.
+# Runs the state-engine tests, builds the firmware (with the mascot art from
+# art/mascot baked in) and renders UI previews. On a v* tag it also publishes
+# the binaries as a GitHub Release, for over-the-air updates.
 name: Firmware
 on:
   push:
     branches: ["**"]
     tags: ["v*"]
-    paths: [firmware/**, .github/workflows/firmware.yml]
+    paths: [firmware/**, art/**, tools/*.py, .github/workflows/firmware.yml]
   pull_request:
-    paths: [firmware/**, .github/workflows/firmware.yml]
+    paths: [firmware/**, art/**, tools/*.py, .github/workflows/firmware.yml]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,6 +31,14 @@ jobs:
         run: pio test -e native
       - name: Build ILI9341 and ST7789 firmware
         run: pio run -e cyd -e cyd_st7789
+      - name: Render UI and mascot previews
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+          ../art/preview.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: previews
+          path: art/preview/*.png
       - name: Check the tag matches BC_FW_VERSION
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

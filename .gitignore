@@ -4,3 +4,5 @@ firmware/sim/out/
 dist/
 __pycache__/
 .DS_Store
+firmware/src/art_data.h
+art/preview/
