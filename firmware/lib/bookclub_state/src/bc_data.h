@@ -23,7 +23,7 @@ struct Meeting {
   Date date;
   bool hasTime = false;
   int16_t minute = 0;  // minutes after local midnight, when hasTime
-  char book[kTextLen] = "";
+  char plan[kTextLen] = "";      // what's on: games, film, food...
   char location[kTextLen] = "";
 };
 

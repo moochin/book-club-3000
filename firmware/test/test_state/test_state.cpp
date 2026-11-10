@@ -33,14 +33,14 @@ static BookClubData file(const char* last, const char* next, const char* time = 
   char nextPart[160];
   if (next) {
     if (time)
-      snprintf(nextPart, sizeof nextPart, "{\"date\":\"%s\",\"time\":\"%s\",\"book\":\"TBC\"}", next, time);
+      snprintf(nextPart, sizeof nextPart, "{\"date\":\"%s\",\"time\":\"%s\",\"plan\":\"TBC\"}", next, time);
     else
       snprintf(nextPart, sizeof nextPart, "{\"date\":\"%s\"}", next);
   } else {
     strcpy(nextPart, "null");
   }
   snprintf(json, sizeof json,
-           "{\"version\":1,\"last\":{\"date\":\"%s\",\"book\":\"Project Hail Mary\"},"
+           "{\"version\":1,\"last\":{\"date\":\"%s\",\"plan\":\"Retro games + curry\"},"
            "\"next\":%s}",
            last, nextPart);
   BookClubData d;
@@ -261,11 +261,11 @@ void test_labels() {
 
 static const char* kSample = R"({
   "version": 1,
-  "last": { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
-  "next": { "date": "2026-12-05", "time": "19:30", "book": "TBC", "location": "TBC" },
+  "last": { "date": "2026-08-15", "plan": "Retro games + curry", "location": "The Bell, Winchester" },
+  "next": { "date": "2026-12-05", "time": "19:30", "plan": "TBC", "location": "TBC" },
   "history": [
-    { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
-    { "date": "2026-03-02", "book": "Piranesi", "location": "Pete's house" }
+    { "date": "2026-08-15", "plan": "Retro games + curry", "location": "The Bell, Winchester" },
+    { "date": "2026-03-02", "plan": "Pub, then co-op games", "location": "Pete's house" }
   ],
   "message": "Bring snacks",
   "someFutureField": { "ignored": true }
@@ -276,13 +276,13 @@ void test_parse_sample() {
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(kSample, strlen(kSample), d));
   TEST_ASSERT_EQUAL(1, d.version);
   TEST_ASSERT_TRUE(d.last.date == D("2026-08-15"));
-  TEST_ASSERT_EQUAL_STRING("Project Hail Mary", d.last.book);
+  TEST_ASSERT_EQUAL_STRING("Retro games + curry", d.last.plan);
   TEST_ASSERT_TRUE(d.hasNext);
   TEST_ASSERT_TRUE(d.next.hasTime);
   TEST_ASSERT_EQUAL_INT16(19 * 60 + 30, d.next.minute);
   TEST_ASSERT_EQUAL_STRING("Bring snacks", d.message);
   TEST_ASSERT_EQUAL(2, d.historyCount);
-  TEST_ASSERT_EQUAL_STRING("Piranesi", d.history[1].book);
+  TEST_ASSERT_EQUAL_STRING("Pub, then co-op games", d.history[1].plan);
   TEST_ASSERT_FALSE(d.firmware.present);
 }
 
@@ -301,7 +301,7 @@ void test_parse_rejects_bad_files_and_keeps_old() {
   for (const char* b : bad) {
     TEST_ASSERT_NOT_EQUAL_MESSAGE((int)ParseError::None, (int)parseBookClub(b, strlen(b), d), b);
   }
-  TEST_ASSERT_EQUAL_STRING("Project Hail Mary", d.last.book);  // untouched
+  TEST_ASSERT_EQUAL_STRING("Retro games + curry", d.last.plan);  // untouched
   TEST_ASSERT_TRUE(d.hasNext);
 }
 
@@ -311,7 +311,7 @@ void test_parse_next_variants() {
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(omitted, strlen(omitted), d));
   TEST_ASSERT_FALSE(d.hasNext);
   TEST_ASSERT_EQUAL(1, d.historyCount);  // `last` is always in the log
-  const char* badNext = "{\"last\":{\"date\":\"2026-08-15\"},\"next\":{\"date\":\"soon\",\"book\":\"X\"}}";
+  const char* badNext = "{\"last\":{\"date\":\"2026-08-15\"},\"next\":{\"date\":\"soon\",\"plan\":\"X\"}}";
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(badNext, strlen(badNext), d));
   TEST_ASSERT_FALSE(d.hasNext);
   const char* badTime = "{\"last\":{\"date\":\"2026-08-15\"},\"next\":{\"date\":\"2026-12-05\",\"time\":\"7pm\"}}";
@@ -322,40 +322,49 @@ void test_parse_next_variants() {
 
 void test_parse_last_wins_over_history() {
   // History is out of order and its first entry disagrees with `last`.
-  const char* j = R"({"last":{"date":"2026-08-15","book":"Right"},
-    "history":[{"date":"2026-03-02","book":"B"},{"date":"2026-08-15","book":"Wrong"},
-               {"date":"2025-11-20","book":"A"},{"date":"2026-09-01","book":"Future"}]})";
+  const char* j = R"({"last":{"date":"2026-08-15","plan":"Right"},
+    "history":[{"date":"2026-03-02","plan":"B"},{"date":"2026-08-15","plan":"Wrong"},
+               {"date":"2025-11-20","plan":"A"},{"date":"2026-09-01","plan":"Future"}]})";
   BookClubData d;
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
   TEST_ASSERT_EQUAL(3, d.historyCount);
-  TEST_ASSERT_EQUAL_STRING("Right", d.history[0].book);
-  TEST_ASSERT_EQUAL_STRING("B", d.history[1].book);
-  TEST_ASSERT_EQUAL_STRING("A", d.history[2].book);
+  TEST_ASSERT_EQUAL_STRING("Right", d.history[0].plan);
+  TEST_ASSERT_EQUAL_STRING("B", d.history[1].plan);
+  TEST_ASSERT_EQUAL_STRING("A", d.history[2].plan);
   LogStats st = computeLogStats(d);
   TEST_ASSERT_EQUAL(3, st.totalMeetings);
   TEST_ASSERT_EQUAL_INT32(166, st.longestGapDays);  // 2026-03-02 -> 2026-08-15
   TEST_ASSERT_TRUE(st.gapFrom == D("2026-03-02"));
 }
 
-void test_parse_truncates_long_text() {
-  char j[600];
-  char longBook[300];
-  memset(longBook, 'x', sizeof longBook - 1);
-  longBook[sizeof longBook - 1] = 0;
-  snprintf(j, sizeof j, "{\"last\":{\"date\":\"2026-08-15\",\"book\":\"%s\"}}", longBook);
+void test_parse_accepts_legacy_book_field() {
+  const char* j = R"({"last":{"date":"2026-08-15","book":"Old style"},
+    "next":{"date":"2026-12-05","plan":"New style","book":"ignored"}})";
   BookClubData d;
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
-  TEST_ASSERT_EQUAL(kTextLen - 1, (int)strlen(d.last.book));
+  TEST_ASSERT_EQUAL_STRING("Old style", d.last.plan);
+  TEST_ASSERT_EQUAL_STRING("New style", d.next.plan);
+}
+
+void test_parse_truncates_long_text() {
+  char j[600];
+  char longPlan[300];
+  memset(longPlan, 'x', sizeof longPlan - 1);
+  longPlan[sizeof longPlan - 1] = 0;
+  snprintf(j, sizeof j, "{\"last\":{\"date\":\"2026-08-15\",\"plan\":\"%s\"}}", longPlan);
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_EQUAL(kTextLen - 1, (int)strlen(d.last.plan));
 }
 
 void test_parse_utf8_truncation_on_boundary() {
   // 30 x "é" (2 bytes each) = 60 bytes; must cut to 46 bytes, not 47.
-  char j[200] = "{\"last\":{\"date\":\"2026-08-15\",\"book\":\"";
+  char j[200] = "{\"last\":{\"date\":\"2026-08-15\",\"plan\":\"";
   for (int i = 0; i < 30; ++i) strcat(j, "\xC3\xA9");
   strcat(j, "\"}}");
   BookClubData d;
   TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
-  TEST_ASSERT_EQUAL(46, (int)strlen(d.last.book));
+  TEST_ASSERT_EQUAL(46, (int)strlen(d.last.plan));
 }
 
 void test_parse_firmware_block() {
@@ -454,6 +463,7 @@ int main() {
   RUN_TEST(test_parse_rejects_bad_files_and_keeps_old);
   RUN_TEST(test_parse_next_variants);
   RUN_TEST(test_parse_last_wins_over_history);
+  RUN_TEST(test_parse_accepts_legacy_book_field);
   RUN_TEST(test_parse_truncates_long_text);
   RUN_TEST(test_parse_utf8_truncation_on_boundary);
   RUN_TEST(test_parse_firmware_block);

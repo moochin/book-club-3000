@@ -1,5 +1,6 @@
 #include "mascot.h"
 
+#include "art_data.h"
 #include "display.h"
 
 using display::canvas;
@@ -8,9 +9,9 @@ namespace mascot {
 
 using bc::Pose;
 
-// A deliberately simple, original figure: a round-headed reader with big
-// round glasses, a dosimeter antenna and a cardigan, clutching a book.
-// Placeholder only.
+// A deliberately simple, original figure: a round-headed character with big
+// round glasses, a dosimeter antenna and a cardigan, clutching a game
+// controller. Placeholder only.
 namespace {
 
 struct Look {
@@ -35,7 +36,7 @@ void arm(int sx, int sy, int dir, int pose) {
 
 }  // namespace
 
-void draw(int x, int y, Pose pose, uint32_t t, bool label) {
+void drawPlaceholder(int x, int y, Pose pose, uint32_t t, bool label) {
   auto& c = canvas();
   Look k;
   const bool blinkNow = (t % 4200) < 140;
@@ -63,14 +64,17 @@ void draw(int x, int y, Pose pose, uint32_t t, bool label) {
     c.drawFastVLine(cx, cy, 24, display::kDim);
   } else {
     const int hx = x + 32 + k.headDx, hy = y + 22 + k.headDy;
-    // Body: an open cardigan over a jumper, with a book held to the chest.
+    // Body: an open cardigan over a jumper, a game controller held in front.
     const int bx = x + 18, by = y + 42 + k.headDy / 2;
     c.fillRoundRect(bx, by, 28, 32, 5, display::kFaint);
     c.drawRoundRect(bx, by, 28, 32, 5, display::kText);
     c.drawLine(bx + 9, by + 1, bx + 11, by + 31, display::kMid);  // cardigan edges
     c.drawLine(bx + 18, by + 1, bx + 16, by + 31, display::kMid);
-    c.fillRect(bx + 7, by + 6, 14, 11, display::kMid);  // the book
-    c.drawFastVLine(bx + 14, by + 6, 11, display::kBg);
+    c.fillRoundRect(bx + 3, by + 9, 22, 9, 4, display::kMid);  // the controller
+    c.drawFastHLine(bx + 6, by + 13, 5, display::kBg);          // d-pad
+    c.drawFastVLine(bx + 8, by + 11, 5, display::kBg);
+    c.fillRect(bx + 18, by + 11, 2, 2, display::kBg);           // buttons
+    c.fillRect(bx + 21, by + 14, 2, 2, display::kBg);
     // Legs.
     c.fillRect(bx + 4, by + 32, 7, 14, display::kText);
     c.fillRect(bx + 17, by + 32, 7, 14, display::kText);
@@ -156,6 +160,34 @@ void draw(int x, int y, Pose pose, uint32_t t, bool label) {
   }
 
   if (label) display::textCentered(x + kW / 2, y + kH + 2, bc::poseName(pose), display::kDim, 1, 1);
+}
+
+bool hasArt(Pose pose) {
+  const int i = (int)pose;
+  return i >= 0 && i < (int)(sizeof art::kAnims / sizeof art::kAnims[0]) && art::kAnims[i].count > 0;
+}
+
+void draw(int x, int y, Pose pose, uint32_t t, bool label) {
+  if (!hasArt(pose)) {
+    drawPlaceholder(x, y, pose, t, label);
+    return;
+  }
+  // Pick the frame for this moment of the loop.
+  const art::Anim& a = art::kAnims[(int)pose];
+  uint32_t total = 0;
+  for (int i = 0; i < a.count; ++i) total += a.frames[i].ms ? a.frames[i].ms : 1;
+  uint32_t at = t % total;
+  int f = 0;
+  while (f < a.count - 1 && at >= a.frames[f].ms) at -= a.frames[f++].ms;
+  const uint8_t* px = a.frames[f].px;
+  auto& c = canvas();
+  for (int yy = 0; yy < art::kH; ++yy) {
+    for (int xx = 0; xx < art::kW; xx += 2) {
+      const uint8_t b = *px++;
+      if (b >> 4) c.drawPixel(x + xx, y + yy, b >> 4);
+      if (b & 15) c.drawPixel(x + xx + 1, y + yy, b & 15);
+    }
+  }
 }
 
 }  // namespace mascot

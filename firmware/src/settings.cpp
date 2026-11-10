@@ -122,8 +122,8 @@ void factoryReset() {
 
 const char* statName(int i) {
   static const char* const kNames[kStatCount] = {
-      "READING SPEED", "SNACK SUPPLY",   "PLOT RECALL", "SPOILER RESIST",
-      "OPINION VOLUME", "PAGE STAMINA", "PUNCTUALITY",
+      "GAMING SKILL",  "MOVIE TRIVIA", "BEER CAPACITY", "SNACK SUPPLY",
+      "BANTER",        "PUNCTUALITY",  "STAYING POWER",
   };
   return (i >= 0 && i < kStatCount) ? kNames[i] : "?";
 }

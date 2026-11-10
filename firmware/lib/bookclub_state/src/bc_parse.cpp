@@ -49,7 +49,8 @@ static bool readMeeting(JsonVariantConst v, Meeting& m) {
     m.hasTime = true;
     m.minute = minute;
   }
-  copyText(v["book"], m.book, sizeof m.book);
+  // "plan" is what's on that night; "book" is accepted from older files.
+  copyText(v["plan"].is<const char*>() ? v["plan"] : v["book"], m.plan, sizeof m.plan);
   copyText(v["location"], m.location, sizeof m.location);
   return true;
 }

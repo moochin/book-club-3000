@@ -7,15 +7,15 @@ namespace scenarios {
 
 const char* const kSampleJson = R"JSON({
   "version": 1,
-  "last": { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
-  "next": { "date": "2026-12-05", "time": "19:30", "book": "TBC", "location": "TBC" },
+  "last": { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Pete's house" },
+  "next": { "date": "2026-12-05", "time": "19:30", "plan": "Film night + pizza", "location": "TBC" },
   "history": [
-    { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
-    { "date": "2026-03-02", "book": "Piranesi", "location": "Pete's house" },
-    { "date": "2025-11-20", "book": "The Left Hand of Darkness", "location": "The Bell, Winchester" },
-    { "date": "2025-07-12", "book": "Station Eleven", "location": "Riverside picnic" },
-    { "date": "2025-03-08", "book": "Klara and the Sun", "location": "Pete's house" },
-    { "date": "2024-10-19", "book": "The Martian", "location": "The Bell, Winchester" }
+    { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Pete's house" },
+    { "date": "2026-03-02", "plan": "Pub, then co-op games", "location": "The Bell, Winchester" },
+    { "date": "2025-11-20", "plan": "Horror double bill", "location": "Pete's house" },
+    { "date": "2025-07-12", "plan": "BBQ + beers", "location": "Riverside" },
+    { "date": "2025-03-08", "plan": "Racing game tournament", "location": "Pete's house" },
+    { "date": "2024-10-19", "plan": "Pub quiz", "location": "The Bell, Winchester" }
   ],
   "message": "Bring snacks"
 })JSON";

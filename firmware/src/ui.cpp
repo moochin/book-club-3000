@@ -183,14 +183,14 @@ void drawCelebration(const Model& m, uint32_t t) {
   textCentered(200, 100, buf, kBright, 2, 2);
   if (m.data) {
     canvas().drawFastHLine(92, 128, 216, kFaint);
-    text(92, 136, "BOOK", kDim);
-    folded(128, 136, m.data->next.book, kText, 30);
+    text(92, 136, "PLAN", kDim);
+    folded(128, 136, m.data->next.plan[0] ? m.data->next.plan : "TBC", kText, 30);
     text(92, 156, "AT", kDim);
     folded(128, 156, m.data->next.location, kText, 30);
   }
   frame(8, 184, 304, 48, kBright);
   text(16, 192, "+1 TO ALL STATS FOR THE EVENING", kText);
-  text(16, 210, "EXPOSURE PAUSED - ENJOY THE BOOKS", kDim);
+  text(16, 210, "EXPOSURE PAUSED - ENJOY THE NIGHT", kDim);
 }
 
 void drawStat(const Model& m, uint32_t t) {
@@ -275,8 +275,8 @@ void drawData(const Model& m) {
       bc::formatTime(d.next.minute, tm, sizeof tm);
       text(8 + textWidth(buf, 2) + 12, 52, tm, kHot, 2, 2);
     }
-    text(8, 78, "BOOK ", kDim);
-    folded(50, 78, d.next.book[0] ? d.next.book : "TBC", kText, 44);
+    text(8, 78, "PLAN ", kDim);
+    folded(50, 78, d.next.plan[0] ? d.next.plan : "TBC", kText, 44);
     text(8, 96, "AT   ", kDim);
     folded(50, 96, d.next.location[0] ? d.next.location : "TBC", kText, 44);
   } else {
@@ -292,7 +292,7 @@ void drawData(const Model& m) {
   text(8, 166, "LAST ", kDim);
   bc::formatDateShort(d.last.date, date, sizeof date);
   text(50, 166, date, kText);
-  folded(50, 184, d.last.book[0] ? d.last.book : "-", kText, 44);
+  folded(50, 184, d.last.plan[0] ? d.last.plan : "-", kText, 44);
 
   c.drawFastHLine(0, 206, cfg::kScreenW, kFaint);
   char age[20];
@@ -325,7 +325,7 @@ void drawLog(const Model& m) {
     char date[16];
     bc::formatDateShort(e.date, date, sizeof date);
     text(8, y, date, i == 0 ? kHot : kText);
-    folded(86, y, e.book[0] ? e.book : "-", kText, 36);
+    folded(86, y, e.plan[0] ? e.plan : "-", kText, 36);
     folded(86, y + 16, e.location, kDim, 36);
     if (i + 1 < d.historyCount) {
       char gap[24];
