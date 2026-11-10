@@ -1,0 +1,6 @@
+firmware/.pio/
+firmware/.vscode/
+firmware/sim/out/
+dist/
+__pycache__/
+.DS_Store

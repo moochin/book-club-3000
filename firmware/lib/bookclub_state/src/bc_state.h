@@ -1,0 +1,111 @@
+// The Book-Club 3000 state engine.
+//
+// One pure function turns (file contents, local "now") into everything the
+// screen needs to know. No hardware calls: the sync and clock modules only
+// gather inputs, the UI only draws what this returns.
+#pragma once
+
+#include <stdint.h>
+
+#include "bc_data.h"
+#include "bc_date.h"
+
+namespace bc {
+
+constexpr int kLevelCount = 5;
+
+enum class Level : uint8_t {
+  WellRested = 0,
+  Healthy = 1,
+  MinorSickness = 2,
+  AdvancedSickness = 3,
+  Critical = 4,
+};
+
+enum class Quest : uint8_t {
+  MeetingDay,  // next.date is today
+  FinalWeek,   // next.date is 1..7 days away
+  Scheduled,   // next.date is 8+ days away
+  Overdue,     // next.date has passed and the file still lists it
+  NoDate,      // next missing, null, or before last
+};
+
+// Which mascot sprite to draw.
+enum class Pose : uint8_t {
+  Level0,      // thumbs up, grinning
+  Level1,      // idle, occasional blink
+  Level2,      // queasy, green tinge
+  Level3,      // slumped, limbs flagging
+  Level4,      // mid-transformation
+  FinalWeek,   // excited
+  MeetingDay,  // celebrating
+  NoDate,      // waiting for orders
+  Syncing,     // clock not set yet
+};
+
+// Tunable thresholds. Change the defaults here, nowhere else.
+struct Thresholds {
+  // First day of each exposure level.
+  int16_t levelStartDay[kLevelCount] = {0, 14, 90, 137, 183};
+  // The exposure bar is full from this many days.
+  int16_t barFullDays = 183;
+  // Days out at which the countdown becomes "final week".
+  int16_t finalWeekDays = 7;
+  // Under this many days, the countdown shows hours too.
+  int16_t showHoursUnderDays = 2;
+  // Average Geiger clicks per minute at each level (0 = silent).
+  int16_t geigerClicksPerMin[kLevelCount] = {0, 0, 0, 8, 40};
+};
+
+struct DisplayState {
+  bool clockValid = false;  // false: show the "syncing clock" screen
+
+  // Exposure, from days since last.date.
+  int32_t exposureDays = 0;  // clamped to >= 0
+  Level level = Level::WellRested;
+  int16_t barPermille = 0;   // 0..1000
+  bool antiRad = false;      // final week / meeting day: "anti-rad dose administered"
+
+  // Quest, from next.date.
+  Quest quest = Quest::NoDate;
+  int32_t daysToNext = 0;     // FinalWeek / Scheduled: whole days; Overdue: negative
+  bool showHours = false;     // countdown is under showHoursUnderDays
+  int32_t minutesToNext = 0;  // when showHours: minutes until next.time (or midnight)
+  bool hasMeetingTime = false;
+  int16_t meetingMinute = 0;
+
+  Pose pose = Pose::Syncing;
+  int16_t geigerClicksPerMin = 0;
+};
+
+const Thresholds& defaultThresholds();
+
+// The core function. `now` is local Europe/London time.
+DisplayState computeState(const BookClubData& data, const LocalNow& now,
+                          const Thresholds& th = defaultThresholds());
+
+// Text for the UI. All return static strings or write into `buf`.
+const char* levelName(Level l);   // "MINOR SICKNESS"
+const char* questName(Quest q);   // "SCHEDULED"
+const char* poseName(Pose p);     // "LVL2 QUEASY" (placeholder-art labels)
+
+// The one-line quest message for the STAT tab, e.g. "BOOK CLUB IN 15 DAYS".
+// `variant` picks between alternative phrasings (pass a slow-changing counter).
+void questLine(const DisplayState& s, char* buf, int len, uint32_t variant = 0);
+// The countdown alone, e.g. "15 DAYS", "1 DAY 4 HRS", "20 HRS 5 MIN", "TODAY 19:30".
+void countdownText(const DisplayState& s, char* buf, int len);
+// The label under the exposure bar, e.g. "LVL 2  MINOR SICKNESS".
+void exposureLabel(const DisplayState& s, char* buf, int len);
+
+struct LogStats {
+  int totalMeetings = 0;
+  int32_t longestGapDays = 0;  // longest gap between consecutive meetings
+  Date gapFrom, gapTo;         // the meetings either side of that gap
+};
+LogStats computeLogStats(const BookClubData& data);
+
+// Compares dotted numeric versions ("1.2.10" > "1.2.9"). Returns <0, 0, >0.
+// A leading 'v' is ignored; missing parts count as 0.
+int compareVersions(const char* a, const char* b);
+
+}  // namespace bc
