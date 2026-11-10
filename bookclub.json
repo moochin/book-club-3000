@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "last": { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
+  "next": { "date": "2026-12-05", "time": "19:30", "book": "TBC", "location": "TBC" },
+  "history": [
+    { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
+    { "date": "2026-03-02", "book": "Piranesi", "location": "Pete's house" }
+  ],
+  "message": "Bring snacks"
+}

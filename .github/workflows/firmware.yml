@@ -1,0 +1,51 @@
+# Runs the state-engine tests and builds the firmware. On a v* tag it also
+# publishes the binaries as a GitHub Release, for over-the-air updates.
+name: Firmware
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths: [firmware/**, .github/workflows/firmware.yml]
+  pull_request:
+    paths: [firmware/**, .github/workflows/firmware.yml]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio/libdeps
+          key: pio-${{ hashFiles('firmware/platformio.ini') }}
+      - run: pip install platformio
+      - name: State engine tests
+        run: pio test -e native
+      - name: Build ILI9341 and ST7789 firmware
+        run: pio run -e cyd -e cyd_st7789
+      - name: Check the tag matches BC_FW_VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(sed -n 's/^#define BC_FW_VERSION "\(.*\)"/\1/p' src/config.h)
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != BC_FW_VERSION $v"; exit 1; }
+      - name: Collect binaries
+        run: |
+          mkdir -p ../dist
+          cp .pio/build/cyd/firmware.bin ../dist/firmware.bin
+          cp .pio/build/cyd_st7789/firmware.bin ../dist/firmware-st7789.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/*.bin
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.bin
