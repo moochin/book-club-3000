@@ -22,6 +22,7 @@ namespace datasync {
 
 static TaskHandle_t g_task;
 static SemaphoreHandle_t g_mutex;
+static SemaphoreHandle_t g_tlsMutex;
 static volatile Status g_status = Status::Idle;
 static char g_error[64] = "";
 static bool g_hasNew = false;
@@ -184,7 +185,9 @@ static void taskMain(void*) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (WiFi.isConnected()) {
+      lockTls();
       runFetch();
+      unlockTls();
     } else {
       setError("no Wi-Fi");
       g_status = Status::Failed;
@@ -194,8 +197,12 @@ static void taskMain(void*) {
   }
 }
 
+void lockTls() { xSemaphoreTake(g_tlsMutex, portMAX_DELAY); }
+void unlockTls() { xSemaphoreGive(g_tlsMutex); }
+
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
+  g_tlsMutex = xSemaphoreCreateMutex();
   // TLS needs a deep stack. Core 0, alongside the Wi-Fi stack; the UI runs on core 1.
   xTaskCreatePinnedToCore(taskMain, "sync", 12288, nullptr, 1, &g_task, 0);
 }

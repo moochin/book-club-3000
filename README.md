@@ -11,6 +11,7 @@ bookclub.example.json   what the club file looks like (the real one is in the gi
 firmware/       the PlatformIO project for the ESP32 "Cheap Yellow Display"
 art/            mascot art: PNGs you draw, baked into the firmware (art/README.md)
 tools/          club_editor.py (edit the club file), check_bookclub.py, art tools
+worker/         the nudge hub: a small Cloudflare Worker (worker/README.md)
 docs/           the original handover/spec
 case/           (to come) STL files for the printed case
 ```
@@ -121,7 +122,8 @@ runs on your computer.
 2. Join that network on your phone. A setup page opens (or browse to
    `192.168.4.1`) — tap **Configure WiFi**.
 3. Pick your home network, enter its password, and fill in your name, theme
-   (`green` or `amber`), the seven owner-card stats, and the screen rotation.
+   (`green` or `amber`), the seven owner-card stats, the screen rotation, and
+   your **Nudge token** if you've been given one.
    For **Data file URL**, paste the gist's **Raw** link (open the gist, click
    **Raw**, copy the address, then delete the long code between `/raw/` and
    `/bookclub.json` so it always gets the latest version). Save.
@@ -135,7 +137,7 @@ settings, tap the mascot for your owner card, and tap a screen's title to go
 back. On LOG, tap the top or bottom half of the list to page through it. A
 stylus works best.
 **Knob:** turn to switch between STAT, DATA and LOG. On LOG, press to switch
-between changing tabs and scrolling. Hold 2 s for settings (refresh, sound,
+between changing tabs and scrolling. Hold 2 s for settings (refresh, send nudge, sound,
 brightness, theme, scanlines, screen off at night, dim when idle, owner card,
 how to use, about, Wi-Fi reset).
 **The screen** switches itself off at night (23:00–07:00 by default) and after
@@ -143,6 +145,23 @@ how to use, about, Wi-Fi reset).
 or tap to wake it. Both times are in the settings menu. It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
+
+## Nudges
+
+Poke a friend from your desk: **SETTINGS → SEND NUDGE**, pick a friend (or
+EVERYONE), then a message. It lands on their unit within a minute, with a
+chirp, a flashing blue light and the message in big letters until they press
+or tap. In quiet hours (22:00–08:00) it arrives silently and waits on screen.
+
+The built-in messages include *GET YOUR ASS ONLINE*, *THINKING OF YOU,
+LOSER*, *WHERE ARE YOU, COWARD?* and *I'M ON. YOU'RE NOT. SHAME.* To use the
+club's own in-jokes instead, add them under **NUDGES** in the club editor
+(up to 16, 40 characters each).
+
+Nudges go through a small hub that one person sets up once on a free
+Cloudflare account: see [`worker/README.md`](worker/README.md). They then put
+the hub's address in the club file and give each friend their own token for
+the setup page.
 
 Firmware details, the bring-up checklist and the release process are in
 [`firmware/README.md`](firmware/README.md).

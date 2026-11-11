@@ -1,0 +1,20 @@
+# Tests the nudge hub (the Cloudflare Worker in worker/). No Cloudflare
+# account is needed: the tests run in Node with an in-memory stand-in for KV.
+name: Nudge hub
+on:
+  push:
+    paths: [worker/**, .github/workflows/worker.yml]
+  pull_request:
+    paths: [worker/**, .github/workflows/worker.yml]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm test

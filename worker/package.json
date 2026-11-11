@@ -1,0 +1,14 @@
+{
+  "name": "bookclub-nudge",
+  "private": true,
+  "type": "module",
+  "description": "Nudge hub for the Book-Club 3000 units (a Cloudflare Worker).",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "tokens": "node tools/make-tokens.js",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

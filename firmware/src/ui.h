@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "bc_data.h"
+#include "bc_nudge.h"
 #include "bc_state.h"
 #include "input.h"
 
@@ -43,6 +44,13 @@ struct Model {
   const uint8_t* stats = nullptr;
   int lightRaw = 0;
   bc::FunCaps caps;                        // this unit owner's Fun Caps
+  // Nudges.
+  bool nudgesConfigured = false;           // hub URL and token both set
+  int friendCount = 0;
+  const char* friends[bc::kMaxFriends] = {};
+  const bc::Nudge* incoming = nullptr;     // a received nudge waiting to be seen
+  const char* toast = nullptr;             // a short note at the bottom ("NUDGE SENT")
+  bool toastWarn = false;
 };
 
 enum class Action : uint8_t {
@@ -58,11 +66,14 @@ enum class Action : uint8_t {
   CancelPortal,
   Preview,      // arg = scenario index
   ExitPreview,
+  SendNudge,    // arg = friend index (-1 = everyone), arg2 = message index
+  DismissNudge,
 };
 
 struct Result {
   Action action = Action::None;
   int arg = 0;
+  int arg2 = 0;
   bool redraw = false;  // the screen changed and should be redrawn now
 };
 

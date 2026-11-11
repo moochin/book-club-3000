@@ -7,6 +7,7 @@
 
 #include "bc_data.h"
 #include "bc_date.h"
+#include "bc_nudge.h"
 #include "bc_screen.h"
 #include "bc_state.h"
 #include "bc_text.h"
@@ -735,6 +736,59 @@ void test_minute_window_and_shift() {
   TEST_ASSERT_EQUAL_UINT32(0, idleDimPresetMs(-1));
 }
 
+// ---- Nudges ------------------------------------------------------------------------
+
+void test_nudge_inbox_parsing() {
+  const char* j = R"J({"nudges":[
+    {"from":"Pete","msg":"GET YOUR ASS ONLINE","at":1},
+    {"from":"Dave","msg":"THINKING OF YOU, LOSER","at":2},
+    {"from":"","msg":"no sender"},
+    {"from":"Sam","msg":"I\u2019M ON"}]})J";
+  Nudge n[kMaxInbox];
+  TEST_ASSERT_EQUAL(3, parseInbox(j, strlen(j), n, kMaxInbox));
+  TEST_ASSERT_EQUAL_STRING("Pete", n[0].from);
+  TEST_ASSERT_EQUAL_STRING("THINKING OF YOU, LOSER", n[1].msg);
+  TEST_ASSERT_EQUAL_STRING("I'M ON", n[2].msg);  // folded for the font
+  TEST_ASSERT_EQUAL(1, parseInbox(j, strlen(j), n, 1));  // respects the cap
+  const char* empty = "{\"nudges\":[]}";
+  TEST_ASSERT_EQUAL(0, parseInbox(empty, strlen(empty), n, kMaxInbox));
+  const char* bad = "{\"error\":\"nope\"}";
+  TEST_ASSERT_EQUAL(-1, parseInbox(bad, strlen(bad), n, kMaxInbox));
+  TEST_ASSERT_EQUAL(-1, parseInbox("garbage", 7, n, kMaxInbox));
+}
+
+void test_nudge_roster_parsing() {
+  const char* j = R"J({"me":"Pete","friends":["Dave","Sam"]})J";
+  char friends[kMaxFriends][kNameLen];
+  char me[kNameLen];
+  TEST_ASSERT_EQUAL(2, parseRoster(j, strlen(j), friends, kMaxFriends, me, sizeof me));
+  TEST_ASSERT_EQUAL_STRING("Pete", me);
+  TEST_ASSERT_EQUAL_STRING("Sam", friends[1]);
+  TEST_ASSERT_EQUAL(-1, parseRoster("{}", 2, friends, kMaxFriends, me, sizeof me));
+}
+
+void test_nudge_messages_from_club_file() {
+  BookClubData none;
+  TEST_ASSERT_TRUE(nudgeMessageCount(&none) >= 10);  // built-in set
+  TEST_ASSERT_EQUAL_STRING("GET YOUR ASS ONLINE", nudgeMessage(&none, 0));
+  TEST_ASSERT_EQUAL_STRING("GET YOUR ASS ONLINE", nudgeMessage(nullptr, 0));
+  TEST_ASSERT_EQUAL_STRING("", nudgeMessage(&none, 999));
+
+  const char* j = R"J({"last":{"date":"2026-08-15"},
+    "nudges":{"url":"https://bookclub-nudge.example.workers.dev",
+              "messages":["CAN'T HEAR YOU OVER THE LAG", "", 42,
+                          "THIS ONE IS FAR TOO LONG TO FIT IN A NUDGE AT ALL"]}})J";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_EQUAL_STRING("https://bookclub-nudge.example.workers.dev", d.nudges.url);
+  TEST_ASSERT_EQUAL(1, nudgeMessageCount(&d));  // empty, non-text and too-long skipped
+  TEST_ASSERT_EQUAL_STRING("CAN'T HEAR YOU OVER THE LAG", nudgeMessage(&d, 0));
+
+  const char* insecure = R"J({"last":{"date":"2026-08-15"},"nudges":{"url":"http://x.example"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(insecure, strlen(insecure), d));
+  TEST_ASSERT_EQUAL_STRING("", d.nudges.url);  // https only
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -830,5 +884,8 @@ int main() {
   RUN_TEST(test_screen_night_off_and_wake);
   RUN_TEST(test_screen_dark_room_and_hold);
   RUN_TEST(test_minute_window_and_shift);
+  RUN_TEST(test_nudge_inbox_parsing);
+  RUN_TEST(test_nudge_roster_parsing);
+  RUN_TEST(test_nudge_messages_from_club_file);
   return UNITY_END();
 }
