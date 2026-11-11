@@ -98,9 +98,12 @@ The unit joins your network, sets its clock and fetches the file. If your
 Wi-Fi drops it carries on counting from the dates it already has and keeps
 retrying in the background.
 
+**Touch screen:** tap STAT, DATA or LOG to switch tabs, tap the clock for
+settings, and tap a screen's title to go back. On LOG, tap the top or bottom
+half of the list to page through it. A stylus works best.
 **Knob:** turn to switch between STAT, DATA and LOG. On LOG, press to switch
 between changing tabs and scrolling. Hold 2 s for settings (refresh, sound,
-brightness, theme, scanlines, owner card, about, Wi-Fi reset).
+brightness, theme, scanlines, owner card, how to use, about, Wi-Fi reset).
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 
 Firmware details, the bring-up checklist and the release process are in
