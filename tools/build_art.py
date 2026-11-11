@@ -13,6 +13,7 @@ optional @<ms> to set how long that frame shows (default 500 ms):
     level1_1@3000.png   level1_2@150.png      -> idle, then a quick blink
 
 Poses: level0 level1 level2 level3 level4 final_week meeting_day no_date syncing
+birthday
 Each frame is exactly 64 x 96 pixels. Transparent pixels (or the palette's
 background colour, index 0) let the screen show through.
 """
@@ -31,7 +32,7 @@ DEFAULT_MS = 500
 
 # Same order as bc::Pose in firmware/lib/bookclub_state/src/bc_state.h.
 POSES = ["level0", "level1", "level2", "level3", "level4",
-         "final_week", "meeting_day", "no_date", "syncing"]
+         "final_week", "meeting_day", "no_date", "syncing", "birthday"]
 
 # Keep in step with buildPalette() in firmware/src/display.cpp.
 CURVE = [0, 8, 18, 30, 44, 60, 78, 98, 120, 150, 185, 220, 255]

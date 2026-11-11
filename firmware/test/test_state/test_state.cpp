@@ -602,6 +602,73 @@ void test_caps_before_clock_and_custom_rules() {
   TEST_ASSERT_EQUAL_INT16(14, computeFunCaps(d, at("2026-08-15"), "x", r).balance);
 }
 
+// ---- Birthdays -------------------------------------------------------------------
+
+static const char* kBirthdayJson = R"J({
+  "last": { "date": "2026-08-15" },
+  "next": { "date": "2026-12-05" },
+  "birthdays": {
+    "Pete": "03-14",
+    "Dave": "1984-11-20",
+    "Leap": "1996-02-29",
+    "Meet": "12-05",
+    "Bad": "14-03",
+    "Worse": 314
+  }
+})J";
+
+static BookClubData birthdayData() {
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(kBirthdayJson, strlen(kBirthdayJson), d));
+  return d;
+}
+
+void test_birthdays_parsed() {
+  BookClubData d = birthdayData();
+  TEST_ASSERT_EQUAL(4, d.birthdayCount);  // "Bad" and "Worse" skipped
+  TEST_ASSERT_EQUAL_STRING("Pete", d.birthdays[0].name);
+  TEST_ASSERT_EQUAL(3, d.birthdays[0].month);
+  TEST_ASSERT_EQUAL(14, d.birthdays[0].day);
+  TEST_ASSERT_EQUAL(11, d.birthdays[1].month);  // the year is accepted and ignored
+}
+
+void test_birthday_pose_and_index() {
+  BookClubData d = birthdayData();
+  auto s = computeState(d, at("2027-03-14"));
+  TEST_ASSERT_EQUAL((int)Pose::Birthday, (int)s.pose);
+  TEST_ASSERT_EQUAL_STRING("Pete", d.birthdays[s.birthdayIndex].name);
+  s = computeState(d, at("2026-11-20"));
+  TEST_ASSERT_EQUAL_STRING("Dave", d.birthdays[s.birthdayIndex].name);
+  TEST_ASSERT_EQUAL_INT32(97, s.exposureDays);  // birthdays don't touch exposure
+  s = computeState(d, at("2026-11-21"));
+  TEST_ASSERT_EQUAL(-1, s.birthdayIndex);
+  TEST_ASSERT_EQUAL((int)Pose::Level2, (int)s.pose);
+}
+
+void test_birthday_meeting_day_wins() {
+  BookClubData d = birthdayData();
+  auto s = computeState(d, at("2026-12-05"));
+  TEST_ASSERT_EQUAL((int)Quest::MeetingDay, (int)s.quest);
+  TEST_ASSERT_EQUAL((int)Pose::MeetingDay, (int)s.pose);
+  TEST_ASSERT_EQUAL_STRING("Meet", d.birthdays[s.birthdayIndex].name);  // still known
+}
+
+void test_birthday_leap_day() {
+  BookClubData d = birthdayData();
+  auto s = computeState(d, at("2027-02-28"));  // not a leap year
+  TEST_ASSERT_EQUAL_STRING("Leap", d.birthdays[s.birthdayIndex].name);
+  s = computeState(d, at("2028-02-28"));       // leap year: wait for the 29th
+  TEST_ASSERT_EQUAL(-1, s.birthdayIndex);
+  s = computeState(d, at("2028-02-29"));
+  TEST_ASSERT_EQUAL_STRING("Leap", d.birthdays[s.birthdayIndex].name);
+}
+
+void test_same_name() {
+  TEST_ASSERT_TRUE(sameName(" pete ", "Pete"));
+  TEST_ASSERT_FALSE(sameName("Pete", "Peter"));
+  TEST_ASSERT_FALSE(sameName("", "Pete"));
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -651,5 +718,10 @@ int main() {
   RUN_TEST(test_caps_side_quests_are_free);
   RUN_TEST(test_caps_owner_adjustments);
   RUN_TEST(test_caps_before_clock_and_custom_rules);
+  RUN_TEST(test_birthdays_parsed);
+  RUN_TEST(test_birthday_pose_and_index);
+  RUN_TEST(test_birthday_meeting_day_wins);
+  RUN_TEST(test_birthday_leap_day);
+  RUN_TEST(test_same_name);
   return UNITY_END();
 }

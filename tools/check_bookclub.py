@@ -104,6 +104,16 @@ def main(path):
                 warnings.append(f'fun_caps "{name}": use a whole number, e.g. 2 or -3, '
                                 f'or {{"adjust": -3, "note": "why"}}; it will be ignored')
 
+        bdays = doc.get("birthdays", {})
+        if not isinstance(bdays, dict):
+            warnings.append('"birthdays" should be a { "Name": "MM-DD" } object; it will be ignored')
+            bdays = {}
+        for name, v in bdays.items():
+            ok = isinstance(v, str) and (parse_date("2000-" + v) if len(v) == 5 else
+                                          parse_date("2000" + v[4:]) if len(v) == 10 else None)
+            if not ok:
+                warnings.append(f'birthday for "{name}" should be "MM-DD" or "YYYY-MM-DD"; it will be ignored')
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []

@@ -50,6 +50,7 @@ void drawPlaceholder(int x, int y, Pose pose, uint32_t t, bool label) {
     case Pose::MeetingDay: k.grin = true; k.armL = 4; k.armR = 4; k.confetti = true; k.headDy = (t / 180) % 2 ? -3 : 0; break;
     case Pose::NoDate: k.sign = true; k.blink = blinkNow; k.armR = 3; break;
     case Pose::Syncing: k.hourglass = true; break;
+    case Pose::Birthday: k.grin = true; k.armL = 4; k.armR = 3; k.confetti = true; break;
   }
 
   // Frame (placeholder box).

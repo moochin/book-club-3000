@@ -48,6 +48,7 @@ enum class Pose : uint8_t {
   MeetingDay,  // celebrating
   NoDate,      // waiting for orders
   Syncing,     // clock not set yet
+  Birthday,    // someone in the club has a birthday today
 };
 
 // Tunable thresholds. Change the defaults here, nowhere else.
@@ -88,6 +89,9 @@ struct DisplayState {
   SideQuest side = SideQuest::None;
   int8_t sideIndex = -1;      // index into data.sideQuests
   int32_t daysToSide = 0;
+
+  // Birthday: index into data.birthdays of someone whose birthday is today.
+  int8_t birthdayIndex = -1;
 };
 
 const Thresholds& defaultThresholds();
@@ -118,6 +122,11 @@ struct LogStats {
   Date gapFrom, gapTo;         // the meetings either side of that gap
 };
 LogStats computeLogStats(const BookClubData& data);
+
+// True if the birthday falls on `d` (29 Feb is marked on 28 Feb in other years).
+bool isBirthdayOn(const Birthday& b, const Date& d);
+// Case- and space-insensitive name match ("pete " == "Pete").
+bool sameName(const char* a, const char* b);
 
 // ---- Fun Caps ----------------------------------------------------------------
 // The joke currency of goodwill from home. Everyone earns caps while they're
