@@ -598,13 +598,13 @@ const HelpPage kHelp[] = {
       "BACK: tap a screen's title, or hold 2 s.",
       "LOG: tap the top or bottom half of the list to page through it."}},
     {"YOUR UNIT",
-     {"Owner name, card stats, theme, rotation and the GitHub token are set on the setup page.",
+     {"Owner name, card stats, theme, rotation and the data URL are set on the setup page.",
       "To open it: SETTINGS > WI-FI RESET > OPEN, then join the BookClub network on your phone "
       "(or browse to 192.168.4.1) and tap Configure WiFi.",
       "Your Wi-Fi is kept until you save a new one.", nullptr}},
     {"THE CLUB FILE",
-     {"Dates come from bookclub.json on GitHub, checked once a day. REFRESH NOW fetches it straight "
-      "away.",
+     {"Dates come from the club's bookclub.json (the data URL), checked once a day. REFRESH NOW "
+      "fetches it straight away.",
       "A warning triangle by the clock means the last fetch failed: ABOUT shows why.",
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
 };
