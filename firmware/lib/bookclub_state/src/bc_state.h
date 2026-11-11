@@ -30,6 +30,13 @@ enum class Quest : uint8_t {
   NoDate,      // next missing, null, or before last
 };
 
+// The next side quest (a get-together that isn't a proper club meeting).
+enum class SideQuest : uint8_t {
+  None,      // nothing on or after today
+  Upcoming,  // the next one is 1+ days away
+  Today,
+};
+
 // Which mascot sprite to draw.
 enum class Pose : uint8_t {
   Level0,      // thumbs up, grinning
@@ -76,6 +83,11 @@ struct DisplayState {
 
   Pose pose = Pose::Syncing;
   int16_t geigerClicksPerMin = 0;
+
+  // Side quest. Shown alongside the main quest; never touches exposure.
+  SideQuest side = SideQuest::None;
+  int8_t sideIndex = -1;      // index into data.sideQuests
+  int32_t daysToSide = 0;
 };
 
 const Thresholds& defaultThresholds();
@@ -96,6 +108,9 @@ void questLine(const DisplayState& s, char* buf, int len, uint32_t variant = 0);
 void countdownText(const DisplayState& s, char* buf, int len);
 // The label under the exposure bar, e.g. "LVL 2  MINOR SICKNESS".
 void exposureLabel(const DisplayState& s, char* buf, int len);
+// The side-quest teaser, e.g. "SIDE QUEST IN 12 DAYS", "SIDE QUEST TOMORROW",
+// "SIDE QUEST TODAY 14:00". Empty when there is none.
+void sideQuestLine(const DisplayState& s, const BookClubData& data, char* buf, int len);
 
 struct LogStats {
   int totalMeetings = 0;

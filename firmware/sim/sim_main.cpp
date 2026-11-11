@@ -142,6 +142,22 @@ int main(int argc, char** argv) {
   stale.offlineLong = true;
   ev(m, +1); shot("data_stale", stale); ev(m, -1);
 
+  // Side quest day: STAT shows both teaser phases, DATA the details.
+  {
+    bc::BookClubData sd;
+    bc::LocalNow sn;
+    scenarios::build(scenarios::count() - 1, sd, sn);
+    ui::Model sm = model(&sd, sn);
+    g_simMillis = 1000;
+    shot("side_today_stat_a", sm);
+    g_simMillis = 4000;
+    shot("side_today_stat_b", sm);
+    ev(sm, +1);
+    shot("side_today_data", sm);
+    ev(sm, -1);
+    g_simMillis = 1000;
+  }
+
   // Full-screen states.
   ui::Model portal = m; portal.portal = true; portal.portalCancellable = false;
   shot("portal_first_setup", portal);

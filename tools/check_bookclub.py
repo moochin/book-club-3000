@@ -84,6 +84,16 @@ def main(path):
         if last_date and any(d > last_date for d in dates):
             warnings.append('"history" has meetings after "last"; they will be hidden')
 
+        sq = doc.get("side_quests", [])
+        if not isinstance(sq, list):
+            warnings.append('"side_quests" should be a [ ... ] list; it will be ignored')
+            sq = []
+        for i, e in enumerate(sq):
+            if not isinstance(e, dict) or parse_date(e.get("date")) is None:
+                warnings.append(f"side quest {i + 1} has no valid date; it will be skipped")
+            elif "time" in e and e["time"] is not None and not time_ok(e["time"]):
+                warnings.append(f'side quest {i + 1}: "time" should be HH:MM; it will be ignored')
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []

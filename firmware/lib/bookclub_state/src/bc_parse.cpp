@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #include "bc_data.h"
 
@@ -101,6 +102,20 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
   d->historyCount = n + 1;
 
   copyText(root["message"], d->message, sizeof d->message);
+
+  // Side quests: valid entries, oldest first, keeping the latest few.
+  std::vector<Meeting> sq;
+  for (JsonVariantConst e : root["side_quests"].as<JsonArrayConst>()) {
+    if (sq.size() >= 64) break;
+    Meeting m;
+    if (readMeeting(e, m)) sq.push_back(m);
+  }
+  std::stable_sort(sq.begin(), sq.end(), [](const Meeting& a, const Meeting& b) {
+    return daysBetween(a.date, b.date) > 0;  // oldest first
+  });
+  const size_t skip = sq.size() > (size_t)kMaxSideQuests ? sq.size() - kMaxSideQuests : 0;
+  d->sideQuestCount = 0;
+  for (size_t i = skip; i < sq.size(); ++i) d->sideQuests[d->sideQuestCount++] = sq[i];
 
   JsonVariantConst fw = root["firmware"];
   if (fw.is<JsonObjectConst>()) {

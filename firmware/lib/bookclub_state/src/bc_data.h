@@ -14,6 +14,8 @@ namespace bc {
 constexpr int kTextLen = 48;
 constexpr int kMessageLen = 96;
 constexpr int kMaxHistory = 40;
+// Side quests kept (the latest by date; older ones drop off first).
+constexpr int kMaxSideQuests = 12;
 constexpr int kVersionLen = 16;
 constexpr int kUrlLen = 160;
 // Largest bookclub.json the firmware accepts (bytes).
@@ -44,6 +46,10 @@ struct BookClubData {
   int historyCount = 0;   // newest first; always contains `last`
   Meeting history[kMaxHistory];
   char message[kMessageLen] = "";
+  // Side quests: get-togethers that aren't a proper club meeting (families
+  // invited, say). Oldest first. They never reset exposure.
+  int sideQuestCount = 0;
+  Meeting sideQuests[kMaxSideQuests];
   FirmwareInfo firmware;  // optional "firmware" block for over-the-air updates
 };
 
