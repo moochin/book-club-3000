@@ -68,6 +68,9 @@ void render(const Model& m, uint32_t nowMs);
 // True when the current screen animates (needs frequent redraws).
 bool animating(const Model& m);
 
+// One frame of the start-up screen, msSinceStart into kBootSplashMs.
+void drawBoot(uint32_t msSinceStart);
+
 // Full-screen firmware update progress; safe to call from OTA callbacks.
 void drawUpdating(const char* title, int pct);
 

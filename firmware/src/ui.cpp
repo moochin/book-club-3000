@@ -9,6 +9,7 @@
 #include "clock.h"
 #include "config.h"
 #include "display.h"
+#include "logo_data.h"
 #include "mascot.h"
 #include "scenarios.h"
 #include "settings.h"
@@ -907,6 +908,91 @@ void render(const Model& m, uint32_t t) {
   }
   previewBanner(m);
   present(m.effects, t);
+}
+
+// ---- Start-up screen --------------------------------------------------------
+// Pure theatre: a made-up boot log scrolls past while the real start-up is a
+// few lines in setup(). Messages alternate with hex dumps of nothing at all.
+
+namespace {
+const char* const kBootLines[] = {
+    "BC-BIOS 3.0  (C) BOOK-CLUB INDUSTRIES",
+    "CPU XTENSA LX6 @ 240 MHZ ....... OK",
+    "MEMORY TEST 327680 BYTES ....... OK",
+    "MOUNTING /DEV/BOOKSHELF ........ OK",
+    "LOADING EXPOSURE TABLES ........ OK",
+    "CALIBRATING GEIGER COUNTER ..... OK",
+    "CHECKING SNACK RESERVES ........ LOW",
+    "PARSING QUEST LOG .............. OK",
+    "NEGOTIATING FUN CAPS ........... PENDING",
+    "WARMING UP VACUUM TUBES ........ OK",
+    "HANDSHAKE WITH CLUB MAINFRAME .. OK",
+    "ALL SYSTEMS NOMINAL",
+};
+constexpr int kBootMsgs = sizeof kBootLines / sizeof kBootLines[0];
+constexpr int kBootSteps = kBootMsgs * 2 - 1;  // a hex dump between messages
+constexpr int kBootLogRows = 7;
+
+// The Wide Glide logo: coverage 1..15 onto the theme's ramp, solid = hot.
+void drawLogo(int x0, int y0) {
+  auto& c = canvas();
+  const int stride = (logo::kW + 1) / 2;
+  for (int y = 0; y < logo::kH; ++y) {
+    for (int x = 0; x < logo::kW; ++x) {
+      const uint8_t b = logo::kPx[y * stride + x / 2];
+      const int cov = x % 2 ? (b & 15) : (b >> 4);
+      if (!cov) continue;
+      c.drawPixel(x0 + x, y0 + y, cov >= 14 ? kHot : (uint8_t)((cov * 12 + 7) / 15));
+    }
+  }
+}
+
+void bootLine(int step, char* buf, size_t len) {
+  if (step % 2 == 0) {
+    snprintf(buf, len, "%s", kBootLines[step / 2]);
+    return;
+  }
+  uint32_t v = 0x9E3779B9u * (uint32_t)(step + 7);  // any old noise
+  int n = snprintf(buf, len, "%08lX:", (unsigned long)(0x3FFB0000u + (v & 0xFFF0u)));
+  for (int i = 0; i < 8 && n < (int)len - 4; ++i) {
+    v = v * 1103515245u + 12345u;
+    n += snprintf(buf + n, len - n, " %02X", (unsigned)((v >> 16) & 0xFF));
+  }
+}
+}  // namespace
+
+void drawBoot(uint32_t ms) {
+  auto& c = canvas();
+  c.fillScreen(kBg);
+  drawLogo((cfg::kScreenW - logo::kW) / 2, 4);
+  char loading[16];
+  snprintf(loading, sizeof loading, "LOADING%.*s", (int)(ms / 300 % 4), "...");
+  text(100, 54, loading, kBright, 2, 2);  // left-aligned so the dots don't shift it
+
+  // The log: lines arrive evenly over the first 85% of the splash.
+  const uint32_t logMs = cfg::kBootSplashMs * 85 / 100;
+  int shown = (int)(ms * kBootSteps / logMs) + 1;
+  if (shown > kBootSteps) shown = kBootSteps;
+  const int top = 86;
+  c.drawRect(8, top - 4, cfg::kScreenW - 16, kBootLogRows * 16 + 8, kFaint);
+  const int first = shown > kBootLogRows ? shown - kBootLogRows : 0;
+  for (int i = first; i < shown; ++i) {
+    char line[56];
+    bootLine(i, line, sizeof line);
+    const bool newest = i == shown - 1;
+    text(14, top + (i - first) * 16, line, newest ? kHot : (i % 2 ? kDim : kText));
+  }
+  if ((ms / 250) % 2) {  // blinking cursor after the newest line
+    char line[56];
+    bootLine(shown - 1, line, sizeof line);
+    const int row = shown - 1 - first;
+    c.fillRect(14 + textWidth(line, 1) + 2, top + row * 16 + 2, 6, 12, kBright);
+  }
+
+  int permille = (int)(ms * 1000 / cfg::kBootSplashMs);
+  if (permille > 1000) permille = 1000;
+  bar(20, 212, 280, 14, permille, kBright);
+  present(true, ms);
 }
 
 void drawUpdating(const char* title, int pct) {

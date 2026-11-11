@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.0.0"
+#define BC_FW_VERSION "1.1.0"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -51,11 +51,13 @@ constexpr int kScreenH = 240;
 constexpr uint8_t kDefaultRotation = 1;  // confirm at bring-up (README)
 constexpr uint32_t kFrameMsEffects = 66;  // ~15 fps while scanline sweep runs
 constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
+constexpr uint32_t kBootSplashMs = 3200;  // start-up screen with the scrolling boot log
 
 // ---- Knob -------------------------------------------------------------------
 constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per click
 constexpr uint32_t kDebounceMs = 30;
 constexpr uint32_t kLongPressMs = 2000;
+constexpr uint32_t kKnobArmMs = 500;  // switch must read released this long first
 // Touch: tap tabs, menu items and buttons directly; hold anywhere 2 s for a
 // long press. Raw XPT2046 range: calibrate if taps land in the wrong place
 // (input.cpp logs each tap's screen position).
