@@ -191,7 +191,9 @@ need one.
 The look is inspired by retro sci-fi terminals but contains no game assets.
 The mascot is an original placeholder, the sounds are generated in code, and
 the text uses the classic 5×7 GLCD bitmap font bundled with LovyanGFX
-(BSD licence), stretched to a tall 6×16 cell. Libraries: LovyanGFX (FreeBSD),
+(BSD licence), stretched to a tall 6×16 cell. The boot-screen logo is a
+rendering of "BOOK-CLUB 3000" in Wide Glide (Brain Stew Fonts, 1997), made by
+`tools/build_logo.py`; the font file itself is not in the repo. Libraries: LovyanGFX (FreeBSD),
 WiFiManager (MIT), ArduinoJson (MIT), ESP32Encoder (MIT).
 
 ## Not done yet

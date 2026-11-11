@@ -9,6 +9,7 @@
 #include "clock.h"
 #include "config.h"
 #include "display.h"
+#include "logo_data.h"
 #include "mascot.h"
 #include "scenarios.h"
 #include "settings.h"
@@ -930,7 +931,21 @@ const char* const kBootLines[] = {
 };
 constexpr int kBootMsgs = sizeof kBootLines / sizeof kBootLines[0];
 constexpr int kBootSteps = kBootMsgs * 2 - 1;  // a hex dump between messages
-constexpr int kBootLogRows = 8;
+constexpr int kBootLogRows = 7;
+
+// The Wide Glide logo: coverage 1..15 onto the theme's ramp, solid = hot.
+void drawLogo(int x0, int y0) {
+  auto& c = canvas();
+  const int stride = (logo::kW + 1) / 2;
+  for (int y = 0; y < logo::kH; ++y) {
+    for (int x = 0; x < logo::kW; ++x) {
+      const uint8_t b = logo::kPx[y * stride + x / 2];
+      const int cov = x % 2 ? (b & 15) : (b >> 4);
+      if (!cov) continue;
+      c.drawPixel(x0 + x, y0 + y, cov >= 14 ? kHot : (uint8_t)((cov * 12 + 7) / 15));
+    }
+  }
+}
 
 void bootLine(int step, char* buf, size_t len) {
   if (step % 2 == 0) {
@@ -949,16 +964,16 @@ void bootLine(int step, char* buf, size_t len) {
 void drawBoot(uint32_t ms) {
   auto& c = canvas();
   c.fillScreen(kBg);
-  textCentered(160, 8, "BOOK-CLUB 3000", kHot, 3, 3);
+  drawLogo((cfg::kScreenW - logo::kW) / 2, 4);
   char loading[16];
   snprintf(loading, sizeof loading, "LOADING%.*s", (int)(ms / 300 % 4), "...");
-  text(100, 42, loading, kBright, 2, 2);  // left-aligned so the dots don't shift it
+  text(100, 54, loading, kBright, 2, 2);  // left-aligned so the dots don't shift it
 
   // The log: lines arrive evenly over the first 85% of the splash.
   const uint32_t logMs = cfg::kBootSplashMs * 85 / 100;
   int shown = (int)(ms * kBootSteps / logMs) + 1;
   if (shown > kBootSteps) shown = kBootSteps;
-  const int top = 70;
+  const int top = 86;
   c.drawRect(8, top - 4, cfg::kScreenW - 16, kBootLogRows * 16 + 8, kFaint);
   const int first = shown > kBootLogRows ? shown - kBootLogRows : 0;
   for (int i = first; i < shown; ++i) {
@@ -976,7 +991,7 @@ void drawBoot(uint32_t ms) {
 
   int permille = (int)(ms * 1000 / cfg::kBootSplashMs);
   if (permille > 1000) permille = 1000;
-  bar(20, 212, 280, 16, permille, kBright);
+  bar(20, 212, 280, 14, permille, kBright);
   present(true, ms);
 }
 
