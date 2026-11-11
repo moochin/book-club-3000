@@ -10,7 +10,7 @@ the same file, `bookclub.json`, from a secret GitHub gist that the club shares.
 bookclub.example.json   what the club file looks like (the real one is in the gist)
 firmware/       the PlatformIO project for the ESP32 "Cheap Yellow Display"
 art/            mascot art: PNGs you draw, baked into the firmware (art/README.md)
-tools/          check_bookclub.py (the same checks the units apply), art tools
+tools/          club_editor.py (edit the club file), check_bookclub.py, art tools
 docs/           the original handover/spec
 case/           (to come) STL files for the printed case
 ```
@@ -28,6 +28,15 @@ serve the old copy for a few minutes after an edit.
 A secret gist isn't listed or searchable, but anyone with the link can read
 it, so treat the link like a spare key. Gists have no collaborators, so
 everyone else sends their changes to the owner.
+
+**The easy way (gist owner):** `python3 tools/club_editor.py` opens a form
+in your browser with every field: next and last meeting, a button for "the
+next meeting happened", side quests, Fun Caps, history, the message and the
+firmware update block. It checks each change with the units' own rules and
+won't save a file they would reject. It needs the GitHub CLI signed in as
+the gist's owner (`gh auth login`). The first run asks for the gist's link
+and remembers it in `.bookclub-gist`, which git ignores. The page only
+runs on your computer.
 
 ```json
 {
