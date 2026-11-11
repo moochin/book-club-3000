@@ -32,6 +32,7 @@ minutes after an edit.
     { "date": "2026-03-02", "plan": "Pub, then co-op games", "location": "The Bell, Winchester" }
   ],
   "side_quests": [],
+  "fun_caps": {},
   "message": "Bring snacks"
 }
 ```
@@ -57,6 +58,24 @@ minutes after an edit.
   does. Past side quests stay in the LOG, marked as side quests, but don't
   count towards the meeting total or the longest gap. Leave old ones in the
   list or delete them, either is fine.
+- **Fun Caps** are the club's joke currency of goodwill from home, shown on
+  each unit's owner card (hold the knob 2 s → OWNER CARD). Everyone earns
+  **1 cap per fortnight** at home, up to **10**; each proper club night
+  costs **3** (side quests are free). The balance is worked out from the
+  meeting history, so it needs no upkeep and every unit agrees. To award a
+  bonus or a penalty, add the person's name (as set on their unit) to
+  `fun_caps`, with a whole number or a number and a reason:
+
+  ```json
+  "fun_caps": {
+    "Pete": { "adjust": 2, "note": "Did the school run" },
+    "Dave": -3
+  },
+  ```
+
+  Adjustments are running totals: change the number rather than adding new
+  entries. A balance can drop to -5 (overdrawn, in the doghouse). The rules
+  live in `CapsRules` in `firmware/lib/bookclub_state/src/bc_state.h`.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
   all optional. Older files that say `book` instead of `plan` still work.

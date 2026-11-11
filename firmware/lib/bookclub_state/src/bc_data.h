@@ -16,6 +16,8 @@ constexpr int kMessageLen = 96;
 constexpr int kMaxHistory = 40;
 // Side quests kept (the latest by date; older ones drop off first).
 constexpr int kMaxSideQuests = 12;
+constexpr int kMaxCapsPeople = 8;
+constexpr int kNameLen = 24;
 constexpr int kVersionLen = 16;
 constexpr int kUrlLen = 160;
 // Largest bookclub.json the firmware accepts (bytes).
@@ -38,6 +40,13 @@ struct FirmwareInfo {
   const char* urlFor(bool st7789) const;
 };
 
+// A per-person Fun Caps bonus or penalty from the "fun_caps" section.
+struct CapsAdjust {
+  char name[kNameLen] = "";
+  int16_t adjust = 0;
+  char note[kTextLen] = "";
+};
+
 struct BookClubData {
   int version = 0;
   Meeting last;           // always has a valid date after a successful parse
@@ -50,6 +59,8 @@ struct BookClubData {
   // invited, say). Oldest first. They never reset exposure.
   int sideQuestCount = 0;
   Meeting sideQuests[kMaxSideQuests];
+  int capsAdjustCount = 0;
+  CapsAdjust capsAdjust[kMaxCapsPeople];
   FirmwareInfo firmware;  // optional "firmware" block for over-the-air updates
 };
 

@@ -1,6 +1,7 @@
 #include "bc_state.h"
 
 #include <stdio.h>
+#include <string.h>
 
 namespace bc {
 
@@ -230,6 +231,64 @@ LogStats computeLogStats(const BookClubData& data) {
     }
   }
   return st;
+}
+
+const CapsRules& defaultCapsRules() {
+  static const CapsRules rules;
+  return rules;
+}
+
+static bool sameName(const char* a, const char* b) {
+  auto lower = [](char c) { return (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c; };
+  while (*a == ' ') ++a;
+  while (*b == ' ') ++b;
+  while (*a && *b && lower(*a) == lower(*b)) {
+    ++a;
+    ++b;
+  }
+  while (*a == ' ') ++a;
+  while (*b == ' ') ++b;
+  return *a == '\0' && *b == '\0';
+}
+
+FunCaps computeFunCaps(const BookClubData& data, const LocalNow& now, const char* owner,
+                       const CapsRules& r) {
+  FunCaps f;
+  f.costPerMeeting = r.costPerMeeting;
+  f.max = r.max;
+  if (!now.valid || data.historyCount <= 0) return f;
+  const int per = r.daysPerCap > 0 ? r.daysPerCap : 14;
+  auto clamp = [&](int v) { return v < r.min ? r.min : (v > r.max ? r.max : v); };
+
+  // Replay the meetings, oldest first: earn for the time at home, then pay.
+  int bal = r.start;
+  for (int i = data.historyCount - 1; i >= 0; --i) {
+    if (i < data.historyCount - 1) {
+      const int32_t gap = daysBetween(data.history[i + 1].date, data.history[i].date);
+      if (gap > 0) bal = clamp(bal + (int)(gap / per));
+    }
+    bal = clamp(bal - r.costPerMeeting);
+  }
+  // Earned since the last club night (side quests don't count either way).
+  int32_t since = daysBetween(data.last.date, now.date);
+  if (since < 0) since = 0;
+  const int before = bal;
+  bal = clamp(bal + (int)(since / per));
+  f.earnedSinceLast = (int16_t)(bal - before);
+
+  // The owner's bonus or penalty.
+  if (owner && owner[0]) {
+    for (int i = 0; i < data.capsAdjustCount; ++i) {
+      if (sameName(owner, data.capsAdjust[i].name)) {
+        f.adjust = data.capsAdjust[i].adjust;
+        memcpy(f.note, data.capsAdjust[i].note, sizeof f.note);
+        break;
+      }
+    }
+  }
+  f.balance = (int16_t)clamp(bal + f.adjust);
+  f.valid = true;
+  return f;
 }
 
 static const char* readPart(const char* p, long& out) {

@@ -18,6 +18,7 @@ const char* const kSampleJson = R"JSON({
     { "date": "2024-10-19", "plan": "Pub quiz", "location": "The Bell, Winchester" }
   ],
   "message": "Bring snacks",
+  "fun_caps": { "Pete": { "adjust": 1, "note": "Did the school run" } },
   "side_quests": [
     { "date": "2026-06-20", "plan": "BBQ, families welcome", "location": "Riverside" },
     { "date": "2026-12-20", "time": "14:00", "plan": "Xmas do with the families", "location": "Pete's house" }

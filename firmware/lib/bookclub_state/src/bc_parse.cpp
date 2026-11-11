@@ -26,9 +26,8 @@ const char* FirmwareInfo::urlFor(bool st7789) const {
   return present && strncmp(u, "https://", 8) == 0 ? u : nullptr;
 }
 
-static void copyText(JsonVariantConst v, char* dst, size_t cap) {
+static void copyStr(const char* s, char* dst, size_t cap) {
   dst[0] = '\0';
-  const char* s = v.is<const char*>() ? v.as<const char*>() : nullptr;
   if (!s) return;
   // Truncate on a UTF-8 character boundary.
   size_t n = strlen(s);
@@ -38,6 +37,10 @@ static void copyText(JsonVariantConst v, char* dst, size_t cap) {
   }
   memcpy(dst, s, n);
   dst[n] = '\0';
+}
+
+static void copyText(JsonVariantConst v, char* dst, size_t cap) {
+  copyStr(v.is<const char*>() ? v.as<const char*>() : nullptr, dst, cap);
 }
 
 // Returns false if the meeting has no valid date.
@@ -116,6 +119,29 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
   const size_t skip = sq.size() > (size_t)kMaxSideQuests ? sq.size() - kMaxSideQuests : 0;
   d->sideQuestCount = 0;
   for (size_t i = skip; i < sq.size(); ++i) d->sideQuests[d->sideQuestCount++] = sq[i];
+
+  // Fun Caps adjustments: "Name": number, or "Name": {"adjust": n, "note": "..."}.
+  d->capsAdjustCount = 0;
+  for (JsonPairConst kv : root["fun_caps"].as<JsonObjectConst>()) {
+    if (d->capsAdjustCount >= kMaxCapsPeople) break;
+    CapsAdjust& a = d->capsAdjust[d->capsAdjustCount];
+    a = CapsAdjust();
+    copyStr(kv.key().c_str(), a.name, sizeof a.name);
+    JsonVariantConst v = kv.value();
+    long n = 0;
+    if (v.is<long>()) {
+      n = v.as<long>();
+    } else if (v.is<JsonObjectConst>()) {
+      n = v["adjust"] | 0L;
+      copyText(v["note"], a.note, sizeof a.note);
+    } else {
+      continue;
+    }
+    if (n > 99) n = 99;
+    if (n < -99) n = -99;
+    a.adjust = (int16_t)n;
+    if (a.name[0]) ++d->capsAdjustCount;
+  }
 
   JsonVariantConst fw = root["firmware"];
   if (fw.is<JsonObjectConst>()) {

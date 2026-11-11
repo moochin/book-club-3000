@@ -40,6 +40,7 @@ struct Model {
   const char* owner = "";
   const uint8_t* stats = nullptr;
   int lightRaw = 0;
+  bc::FunCaps caps;                        // this unit owner's Fun Caps
 };
 
 enum class Action : uint8_t {

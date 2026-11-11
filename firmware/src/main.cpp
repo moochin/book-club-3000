@@ -244,6 +244,7 @@ void loop() {
   m.owner = u.owner;
   m.stats = u.stats;
   m.lightRaw = backlight::rawReading();
+  if (data) m.caps = bc::computeFunCaps(*data, now_, u.owner);
 
   const ui::Result r = ui::handle(ev, m, now);
   if (r.action != ui::Action::None) {
