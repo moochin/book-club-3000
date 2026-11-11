@@ -52,7 +52,7 @@ minutes after an edit.
   ```
 
   The next one shows as a countdown on STAT and in full on DATA, and on the
-  day the unit reassures you that no fun tokens are being spent. They
+  day the unit reassures you that no Fun Caps are being spent. They
   **never reset the exposure counter**: only a proper meeting in `last`
   does. Past side quests stay in the LOG, marked as side quests, but don't
   count towards the meeting total or the longest gap. Leave old ones in the

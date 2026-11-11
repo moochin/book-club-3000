@@ -229,7 +229,7 @@ void drawStat(const Model& m, uint32_t t) {
   if (m.data && s.side != bc::SideQuest::None) {
     bc::sideQuestLine(s, *m.data, buf, sizeof buf);
     const bool today = s.side == bc::SideQuest::Today;
-    if (today && (t / 3000) % 2) snprintf(buf, sizeof buf, "NO FUN TOKENS SPENT");
+    if (today && (t / 3000) % 2) snprintf(buf, sizeof buf, "NO FUN CAPS SPENT");
     text(92, 139, buf, today ? kHot : kDim, 1, 1);
   }
 
