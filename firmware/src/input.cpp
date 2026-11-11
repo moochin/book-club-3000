@@ -16,6 +16,7 @@ static bool g_down = false;
 static uint32_t g_changeMs = 0;
 static uint32_t g_downMs = 0;
 static bool g_longFired = false;
+static bool g_swArmed = false;  // the switch has been seen released
 
 // Touch: a tap is reported at the average of the readings taken while the
 // stylus was down. The first couple are skipped: a resistive panel reads off
@@ -99,6 +100,17 @@ Events poll(uint32_t now) {
   if (raw != g_rawDown) {
     g_rawDown = raw;
     g_changeMs = now;
+  }
+  // GPIO 35 has no internal pull-up: with no knob wired it floats low and
+  // looks held, which opened settings 2 s after every boot. Only listen once
+  // the switch has read released for a while, as a wired knob does at once.
+  if (!g_swArmed) {
+    if (raw || now - g_changeMs < cfg::kKnobArmMs) {
+      pollTouch(now, e);
+      return e;
+    }
+    g_swArmed = true;
+    Serial.println("[input] knob switch detected");
   }
   if (raw != g_down && now - g_changeMs >= cfg::kDebounceMs) {
     g_down = raw;

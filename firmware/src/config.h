@@ -56,6 +56,7 @@ constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
 constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per click
 constexpr uint32_t kDebounceMs = 30;
 constexpr uint32_t kLongPressMs = 2000;
+constexpr uint32_t kKnobArmMs = 500;  // switch must read released this long first
 // Touch: tap tabs, menu items and buttons directly; hold anywhere 2 s for a
 // long press. Raw XPT2046 range: calibrate if taps land in the wrong place
 // (input.cpp logs each tap's screen position).
