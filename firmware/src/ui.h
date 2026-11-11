@@ -37,6 +37,8 @@ struct Model {
   uint8_t fixedBrightness = 160;
   uint8_t theme = 0;
   bool effects = true;
+  uint8_t nightPreset = 1;
+  uint8_t idlePreset = 2;
   const char* owner = "";
   const uint8_t* stats = nullptr;
   int lightRaw = 0;
@@ -50,6 +52,8 @@ enum class Action : uint8_t {
   CycleBrightness,
   CycleTheme,
   ToggleEffects,
+  CycleNight,
+  CycleIdleDim,
   OpenPortal,
   CancelPortal,
   Preview,      // arg = scenario index

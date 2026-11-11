@@ -157,6 +157,16 @@ Panel& panel() { return g_panel; }
 #endif
 LGFX_Sprite& canvas() { return g_canvas; }
 
+static int8_t g_shiftX = 0, g_shiftY = 0;
+static bool g_shiftChanged = false;
+
+void setShift(int8_t dx, int8_t dy) {
+  if (dx == g_shiftX && dy == g_shiftY) return;
+  g_shiftX = dx;
+  g_shiftY = dy;
+  g_shiftChanged = true;
+}
+
 void present(bool effects, uint32_t nowMs) {
   if (effects) {
     uint8_t* buf = static_cast<uint8_t*>(g_canvas.getBuffer());
@@ -176,7 +186,12 @@ void present(bool effects, uint32_t nowMs) {
     }
   }
 #ifndef BC_SIM
-  g_canvas.pushSprite(0, 0);
+  if (g_shiftChanged) {
+    // Clear the strip the move uncovers, so no stale pixels stay behind.
+    g_panel.fillScreen(TFT_BLACK);
+    g_shiftChanged = false;
+  }
+  g_canvas.pushSprite(g_shiftX, g_shiftY);
 #else
   simPresent(g_canvas);
 #endif

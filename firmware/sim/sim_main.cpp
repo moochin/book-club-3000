@@ -127,8 +127,11 @@ int main(int argc, char** argv) {
 
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +5); ev(m, 0, true); shot("owner_card", m);
-  ev(m, 0, true); ev(m, +1); ev(m, 0, true); shot("about", m);
+  ev(m, +7); ev(m, 0, true); shot("owner_card", m);  // menu item 7: OWNER CARD
+  ev(m, 0, true); ev(m, +1); ev(m, 0, true);           // HOW TO USE
+  for (int i = 0; i < 3; ++i) ev(m, +1);
+  shot("help_screen", m);                                // its last page: THE SCREEN
+  ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("about", m);
   for (int i = 0; i < 5; ++i) ev(m, 0, true);
   shot("debug_menu", m);
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("wifi_confirm", m);
@@ -162,7 +165,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +5); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +7); ev(cm, 0, true);  // menu > owner card
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;

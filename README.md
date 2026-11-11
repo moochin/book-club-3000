@@ -136,7 +136,12 @@ back. On LOG, tap the top or bottom half of the list to page through it. A
 stylus works best.
 **Knob:** turn to switch between STAT, DATA and LOG. On LOG, press to switch
 between changing tabs and scrolling. Hold 2 s for settings (refresh, sound,
-brightness, theme, scanlines, owner card, how to use, about, Wi-Fi reset).
+brightness, theme, scanlines, screen off at night, dim when idle, owner card,
+how to use, about, Wi-Fi reset).
+**The screen** switches itself off at night (23:00–07:00 by default) and after
+10 minutes in a dark room, and dims after 30 minutes untouched; turn the knob
+or tap to wake it. Both times are in the settings menu. It's an LCD, so it
+can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 
 Firmware details, the bring-up checklist and the release process are in

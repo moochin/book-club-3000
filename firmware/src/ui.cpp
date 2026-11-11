@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bc_screen.h"
 #include "bc_text.h"
 #include "clock.h"
 #include "config.h"
@@ -29,6 +30,8 @@ enum MenuItem : uint8_t {
   kMiBrightness,
   kMiTheme,
   kMiEffects,
+  kMiNight,
+  kMiIdle,
   kMiOwner,
   kMiHelp,
   kMiAbout,
@@ -491,6 +494,8 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
       break;
     case kMiTheme: snprintf(buf, len, "THEME: %s", m.theme == 1 ? "AMBER" : "GREEN"); break;
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
+    case kMiNight: snprintf(buf, len, "SCREEN OFF: %s", bc::nightPreset(m.nightPreset).label); break;
+    case kMiIdle: snprintf(buf, len, "DIM WHEN IDLE: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
     case kMiHelp: snprintf(buf, len, "HOW TO USE"); break;
     case kMiAbout: snprintf(buf, len, "ABOUT"); break;
@@ -651,6 +656,12 @@ const HelpPage kHelp[] = {
       "fetches it straight away.",
       "A warning triangle by the clock means the last fetch failed: ABOUT shows why.",
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
+    {"THE SCREEN",
+     {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room. "
+      "Turn the knob or tap to wake it.",
+      "Left untouched it dims (SETTINGS > DIM WHEN IDLE).",
+      "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
+      nullptr}},
 };
 constexpr int kHelpPages = sizeof kHelp / sizeof kHelp[0];
 
@@ -741,6 +752,8 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiBrightness: r.action = Action::CycleBrightness; break;
           case kMiTheme: r.action = Action::CycleTheme; break;
           case kMiEffects: r.action = Action::ToggleEffects; break;
+          case kMiNight: r.action = Action::CycleNight; break;
+          case kMiIdle: r.action = Action::CycleIdleDim; break;
           case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
