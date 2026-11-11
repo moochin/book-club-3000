@@ -24,6 +24,11 @@ pio run -e cyd_st7789 -t upload     # the same for ST7789 boards
 pio device monitor                  # serial log, 115200
 ```
 
+If the upload stops at `Wrong boot mode detected (0x13)`, the board's
+auto-reset can't pull GPIO0 low (some CYD clones are wired this way): hold
+**BOOT** while the upload says `Connecting...`, and let go once it starts
+writing.
+
 | Environment | What it is |
 | --- | --- |
 | `cyd` | The firmware, ILI9341 panel |
@@ -62,12 +67,13 @@ pio run -e cyd_bringup -t upload && pio device monitor
    `kLdrDark` and `kLdrDarkRoom` in `src/config.h` (and flip
    `kLdrBrightIsLow` if the reading rises with light).
 
-**Confirmed on hardware:** _not yet_
+**Confirmed on hardware:** partly, on a USB-C "TPM408-2.8" board (2026-11-11).
+Flash it with the `cyd_st7789` env.
 
 | Setting | Value |
 | --- | --- |
-| Panel driver | ? |
-| `BC_PANEL_INVERT` | ? |
+| Panel driver | ST7789 |
+| `BC_PANEL_INVERT` | 0 (`rgb_order` false) |
 | Rotation in the case | ? |
 | Encoder counts per detent | ? |
 | LDR bright / dark readings | ? / ? |
