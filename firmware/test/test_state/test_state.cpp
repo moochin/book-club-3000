@@ -672,6 +672,41 @@ void test_same_name() {
 void setUp() {}
 void tearDown() {}
 
+void test_next_birthday_countdown() {
+  BookClubData d = birthdayData();
+  auto s = computeState(d, at("2026-11-01"));
+  TEST_ASSERT_EQUAL_STRING("Dave", d.birthdays[s.nextBirthdayIndex].name);
+  TEST_ASSERT_EQUAL_INT32(19, s.daysToNextBirthday);
+  TEST_ASSERT_TRUE(s.nextBirthdayDate == D("2026-11-20"));
+  char buf[48];
+  nextBirthdayNames(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("DAVE", buf);
+  s = computeState(d, at("2026-11-20"));       // the day itself counts
+  TEST_ASSERT_EQUAL_INT32(0, s.daysToNextBirthday);
+  s = computeState(d, at("2026-12-06"));       // wraps into next year; 2027 has no 29 Feb
+  TEST_ASSERT_EQUAL_STRING("Leap", d.birthdays[s.nextBirthdayIndex].name);
+  TEST_ASSERT_TRUE(s.nextBirthdayDate == D("2027-02-28"));
+  TEST_ASSERT_EQUAL_INT32(84, s.daysToNextBirthday);
+}
+
+void test_next_birthday_shared_and_none() {
+  auto s = computeState(file("2026-08-15", nullptr), at("2026-09-01"));
+  TEST_ASSERT_EQUAL(-1, s.nextBirthdayIndex);
+  const char* two = R"J({"last":{"date":"2026-08-15"},"birthdays":{"Al":"10-01","Bo":"10-01","Cy":"12-01"}})J";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(two, strlen(two), d));
+  s = computeState(d, at("2026-09-01"));
+  TEST_ASSERT_EQUAL(2, s.birthdaysOnNextDay);
+  char buf[48];
+  nextBirthdayNames(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("AL & BO", buf);
+  const char* three = R"J({"last":{"date":"2026-08-15"},"birthdays":{"Al":"10-01","Bo":"10-01","Cy":"10-01"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(three, strlen(three), d));
+  s = computeState(d, at("2026-09-01"));
+  nextBirthdayNames(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("AL +2", buf);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_table_well_rested_no_date);
@@ -722,6 +757,8 @@ int main() {
   RUN_TEST(test_birthday_pose_and_index);
   RUN_TEST(test_birthday_meeting_day_wins);
   RUN_TEST(test_birthday_leap_day);
+  RUN_TEST(test_next_birthday_countdown);
+  RUN_TEST(test_next_birthday_shared_and_none);
   RUN_TEST(test_same_name);
   return UNITY_END();
 }
