@@ -176,6 +176,14 @@ def question_mark(f, x0, y0):
     put(f, pts, HOT)
 
 
+def hat_stripes(f, rows=(8, 11, 14), x0=31, x1=40):
+    """Bright bands across the party hat, lost when the drawing is shrunk."""
+    for y in rows:
+        for x in range(x0, x1 + 1):
+            if f[y][x] in (10, 11, 12):
+                f[y][x] = HOT
+
+
 def repaint_face(f, cx, cy, rx, ry):
     """Smooth skin inside the face oval, with a one-pixel ink rim."""
     for y in range(96):
@@ -261,6 +269,11 @@ def build():
         f = convert(d("no_plans.jpg"))
         question_mark(f, 52, 1 + dy)
         out[f"no_date_{i}@1000.png"] = f
+
+    for i, seed in ((1, 3), (2, 4)):
+        f = convert(d("birthday.png"), beer=True, confetti=seed)
+        hat_stripes(f)
+        out[f"birthday_{i}@400.png"] = f
 
     for i, hand in ((1, (0, -1)), (2, (1, 0))):
         f = convert(d("waiting.jpg"))

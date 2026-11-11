@@ -49,6 +49,7 @@ runs on your computer.
   ],
   "side_quests": [],
   "fun_caps": {},
+  "birthdays": {},
   "message": "Bring snacks"
 }
 ```
@@ -92,6 +93,18 @@ runs on your computer.
   Adjustments are running totals: change the number rather than adding new
   entries. A balance can drop to -5 (overdrawn, in the doghouse). The rules
   live in `CapsRules` in `firmware/lib/bookclub_state/src/bc_state.h`.
+- **Birthdays** go in `birthdays`, as `"MM-DD"` or a full `"YYYY-MM-DD"`
+  (the year isn't used), under each person's name as set on their unit:
+
+  ```json
+  "birthdays": { "Pete": "03-14", "Dave": "1984-10-22" },
+  ```
+
+  On the day, every unit puts the mascot in his party hat and says whose
+  birthday it is; the birthday person's own unit says "HAPPY BIRTHDAY" and
+  plays the jingle once (outside quiet hours). A club meeting on the same
+  day still gets its own celebration. A 29 February birthday is marked on
+  28 February in other years.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
   all optional. Older files that say `book` instead of `plan` still work.

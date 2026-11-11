@@ -18,6 +18,7 @@ constexpr int kMaxHistory = 40;
 constexpr int kMaxSideQuests = 12;
 constexpr int kMaxCapsPeople = 8;
 constexpr int kNameLen = 24;
+constexpr int kMaxBirthdays = 12;
 constexpr int kVersionLen = 16;
 constexpr int kUrlLen = 160;
 // Largest bookclub.json the firmware accepts (bytes).
@@ -47,6 +48,13 @@ struct CapsAdjust {
   char note[kTextLen] = "";
 };
 
+// A birthday from the "birthdays" section (the year is optional and unused).
+struct Birthday {
+  char name[kNameLen] = "";
+  int8_t month = 0;  // 1..12
+  int8_t day = 0;    // 1..31
+};
+
 struct BookClubData {
   int version = 0;
   Meeting last;           // always has a valid date after a successful parse
@@ -61,6 +69,8 @@ struct BookClubData {
   Meeting sideQuests[kMaxSideQuests];
   int capsAdjustCount = 0;
   CapsAdjust capsAdjust[kMaxCapsPeople];
+  int birthdayCount = 0;
+  Birthday birthdays[kMaxBirthdays];
   FirmwareInfo firmware;  // optional "firmware" block for over-the-air updates
 };
 

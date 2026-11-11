@@ -234,13 +234,38 @@ void drawStat(const Model& m, uint32_t t) {
   else if (sick) ink = kWarn;
   text(92, 120, buf, ink);
 
-  // Side quest teaser. On the day it alternates with the family-friendly
-  // reassurance; it never changes the exposure above.
-  if (m.data && s.side != bc::SideQuest::None) {
-    bc::sideQuestLine(s, *m.data, buf, sizeof buf);
-    const bool today = s.side == bc::SideQuest::Today;
-    if (today && (t / 3000) % 2) snprintf(buf, sizeof buf, "NO FUN CAPS SPENT");
-    text(92, 139, buf, today ? kHot : kDim, 1, 1);
+  // Teaser line: birthdays and side quests take turns every 3 s. Neither
+  // changes the exposure above.
+  {
+    char lines[3][48];
+    uint8_t inks[3];
+    int n = 0;
+    if (m.data && s.birthdayIndex >= 0 && s.birthdayIndex < m.data->birthdayCount) {
+      const bc::Birthday& b = m.data->birthdays[s.birthdayIndex];
+      char name[bc::kNameLen];
+      bc::asciiFold(b.name, name, sizeof name);
+      bc::upperAscii(name);
+      if (bc::sameName(b.name, m.owner)) {
+        snprintf(lines[n], sizeof lines[n], "HAPPY BIRTHDAY, %s!", name);
+        inks[n++] = kHot;
+      } else {
+        snprintf(lines[n], sizeof lines[n], "IT'S %s'S BIRTHDAY TODAY", name);
+        inks[n++] = kBright;
+      }
+    }
+    if (m.data && s.side != bc::SideQuest::None) {
+      const bool today = s.side == bc::SideQuest::Today;
+      bc::sideQuestLine(s, *m.data, lines[n], sizeof lines[n]);
+      inks[n++] = today ? kHot : kDim;
+      if (today) {
+        snprintf(lines[n], sizeof lines[n], "NO FUN CAPS SPENT");
+        inks[n++] = kHot;
+      }
+    }
+    if (n) {
+      const int i = (int)((t / 3000) % (uint32_t)n);
+      text(92, 139, lines[i], inks[i], 1, 1);
+    }
   }
 
   // Quest box.

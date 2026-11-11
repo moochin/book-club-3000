@@ -1,4 +1,5 @@
 #include <ArduinoJson.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <algorithm>
@@ -141,6 +142,29 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
     if (n < -99) n = -99;
     a.adjust = (int16_t)n;
     if (a.name[0]) ++d->capsAdjustCount;
+  }
+
+  // Birthdays: "Name": "MM-DD" or "YYYY-MM-DD".
+  d->birthdayCount = 0;
+  for (JsonPairConst kv : root["birthdays"].as<JsonObjectConst>()) {
+    if (d->birthdayCount >= kMaxBirthdays) break;
+    const char* v = kv.value().is<const char*>() ? kv.value().as<const char*>() : nullptr;
+    if (!v) continue;
+    char full[11];
+    if (strlen(v) == 5) {
+      snprintf(full, sizeof full, "2000-%s", v);  // a leap year, so 02-29 is valid
+    } else {
+      snprintf(full, sizeof full, "%s", v);
+      if (strlen(v) == 10) memcpy(full, "2000", 4);
+    }
+    Date dt;
+    if (!parseDate(full, dt)) continue;
+    Birthday& b = d->birthdays[d->birthdayCount];
+    b = Birthday();
+    copyStr(kv.key().c_str(), b.name, sizeof b.name);
+    b.month = dt.month;
+    b.day = dt.day;
+    if (b.name[0]) ++d->birthdayCount;
   }
 
   JsonVariantConst fw = root["firmware"];

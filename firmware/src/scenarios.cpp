@@ -19,6 +19,7 @@ const char* const kSampleJson = R"JSON({
   ],
   "message": "Bring snacks",
   "fun_caps": { "Pete": { "adjust": 1, "note": "Did the school run" } },
+  "birthdays": { "Pete": "03-14", "Dave": "1984-10-22" },
   "side_quests": [
     { "date": "2026-06-20", "plan": "BBQ, families welcome", "location": "Riverside" },
     { "date": "2026-12-20", "time": "14:00", "plan": "Xmas do with the families", "location": "Pete's house" }
@@ -40,6 +41,8 @@ static const Scenario kScenarios[] = {
     {"NEXT BEFORE LAST", "2026-08-15", "2026-08-10", nullptr, "2026-08-20", 12, 0},
     {"LAST IN FUTURE", "2026-08-15", nullptr, nullptr, "2026-08-10", 12, 0},
     {"CLOCKS FORWARD 00:30", "2026-08-15", nullptr, nullptr, "2027-03-28", 0, 30},
+    {"BIRTHDAY (YOURS)", "2026-08-15", "2027-04-10", nullptr, "2027-03-14", 12, 0},
+    {"BIRTHDAY (DAVE'S)", "2026-08-15", "2026-12-05", "19:30", "2026-10-22", 12, 0},
     {"SIDE QUEST TODAY", "2026-08-15", "2027-01-16", nullptr, "2026-12-20", 11, 0},
 };
 

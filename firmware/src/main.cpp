@@ -33,7 +33,7 @@ int g_preview = -1;  // debug scenario being previewed, or -1 for live data
 bc::BookClubData g_previewData;
 bc::LocalNow g_previewNow;
 
-bc::Date g_jingledOn;  // meeting-day jingle plays once per day
+bc::Date g_jingledOn;  // meeting-day / birthday jingle plays once per day
 uint32_t g_lastFrameMs = 0;
 bool g_dirty = true;
 
@@ -216,7 +216,11 @@ void loop() {
 
   audio::setQuietHours(quietHours(liveNow));
   audio::setGeigerRate(data && state.clockValid ? state.geigerClicksPerMin : 0);
-  if (!preview && state.clockValid && state.quest == bc::Quest::MeetingDay &&
+  // The jingle: once on meeting day, and once on this unit owner's birthday.
+  const bool ownBirthday = data && state.birthdayIndex >= 0 &&
+                           bc::sameName(data->birthdays[state.birthdayIndex].name,
+                                        settings::get().owner);
+  if (!preview && state.clockValid && (state.quest == bc::Quest::MeetingDay || ownBirthday) &&
       g_jingledOn != liveNow.date && audio::canPlay()) {
     g_jingledOn = liveNow.date;
     audio::jingle();

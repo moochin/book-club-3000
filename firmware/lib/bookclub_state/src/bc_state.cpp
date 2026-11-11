@@ -77,6 +77,15 @@ DisplayState computeState(const BookClubData& data, const LocalNow& now, const T
 
   s.geigerClicksPerMin = s.antiRad ? 0 : th.geigerClicksPerMin[(int)s.level];
 
+  // Birthdays: the mascot dresses up for the day. A club meeting still wins.
+  for (int i = 0; i < data.birthdayCount && i < kMaxBirthdays; ++i) {
+    if (isBirthdayOn(data.birthdays[i], now.date)) {
+      s.birthdayIndex = (int8_t)i;
+      if (s.quest != Quest::MeetingDay) s.pose = Pose::Birthday;
+      break;
+    }
+  }
+
   // Side quest: the first one today or later. Deliberately ignored by the
   // exposure maths above: only a proper meeting (`last`) resets the counter.
   for (int i = 0; i < data.sideQuestCount && i < kMaxSideQuests; ++i) {
@@ -123,6 +132,7 @@ const char* poseName(Pose p) {
     case Pose::MeetingDay: return "PARTY";
     case Pose::NoDate: return "WAITING";
     case Pose::Syncing: return "SYNCING";
+    case Pose::Birthday: return "BIRTHDAY";
   }
   return "?";
 }
@@ -238,7 +248,12 @@ const CapsRules& defaultCapsRules() {
   return rules;
 }
 
-static bool sameName(const char* a, const char* b) {
+bool isBirthdayOn(const Birthday& b, const Date& d) {
+  if (b.month == d.month && b.day == d.day) return true;
+  return b.month == 2 && b.day == 29 && d.month == 2 && d.day == 28 && !isLeapYear(d.year);
+}
+
+bool sameName(const char* a, const char* b) {
   auto lower = [](char c) { return (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c; };
   while (*a == ' ') ++a;
   while (*b == ' ') ++b;
