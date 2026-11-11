@@ -33,6 +33,12 @@ static void pollTouch(uint32_t now, Events& e) {
       g_touchDownMs = now;
       g_touchX = tp.x;
       g_touchY = tp.y;
+      if (cfg::kTouchFlip) {
+        // Landscape rotations (1, 3): that axis is screen Y; portrait: X.
+        auto& p = display::panel();
+        if (p.getRotation() & 1) g_touchY = p.height() - 1 - g_touchY;
+        else g_touchX = p.width() - 1 - g_touchX;
+      }
       g_touchLongFired = false;
     }
     g_touchSeenMs = now;
