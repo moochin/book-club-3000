@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generates the mascot, "Patch", as 64 x 96 PNGs in art/mascot/.
+"""Generates "Patch", the first mascot, as 64 x 96 PNGs in art/patch/.
+
+Patch has been replaced by the drawn character (art/src/make_sprites.py)
+and is kept as an alternative. To use him again, copy art/patch/*.png into
+art/mascot/.
+
 
 Patch is an original character: a gamer in a pom-pom beanie and a hoodie,
 with headphones round the neck. Drawn in a bold, filled cartoon style:
@@ -7,8 +12,7 @@ bright shapes, dark outlines, a soft rim glow and a floor shadow.
 
     python3 art/src/make_mascot.py        (needs Pillow)
 
-This overwrites art/mascot/*.png. If you start hand-editing those PNGs,
-stop running this script (or delete the poses you edit from POSES below).
+This overwrites art/patch/*.png.
 Colours are palette indices (see art/README.md): 0 transparent, 1-12 the
 theme ramp, 13/14 warning dim/bright, 15 near-white.
 """
@@ -19,7 +23,7 @@ import random
 from PIL import Image, ImageDraw
 
 W, H = 64, 96
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mascot")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "patch")
 
 # Palette indices.
 CLEAR, SHADOW, LINE, GLOW = 0, 2, 2, 4
