@@ -7,6 +7,7 @@
 
 #include "bc_data.h"
 #include "bc_date.h"
+#include "bc_screen.h"
 #include "bc_state.h"
 #include "bc_text.h"
 
@@ -669,6 +670,71 @@ void test_same_name() {
   TEST_ASSERT_FALSE(sameName("", "Pete"));
 }
 
+// ---- Screen power ------------------------------------------------------------------
+
+static const uint32_t MIN = 60UL * 1000;
+
+static ScreenInputs screenAt(int hh, int mm, uint32_t idleMin) {
+  ScreenInputs in;
+  in.now = at("2026-11-20", hh, mm);
+  in.msSinceActivity = idleMin * MIN;
+  const NightWindow w = nightPreset(1);  // 23:00-07:00
+  in.nightEnabled = w.enabled;
+  in.nightFrom = w.from;
+  in.nightTo = w.to;
+  in.idleDimMs = idleDimPresetMs(2);     // 30 min
+  return in;
+}
+
+void test_screen_day_on_then_dim() {
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(screenAt(14, 0, 5)));
+  TEST_ASSERT_EQUAL((int)ScreenPower::Dim, (int)screenPower(screenAt(14, 0, 30)));
+  ScreenInputs never = screenAt(14, 0, 600);
+  never.idleDimMs = 0;
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(never));
+}
+
+void test_screen_night_off_and_wake() {
+  TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(screenAt(23, 30, 5)));
+  TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(screenAt(3, 0, 5)));   // wraps midnight
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(screenAt(3, 0, 1)));    // knob turned 1 min ago
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(screenAt(7, 0, 5)));    // window ends at 07:00
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(screenAt(22, 59, 5)));
+  ScreenInputs off = screenAt(3, 0, 5);
+  off.nightEnabled = false;
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(off));
+  ScreenInputs noClock = screenAt(3, 0, 5);
+  noClock.now.valid = false;  // before NTP: never guess it's night
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(noClock));
+}
+
+void test_screen_dark_room_and_hold() {
+  ScreenInputs in = screenAt(14, 0, 11);
+  in.msDark = 11 * MIN;
+  TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(in));
+  in.msSinceActivity = 2 * MIN;  // someone used it recently
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(in));
+  ScreenInputs held = screenAt(3, 0, 600);
+  held.hold = true;
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(held));
+}
+
+void test_minute_window_and_shift() {
+  TEST_ASSERT_TRUE(inMinuteWindow(0, 0, 420));
+  TEST_ASSERT_FALSE(inMinuteWindow(420, 0, 420));
+  TEST_ASSERT_FALSE(inMinuteWindow(600, 600, 600));  // empty window
+  int8_t dx, dy;
+  pixelShift(0, dx, dy);
+  TEST_ASSERT_TRUE(dx == 0 && dy == 0);
+  pixelShift(2, dx, dy);
+  TEST_ASSERT_TRUE(dx == 1 && dy == 1);
+  pixelShift(7, dx, dy);
+  TEST_ASSERT_TRUE(dx == 0 && dy == 1);
+  TEST_ASSERT_FALSE(nightPreset(0).enabled);
+  TEST_ASSERT_FALSE(nightPreset(99).enabled);  // bad stored value: safe default
+  TEST_ASSERT_EQUAL_UINT32(0, idleDimPresetMs(-1));
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -760,5 +826,9 @@ int main() {
   RUN_TEST(test_next_birthday_countdown);
   RUN_TEST(test_next_birthday_shared_and_none);
   RUN_TEST(test_same_name);
+  RUN_TEST(test_screen_day_on_then_dim);
+  RUN_TEST(test_screen_night_off_and_wake);
+  RUN_TEST(test_screen_dark_room_and_hold);
+  RUN_TEST(test_minute_window_and_shift);
   return UNITY_END();
 }

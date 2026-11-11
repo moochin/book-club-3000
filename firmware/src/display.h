@@ -53,6 +53,9 @@ void setBrightness(uint8_t level);  // 0..255
 Panel& panel();
 LGFX_Sprite& canvas();
 
+// Anti-retention nudge: the canvas is pushed at this offset (0..1 px each way).
+void setShift(int8_t dx, int8_t dy);
+
 // Pushes the canvas, applying scanlines and a slow sweep band when enabled.
 void present(bool effects, uint32_t nowMs);
 

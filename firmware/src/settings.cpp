@@ -42,6 +42,8 @@ void begin() {
   u.autoBrightness = p.getBool("autobr", true);
   u.fixedBrightness = p.getUChar("fixbr", 160);
   u.effects = p.getBool("fx", true);
+  u.nightPreset = p.getUChar("night", 1);
+  u.idlePreset = p.getUChar("idle", 2);
   p.end();
   for (auto& s : u.stats) s = constrain(s, 1, 10);
 }
@@ -63,6 +65,8 @@ void save() {
   p.putBool("autobr", u.autoBrightness);
   p.putUChar("fixbr", u.fixedBrightness);
   p.putBool("fx", u.effects);
+  p.putUChar("night", u.nightPreset);
+  p.putUChar("idle", u.idlePreset);
   p.end();
 }
 

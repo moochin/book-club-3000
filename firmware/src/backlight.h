@@ -1,14 +1,17 @@
-// Backlight: auto-dimming from the light sensor, a readable floor, and
-// blanking after 10 minutes in a dark room.
+// Backlight: auto-dimming from the light sensor, and the screen-power policy
+// (bc_screen.h): off at night and in a dark room, dimmed when idle.
 #pragma once
 
 #include <stdint.h>
 
+#include "bc_date.h"
+
 namespace backlight {
 
 void begin();
-// `activity` = the knob was used this tick (wakes the screen, resets blanking).
-void tick(uint32_t nowMs, bool activity);
+// `activity` = the knob or touch screen was used this tick (wakes the screen).
+// `now` is local time, for the night window.
+void tick(uint32_t nowMs, bool activity, const bc::LocalNow& now);
 
 bool blanked();
 // Keeps the screen awake (e.g. while the setup portal is open).

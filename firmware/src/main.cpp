@@ -11,6 +11,7 @@
 #include "audio.h"
 #include "backlight.h"
 #include "bc_data.h"
+#include "bc_screen.h"
 #include "bc_state.h"
 #include "bringup.h"
 #include "clock.h"
@@ -117,6 +118,8 @@ void doAction(const ui::Result& r) {
       display::setTheme(u.theme);
       break;
     case ui::Action::ToggleEffects: u.effects = !u.effects; break;
+    case ui::Action::CycleNight: u.nightPreset = (uint8_t)((u.nightPreset + 1) % bc::kNightPresets); break;
+    case ui::Action::CycleIdleDim: u.idlePreset = (uint8_t)((u.idlePreset + 1) % bc::kIdlePresets); break;
     case ui::Action::OpenPortal: net::openPortal(); return;
     case ui::Action::CancelPortal: net::closePortal(); return;
     case ui::Action::Preview:
@@ -181,7 +184,16 @@ void loop() {
   // A knob event on a blank screen only wakes it.
   const bool wasBlank = backlight::blanked();
   backlight::holdAwake(net::portalActive());
-  backlight::tick(now, ev.any());
+  const bc::LocalNow localForScreen = clockmod::localNow();
+  backlight::tick(now, ev.any(), localForScreen);
+  {
+    // Move the picture by a pixel each hour (a 4-step cycle) against image
+    // retention. Uses the real clock when set, so every unit agrees.
+    const uint32_t hours = clockmod::valid() ? (uint32_t)(clockmod::nowUtc() / 3600) : now / 3600000UL;
+    int8_t dx, dy;
+    bc::pixelShift(hours, dx, dy);
+    display::setShift(dx, dy);
+  }
   if (wasBlank && ev.any()) {
     ev = input::Events();
     g_dirty = true;
@@ -252,6 +264,8 @@ void loop() {
   m.fixedBrightness = u.fixedBrightness;
   m.theme = u.theme;
   m.effects = u.effects;
+  m.nightPreset = u.nightPreset;
+  m.idlePreset = u.idlePreset;
   m.owner = u.owner;
   m.stats = u.stats;
   m.lightRaw = backlight::rawReading();

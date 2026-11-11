@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "bc_screen.h"
 #include "config.h"
 #include "display.h"
 #include "settings.h"
@@ -13,6 +14,7 @@ static int g_level = 1000;  // smoothed 0..1000
 static uint32_t g_lastSampleMs = 0;
 static uint32_t g_darkSinceMs = 0;
 static bool g_dark = false;
+static uint32_t g_lastActivityMs = 0;
 static bool g_blanked = false;
 static bool g_hold = false;
 static int g_currentDuty = -1;
@@ -33,7 +35,7 @@ static bool rawIsDark(int raw) {
   return cfg::kLdrBrightIsLow ? raw >= cfg::kLdrDarkRoom : raw <= cfg::kLdrDarkRoom;
 }
 
-void tick(uint32_t now, bool activity) {
+void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
   if (now - g_lastSampleMs >= 200) {
     g_lastSampleMs = now;
     g_raw = analogRead(cfg::kPinLdr);
@@ -43,20 +45,27 @@ void tick(uint32_t now, bool activity) {
     if (dark && !g_dark) g_darkSinceMs = now;
     g_dark = dark;
   }
-
-  if (activity) {
-    g_blanked = false;
-    g_darkSinceMs = now;
-  }
-  if (!g_hold && g_dark && !g_blanked && now - g_darkSinceMs >= cfg::kBlankAfterDarkMs) {
-    g_blanked = true;
-  }
-  if (g_hold) g_blanked = false;
+  if (activity) g_lastActivityMs = now;
 
   const settings::Unit& u = settings::get();
+  bc::ScreenInputs in;
+  in.msSinceActivity = now - g_lastActivityMs;
+  in.msDark = g_dark ? now - g_darkSinceMs : 0;
+  in.hold = g_hold;
+  in.now = local;
+  const bc::NightWindow w = bc::nightPreset(u.nightPreset);
+  in.nightEnabled = w.enabled;
+  in.nightFrom = w.from;
+  in.nightTo = w.to;
+  in.idleDimMs = bc::idleDimPresetMs(u.idlePreset);
+  const bc::ScreenPower power = bc::screenPower(in);
+  g_blanked = power == bc::ScreenPower::Off;
+
   int duty;
-  if (g_blanked) {
+  if (power == bc::ScreenPower::Off) {
     duty = 0;
+  } else if (power == bc::ScreenPower::Dim) {
+    duty = cfg::kBacklightFloor;
   } else if (u.autoBrightness) {
     duty = cfg::kBacklightFloor + (cfg::kBacklightMax - cfg::kBacklightFloor) * g_level / 1000;
   } else {
