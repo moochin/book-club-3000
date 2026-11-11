@@ -1,15 +1,15 @@
-# Checks bookclub.json on every edit, so a typo made in GitHub's web editor
-# shows a red cross straight away. (Units also reject a bad file on their own
-# and keep their cached copy.)
+# Checks the example club file whenever it or the checker changes. The real
+# file lives in a secret gist (see README); check it with
+# python3 tools/check_bookclub.py <gist Raw link>.
 name: Check bookclub.json
 on:
   push:
-    paths: [bookclub.json, tools/check_bookclub.py]
+    paths: [bookclub.example.json, tools/check_bookclub.py]
   pull_request:
-    paths: [bookclub.json, tools/check_bookclub.py]
+    paths: [bookclub.example.json, tools/check_bookclub.py]
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/check_bookclub.py bookclub.json
+      - run: python3 tools/check_bookclub.py bookclub.example.json
