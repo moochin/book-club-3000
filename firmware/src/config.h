@@ -51,6 +51,7 @@ constexpr int kScreenH = 240;
 constexpr uint8_t kDefaultRotation = 1;  // confirm at bring-up (README)
 constexpr uint32_t kFrameMsEffects = 66;  // ~15 fps while scanline sweep runs
 constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
+constexpr uint32_t kBootSplashMs = 3200;  // start-up screen with the scrolling boot log
 
 // ---- Knob -------------------------------------------------------------------
 constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per click

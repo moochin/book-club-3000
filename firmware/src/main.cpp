@@ -158,6 +158,13 @@ void setup() {
   bringup::run();
 #endif
   checkFactoryReset();
+#if !BC_BRINGUP
+  // Start-up screen. Blocking is fine here: nothing else is running yet.
+  for (uint32_t start = millis(), t = 0; t < cfg::kBootSplashMs; t = millis() - start) {
+    ui::drawBoot(t);
+    delay(33);
+  }
+#endif
   backlight::begin();
   audio::setEnabled(u.sound);
   clockmod::begin();
