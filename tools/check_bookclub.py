@@ -94,6 +94,16 @@ def main(path):
             elif "time" in e and e["time"] is not None and not time_ok(e["time"]):
                 warnings.append(f'side quest {i + 1}: "time" should be HH:MM; it will be ignored')
 
+        caps = doc.get("fun_caps", {})
+        if not isinstance(caps, dict):
+            warnings.append('"fun_caps" should be a { "Name": number } object; it will be ignored')
+            caps = {}
+        for name, v in caps.items():
+            n = v.get("adjust") if isinstance(v, dict) else v
+            if isinstance(n, bool) or not isinstance(n, int):
+                warnings.append(f'fun_caps "{name}": use a whole number, e.g. 2 or -3, '
+                                f'or {{"adjust": -3, "note": "why"}}; it will be ignored')
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []

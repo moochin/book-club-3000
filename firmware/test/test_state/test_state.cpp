@@ -527,6 +527,81 @@ void test_side_quests_keep_the_latest_when_too_many() {
   TEST_ASSERT_TRUE(d.sideQuests[0].date == D("2027-01-04"));  // three oldest dropped
 }
 
+// ---- Fun Caps ------------------------------------------------------------------
+
+static const char* kCapsJson = R"J({
+  "last": { "date": "2026-08-15" },
+  "history": [ { "date": "2026-08-15" }, { "date": "2026-03-02" } ],
+  "side_quests": [ { "date": "2026-09-05", "plan": "BBQ with the families" } ],
+  "fun_caps": {
+    "pete": { "adjust": -4, "note": "Forgot the anniversary" },
+    "Dave": 2,
+    "Sam": { "adjust": -20 },
+    "Bad": "lots"
+  }
+})J";
+
+static BookClubData capsData() {
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(kCapsJson, strlen(kCapsJson), d));
+  return d;
+}
+
+void test_caps_parsed() {
+  BookClubData d = capsData();
+  TEST_ASSERT_EQUAL(3, d.capsAdjustCount);  // "Bad" has no number: skipped
+  TEST_ASSERT_EQUAL_STRING("pete", d.capsAdjust[0].name);
+  TEST_ASSERT_EQUAL_INT16(-4, d.capsAdjust[0].adjust);
+  TEST_ASSERT_EQUAL_STRING("Forgot the anniversary", d.capsAdjust[0].note);
+  TEST_ASSERT_EQUAL_INT16(2, d.capsAdjust[1].adjust);
+}
+
+void test_caps_replayed_from_history() {
+  BookClubData d = capsData();
+  // 5 - 3 = 2; +11 for the 166-day gap (capped at 10); -3 = 7; then +1 per fortnight.
+  FunCaps f = computeFunCaps(d, at("2026-08-15"), "Nobody");
+  TEST_ASSERT_TRUE(f.valid);
+  TEST_ASSERT_EQUAL_INT16(7, f.balance);
+  TEST_ASSERT_EQUAL_INT16(0, f.earnedSinceLast);
+  f = computeFunCaps(d, at("2026-09-01"), "Nobody");   // 17 days: +1
+  TEST_ASSERT_EQUAL_INT16(8, f.balance);
+  TEST_ASSERT_EQUAL_INT16(1, f.earnedSinceLast);
+  f = computeFunCaps(d, at("2026-11-20"), "Nobody");   // 97 days: +6, capped at 10
+  TEST_ASSERT_EQUAL_INT16(10, f.balance);
+  TEST_ASSERT_EQUAL_INT16(3, f.earnedSinceLast);
+}
+
+void test_caps_side_quests_are_free() {
+  BookClubData d = capsData();
+  BookClubData none = d;
+  none.sideQuestCount = 0;
+  TEST_ASSERT_EQUAL_INT16(computeFunCaps(none, at("2026-09-10"), "x").balance,
+                          computeFunCaps(d, at("2026-09-10"), "x").balance);
+}
+
+void test_caps_owner_adjustments() {
+  BookClubData d = capsData();
+  FunCaps f = computeFunCaps(d, at("2026-09-01"), " Pete ");  // case and spaces ignored
+  TEST_ASSERT_EQUAL_INT16(4, f.balance);                       // 8 - 4
+  TEST_ASSERT_EQUAL_INT16(-4, f.adjust);
+  TEST_ASSERT_EQUAL_STRING("Forgot the anniversary", f.note);
+  f = computeFunCaps(d, at("2026-09-01"), "Dave");
+  TEST_ASSERT_EQUAL_INT16(10, f.balance);                      // 8 + 2
+  f = computeFunCaps(d, at("2026-09-01"), "Sam");
+  TEST_ASSERT_EQUAL_INT16(-5, f.balance);                      // the doghouse floor
+}
+
+void test_caps_before_clock_and_custom_rules() {
+  BookClubData d = capsData();
+  LocalNow unset;
+  TEST_ASSERT_FALSE(computeFunCaps(d, unset, "Pete").valid);
+  CapsRules r;
+  r.costPerMeeting = 1;
+  r.max = 20;
+  // 5 - 1 = 4; +11 = 15; -1 = 14.
+  TEST_ASSERT_EQUAL_INT16(14, computeFunCaps(d, at("2026-08-15"), "x", r).balance);
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -571,5 +646,10 @@ int main() {
   RUN_TEST(test_side_quest_today_tomorrow_and_none);
   RUN_TEST(test_side_quest_and_meeting_same_day);
   RUN_TEST(test_side_quests_keep_the_latest_when_too_many);
+  RUN_TEST(test_caps_parsed);
+  RUN_TEST(test_caps_replayed_from_history);
+  RUN_TEST(test_caps_side_quests_are_free);
+  RUN_TEST(test_caps_owner_adjustments);
+  RUN_TEST(test_caps_before_clock_and_custom_rules);
   return UNITY_END();
 }

@@ -190,7 +190,13 @@ void drawCelebration(const Model& m, uint32_t t) {
   }
   frame(8, 184, 304, 48, kBright);
   text(16, 192, "+1 TO ALL STATS FOR THE EVENING", kText);
-  text(16, 210, "EXPOSURE PAUSED - ENJOY THE NIGHT", kDim);
+  if (m.caps.valid) {
+    char cost[48];
+    snprintf(cost, sizeof cost, "TONIGHT COSTS %d FUN CAPS - WORTH IT", m.caps.costPerMeeting);
+    text(16, 210, cost, kWarn);
+  } else {
+    text(16, 210, "EXPOSURE PAUSED - ENJOY THE NIGHT", kDim);
+  }
 }
 
 void drawStat(const Model& m, uint32_t t) {
@@ -485,18 +491,55 @@ void drawOwnerCard(const Model& m) {
   bc::asciiFold(m.owner[0] ? m.owner : settings::chipId(), name, sizeof name);
   bc::upperAscii(name);
   text(8, 34, name, kHot, 3, 3);
-  text(8, 62, "BOOK CLUB OPERATIVE, GRADE III", kDim);
+  text(8, 60, "BOOK CLUB OPERATIVE, GRADE III", kDim);
   for (int i = 0; i < settings::kStatCount; ++i) {
-    const int y = 86 + i * 21;
+    const int y = 80 + i * 18;
     text(8, y, settings::statName(i), kText);
     const int v = m.stats ? m.stats[i] : 5;
     for (int b = 0; b < 10; ++b) {
-      c.fillRect(140 + b * 14, y + 2, 11, 12, b < v ? kBright : kFaint);
+      c.fillRect(140 + b * 14, y + 3, 11, 10, b < v ? kBright : kFaint);
     }
     char n[4];
     snprintf(n, sizeof n, "%d", v);
     textRight(cfg::kScreenW - 6, y, n, kHot);
   }
+
+  // Fun Caps: round tokens in the warning colour (a plain generic coin).
+  c.drawFastHLine(0, 207, cfg::kScreenW, kFaint);
+  if (!m.caps.valid) {
+    text(8, 212, "FUN CAPS", kText);
+    text(140, 212, "COUNTING...", kDim);
+    return;
+  }
+  const int bal = m.caps.balance;
+  text(8, 212, "FUN CAPS", kWarn);
+  for (int b = 0; b < m.caps.max && b < 10; ++b) {
+    const int cx = 145 + b * 14, cy = 220;
+    if (b < bal) {
+      c.fillCircle(cx, cy, 5, kWarn);
+      c.drawCircle(cx, cy, 3, kWarnDim);
+    } else {
+      c.drawCircle(cx, cy, 5, kFaint);
+    }
+  }
+  char n[8];
+  snprintf(n, sizeof n, "%d", bal);
+  textRight(cfg::kScreenW - 6, 212, n, bal < 0 ? kWarn : kHot);
+  // The small print: what was banked, and any bonus or penalty with its reason.
+  char small[96], note[bc::kTextLen];
+  if (bal < 0) {
+    snprintf(small, sizeof small, "OVERDRAWN - IN THE DOGHOUSE");
+  } else {
+    snprintf(small, sizeof small, "+%d BANKED SINCE THE LAST CLUB NIGHT", m.caps.earnedSinceLast);
+  }
+  if (m.caps.adjust) {
+    bc::asciiFold(m.caps.note, note, sizeof note);
+    bc::upperAscii(note);
+    snprintf(small, sizeof small, "%s%+d %s", bal < 0 ? "OVERDRAWN: " : "", m.caps.adjust,
+             note[0] ? note : (m.caps.adjust > 0 ? "BONUS" : "PENALTY"));
+  }
+  small[52] = '\0';
+  text(8, 230, small, bal < 0 ? kWarn : kDim, 1, 1);
 }
 
 void drawAbout(const Model& m) {

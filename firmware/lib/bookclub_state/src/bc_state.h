@@ -119,6 +119,35 @@ struct LogStats {
 };
 LogStats computeLogStats(const BookClubData& data);
 
+// ---- Fun Caps ----------------------------------------------------------------
+// The joke currency of goodwill from home. Everyone earns caps while they're
+// at home, each proper club night spends some, side quests are free. The
+// balance is replayed from the meeting history, so every unit agrees, then
+// the owner's bonus or penalty from the file's "fun_caps" section is added.
+
+struct CapsRules {
+  int16_t start = 5;           // balance before the first meeting in the log
+  int16_t daysPerCap = 14;     // one cap earned per fortnight at home
+  int16_t costPerMeeting = 3;  // what a proper club night costs
+  int16_t max = 10;            // the most you can bank
+  int16_t min = -5;            // how far into the doghouse you can go
+};
+const CapsRules& defaultCapsRules();
+
+struct FunCaps {
+  bool valid = false;          // false before the clock is set
+  int16_t balance = 0;         // after the adjustment, clamped to [min, max]
+  int16_t earnedSinceLast = 0; // banked since the last club night
+  int16_t adjust = 0;          // the owner's bonus (+) or penalty (-)
+  char note[kTextLen] = "";    // the reason given for it, if any
+  int16_t costPerMeeting = 0;
+  int16_t max = 0;
+};
+
+// `owner` is matched case-insensitively against the "fun_caps" names.
+FunCaps computeFunCaps(const BookClubData& data, const LocalNow& now, const char* owner,
+                       const CapsRules& rules = defaultCapsRules());
+
 // Compares dotted numeric versions ("1.2.10" > "1.2.9"). Returns <0, 0, >0.
 // A leading 'v' is ignored; missing parts count as 0.
 int compareVersions(const char* a, const char* b);

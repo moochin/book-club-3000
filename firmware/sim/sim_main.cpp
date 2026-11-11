@@ -54,6 +54,7 @@ static ui::Model model(const bc::BookClubData* d, const bc::LocalNow& now) {
   m.stats = g_stats;
   m.effects = false;
   m.lightRaw = 312;
+  if (d) m.caps = bc::computeFunCaps(*d, now, "Pete");
   return m;
 }
 
@@ -156,6 +157,21 @@ int main(int argc, char** argv) {
     shot("side_today_data", sm);
     ev(sm, -1);
     g_simMillis = 1000;
+  }
+
+  // Fun Caps on the owner card: a penalty, and the doghouse.
+  {
+    ui::Model cm = m;
+    ev(cm, 0, false, true); ev(cm, +5); ev(cm, 0, true);  // menu > owner card
+    cm.caps.adjust = -4;
+    strcpy(cm.caps.note, "Forgot the anniversary");
+    cm.caps.balance = 6;
+    shot("owner_card_penalty", cm);
+    cm.caps.adjust = -12;
+    strcpy(cm.caps.note, "Missed the school play for club night");
+    cm.caps.balance = -2;
+    shot("owner_card_overdrawn", cm);
+    ev(cm, 0, true); ev(cm, 0, false, true);  // back to tabs
   }
 
   // Full-screen states.
