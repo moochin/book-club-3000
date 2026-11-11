@@ -33,14 +33,9 @@ def time_ok(s):
     return h <= 23 and m <= 59
 
 
-def main(path):
+def check(raw):
+    """Returns (errors, warnings) for the file's bytes. Errors: units reject it."""
     errors, warnings = [], []
-    if path.startswith("https://"):
-        import urllib.request
-        with urllib.request.urlopen(path, timeout=15) as r:
-            raw = r.read()
-    else:
-        raw = open(path, "rb").read()
     if len(raw) > MAX_BYTES:
         errors.append(f"file is {len(raw)} bytes; units accept at most {MAX_BYTES}")
     try:
@@ -115,7 +110,17 @@ def main(path):
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []
             if not isinstance(fw, dict) or not fw.get("version") or not any(u.startswith("https://") for u in urls):
                 warnings.append('"firmware" needs a "version" and an https:// "url" or "url_st7789"; it will be ignored')
+    return errors, warnings
 
+
+def main(path):
+    if path.startswith("https://"):
+        import urllib.request
+        with urllib.request.urlopen(path, timeout=15) as r:
+            raw = r.read()
+    else:
+        raw = open(path, "rb").read()
+    errors, warnings = check(raw)
     for w in warnings:
         print(f"WARNING: {w}")
     for e in errors:
