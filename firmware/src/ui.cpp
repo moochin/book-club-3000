@@ -578,7 +578,7 @@ void drawAbout(const Model& m) {
   line("MEMORY", buf);
   snprintf(buf, sizeof buf, "%d", m.lightRaw);
   line("LIGHT", buf);
-  text(8, 222, "PRESS TO GO BACK", kDim);
+  text(8, 222, "TURN, OR TAP THE TITLE, TO GO BACK", kDim);
 }
 
 void drawConfirmPortal() {
@@ -594,10 +594,12 @@ void drawConfirmPortal() {
   c.drawRect(180, y, 100, 32, !g_confirmYes ? kHot : kFaint);
   textCentered(90, y + 8, "OPEN", g_confirmYes ? kHot : kDim, 2, 2);
   textCentered(230, y + 8, "CANCEL", !g_confirmYes ? kHot : kDim, 2, 2);
-  text(8, 206, "TURN TO CHOOSE, PRESS TO CONFIRM", kDim);
+  text(8, 206, "TAP A BUTTON, OR TURN AND PRESS", kDim);
 }
 
 }  // namespace
+
+Result handleTap(int x, int y, const Model& m, uint32_t now);
 
 void begin() {}
 
@@ -615,6 +617,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
     if (e.longPress && m.portalCancellable) r.action = Action::CancelPortal;
     return r;
   }
+  if (e.tap) return handleTap(e.x, e.y, m, now);
 
   switch (g_screen) {
     case Screen::Tabs:
@@ -705,6 +708,86 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
   return r;
 }
 
+// A touch-screen tap: pick what was tapped, then reuse the knob logic.
+// Tapping a screen's title goes back (as a long press does).
+Result handleTap(int x, int y, const Model& m, uint32_t now) {
+  Result r;
+  r.redraw = true;
+  input::Events press;
+  press.shortPress = true;
+  input::Events hold;
+  hold.longPress = true;
+  const bool title = y < 27;
+
+  switch (g_screen) {
+    case Screen::Tabs:
+      if (title) {
+        for (int i = 0; i < kTabCount; ++i) {
+          const int tx = 8 + i * 70;  // as drawn by header()
+          if (x >= tx - 4 && x < tx + 66) {
+            g_tab = (uint8_t)i;
+            g_logScroll = false;
+            return r;
+          }
+        }
+        if (x >= 220) return handle(hold, m, now);  // clock corner: settings
+        return r;
+      }
+      // LOG: tap the top or bottom half of the list to page through it.
+      if (g_tab == kLog && m.data && m.state.clockValid) {
+        const int top = 52, bottom = 52 + kLogRows * kLogRowH;
+        if (y >= top - 4 && y < bottom) {
+          g_logTop += y < (top + bottom) / 2 ? -(kLogRows - 1) : (kLogRows - 1);
+          if (g_logTop < 0) g_logTop = 0;  // upper clamp in drawLog
+        }
+      }
+      return r;
+
+    case Screen::Menu:
+    case Screen::Debug: {
+      if (title) return handle(hold, m, now);
+      const bool menu = g_screen == Screen::Menu;
+      const int count = menu ? (int)kMenuCount : scenarios::count() + 1;
+      const int rowH = menu ? 20 : 18;  // as passed to drawList()
+      int& sel = menu ? g_menuSel : g_debugSel;
+      const int visible = (cfg::kScreenH - 34) / rowH;
+      int top = sel - visible + 1;
+      if (top < 0) top = 0;
+      if (y < 31) return r;
+      const int row = (y - 31) / rowH;
+      if (row >= visible || top + row >= count) return r;
+      const int i = top + row;
+      if (row == visible - 1 && i < count - 1) {  // bottom row of a long list: scroll
+        sel = i + 1;
+        return r;
+      }
+      sel = i;
+      return handle(press, m, now);
+    }
+
+    case Screen::OwnerCard:
+      return handle(press, m, now);
+
+    case Screen::About:
+      return handle(title ? hold : press, m, now);  // body taps count for the hidden menu
+
+    case Screen::ConfirmPortal:
+      if (title) return handle(hold, m, now);
+      if (y >= 146 && y < 186) {  // the OPEN / CANCEL buttons
+        if (x >= 36 && x < 144) {
+          g_confirmYes = true;
+          return handle(press, m, now);
+        }
+        if (x >= 176 && x < 284) {
+          g_confirmYes = false;
+          return handle(press, m, now);
+        }
+      }
+      return r;
+  }
+  return r;
+}
+
 void render(const Model& m, uint32_t t) {
   auto& c = canvas();
   c.fillScreen(kBg);
@@ -721,7 +804,7 @@ void render(const Model& m, uint32_t t) {
       drawCentredScreen("NO DATA YET",
                         m.wifiUp ? "Fetching the club file..." : "Waiting for Wi-Fi...",
                         m.syncError[0] ? m.syncError : nullptr,
-                        "Hold the knob for 2 s for settings.", t);
+                        "Hold 2 s, or tap the clock, for settings.", t);
     } else if (!m.state.clockValid) {
       drawCentredScreen("SYNCING CLOCK",
                         m.wifiUp ? "Asking the time servers..." : "Waiting for Wi-Fi to set the time.",
