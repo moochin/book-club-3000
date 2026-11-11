@@ -44,6 +44,7 @@ int g_menuSel = 0;
 int g_debugSel = 0;
 bool g_confirmYes = false;
 int g_helpPage = 0;
+Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
 uint8_t g_aboutPresses = 0;
 uint32_t g_aboutFirstPressMs = 0;
 
@@ -588,15 +589,16 @@ void drawAbout(const Model& m) {
 
 struct HelpPage {
   const char* title;
-  const char* paras[4];
+  const char* paras[5];
 };
 
 const HelpPage kHelp[] = {
     {"GETTING AROUND",
-     {"TABS: tap STAT, DATA or LOG at the top, or turn the knob.",
-      "SETTINGS: tap the clock, or hold 2 s anywhere (or hold the knob).",
+     {"TABS: tap STAT, DATA or LOG, or turn the knob.",
+      "SETTINGS: tap the clock, or hold 2 s anywhere.",
       "BACK: tap a screen's title, or hold 2 s.",
-      "LOG: tap the top or bottom half of the list to page through it."}},
+      "LOG: tap the top or bottom half to page.",
+      "OWNER CARD: tap the mascot."}},
     {"YOUR UNIT",
      {"Owner name, card stats, theme, rotation and the data URL are set on the setup page.",
       "To open it: SETTINGS > WI-FI RESET > OPEN, then join the BookClub network on your phone "
@@ -697,7 +699,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiBrightness: r.action = Action::CycleBrightness; break;
           case kMiTheme: r.action = Action::CycleTheme; break;
           case kMiEffects: r.action = Action::ToggleEffects; break;
-          case kMiOwner: g_screen = Screen::OwnerCard; break;
+          case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
           case kMiWifi: g_screen = Screen::ConfirmPortal; g_confirmYes = false; break;
@@ -707,7 +709,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       break;
 
     case Screen::OwnerCard:
-      if (e.shortPress || e.longPress) g_screen = Screen::Menu;
+      if (e.shortPress || e.longPress) g_screen = g_cardReturn;
       break;
 
     case Screen::Help:
@@ -791,6 +793,12 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
           }
         }
         if (x >= 220) return handle(hold, m, now);  // clock corner: settings
+        return r;
+      }
+      // The mascot (left side of STAT and the full-screen states): owner card.
+      if ((g_tab == kStat || !m.data || !m.state.clockValid) && x < 88 && y >= 30 && y < 160) {
+        g_screen = Screen::OwnerCard;
+        g_cardReturn = Screen::Tabs;
         return r;
       }
       // LOG: tap the top or bottom half of the list to page through it.
