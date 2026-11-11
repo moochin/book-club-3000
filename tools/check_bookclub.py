@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks bookclub.json the way the Book-Club 3000 firmware reads it.
 
-Run: python3 tools/check_bookclub.py [path]   (defaults to ./bookclub.json)
+Run: python3 tools/check_bookclub.py [path or https:// URL]
+     (defaults to ./bookclub.json; pass the gist's Raw link to check the live file)
 
 Errors mean every unit would REJECT the file and keep showing its cached copy.
 Warnings mean the units will cope, but the file probably isn't what you meant.
@@ -34,7 +35,12 @@ def time_ok(s):
 
 def main(path):
     errors, warnings = [], []
-    raw = open(path, "rb").read()
+    if path.startswith("https://"):
+        import urllib.request
+        with urllib.request.urlopen(path, timeout=15) as r:
+            raw = r.read()
+    else:
+        raw = open(path, "rb").read()
     if len(raw) > MAX_BYTES:
         errors.append(f"file is {len(raw)} bytes; units accept at most {MAX_BYTES}")
     try:

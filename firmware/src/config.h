@@ -75,8 +75,9 @@ constexpr uint32_t kSyncRetryMs[] = {2UL * 60 * 1000, 10UL * 60 * 1000, 30UL * 6
                                      60UL * 60 * 1000};
 constexpr uint32_t kSyncStaleSecs = 7UL * 24 * 60 * 60;  // warning icon after 7 days
 constexpr uint32_t kHttpTimeoutMs = 15000;
-constexpr const char* kDefaultDataUrl =
-    "https://raw.githubusercontent.com/moochin/book-club-3000/main/bookclub.json";
+// No built-in data URL: the club file lives in a secret gist whose link must
+// stay out of this (public) repo. Each unit is given it on the setup page.
+constexpr const char* kDefaultDataUrl = "";
 
 // ---- Wi-Fi ------------------------------------------------------------------
 constexpr uint32_t kWifiRetryMs = 60UL * 1000;          // background reconnect cadence

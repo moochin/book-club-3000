@@ -22,7 +22,7 @@ static WiFiManagerParameter g_header("<h3>Book-Club 3000 unit settings</h3>");
 static WiFiManagerParameter g_pOwner("owner", "Owner name", "", 23);
 static WiFiManagerParameter g_pTheme("theme", "Theme colour: green or amber", "green", 6);
 static WiFiManagerParameter g_pStats("stats", "Owner card stats: seven numbers 1-10, e.g. 7,3,9,5,8,2,6", "", 31);
-static WiFiManagerParameter g_pUrl("url", "Data file URL (raw bookclub.json)", "", 159);
+static WiFiManagerParameter g_pUrl("url", "Data file URL (the gist's Raw link)", "", 159);
 static WiFiManagerParameter g_pToken("token", "GitHub token (private repo only). Blank keeps the saved one, '-' clears it", "", 127,
                                      "type='password' autocomplete='off'");
 static WiFiManagerParameter g_pRotation("rot", "Screen rotation 0-3", "1", 1);

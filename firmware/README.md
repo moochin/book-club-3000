@@ -174,12 +174,17 @@ binary. List only the one your fleet uses if they are all the same.
 The partition table (`partitions.csv`) has two 1.9 MB app slots for OTA and a
 64 KB NVS, which holds settings, saved Wi-Fi and the cached file.
 
-## Private repo
+## Where the data comes from
 
-If the repo is private, each unit needs a read-only fine-grained GitHub token
-(Contents: read, this repo only). Enter it on the setup page; it is stored
-only in that unit's NVS and sent as `Authorization: Bearer`. Never commit it.
-The data URL stays the `raw.githubusercontent.com` one.
+There is no built-in data URL: the club file is in a secret gist, and its
+link must never be committed to this public repo. Each unit is given the
+gist's Raw link (`https://gist.githubusercontent.com/<user>/<id>/raw/bookclub.json`,
+without a commit hash) on the setup page and keeps it in NVS. Until it has
+one, the unit shows **no data URL: set it on the setup page**.
+
+The setup page also takes an optional GitHub token, sent as
+`Authorization: Bearer`, for a data file in a private repo. The gist doesn't
+need one.
 
 ## Licences and IP
 
