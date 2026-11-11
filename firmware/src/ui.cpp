@@ -224,6 +224,15 @@ void drawStat(const Model& m, uint32_t t) {
   else if (sick) ink = kWarn;
   text(92, 120, buf, ink);
 
+  // Side quest teaser. On the day it alternates with the family-friendly
+  // reassurance; it never changes the exposure above.
+  if (m.data && s.side != bc::SideQuest::None) {
+    bc::sideQuestLine(s, *m.data, buf, sizeof buf);
+    const bool today = s.side == bc::SideQuest::Today;
+    if (today && (t / 3000) % 2) snprintf(buf, sizeof buf, "NO FUN CAPS SPENT");
+    text(92, 139, buf, today ? kHot : kDim, 1, 1);
+  }
+
   // Quest box.
   frame(8, 150, 304, 82, s.quest == bc::Quest::Overdue ? kWarn : kMid);
   text(16, 154, "QUEST", kDim, 1, 1);
@@ -264,35 +273,68 @@ void drawStat(const Model& m, uint32_t t) {
 void drawData(const Model& m) {
   auto& c = canvas();
   const bc::BookClubData& d = *m.data;
-  char buf[48], date[16];
+  const auto& st = m.state;
+  const bool sq = st.side != bc::SideQuest::None && st.sideIndex >= 0;
+  char buf[64], date[16];
+  // Row positions: the side-quest block squeezes the rest when present.
+  const int yPlan = sq ? 72 : 78, yAt = sq ? 88 : 96, yMsg = sq ? 106 : 118;
+
   text(8, 32, "NEXT MEETING", kBright);
-  if (d.hasNext && m.state.quest != bc::Quest::NoDate) {
+  if (d.hasNext && st.quest != bc::Quest::NoDate) {
     bc::formatDateShort(d.next.date, date, sizeof date);
     snprintf(buf, sizeof buf, "%s %s", bc::weekdayName(d.next.date), date);
-    text(8, 52, buf, kHot, 2, 2);
+    text(8, 50, buf, kHot, 2, 2);
     if (d.next.hasTime) {
       char tm[6];
       bc::formatTime(d.next.minute, tm, sizeof tm);
-      text(8 + textWidth(buf, 2) + 12, 52, tm, kHot, 2, 2);
+      text(8 + textWidth(buf, 2) + 12, 50, tm, kHot, 2, 2);
     }
-    text(8, 78, "PLAN ", kDim);
-    folded(50, 78, d.next.plan[0] ? d.next.plan : "TBC", kText, 44);
-    text(8, 96, "AT   ", kDim);
-    folded(50, 96, d.next.location[0] ? d.next.location : "TBC", kText, 44);
+    text(8, yPlan, "PLAN ", kDim);
+    folded(50, yPlan, d.next.plan[0] ? d.next.plan : "TBC", kText, 44);
+    text(8, yAt, "AT   ", kDim);
+    folded(50, yAt, d.next.location[0] ? d.next.location : "TBC", kText, 44);
   } else {
-    text(8, 52, "NOT SET", kWarn, 2, 2);
-    text(8, 78, "Edit bookclub.json to schedule one.", kDim);
+    text(8, 50, "NOT SET", kWarn, 2, 2);
+    text(8, yPlan, "Edit bookclub.json to schedule one.", kDim);
   }
   if (d.message[0]) {
-    text(8, 118, "MSG", kDim);
-    foldedWrapped(50, 118, d.message, 44, 2, kText);
+    text(8, yMsg, "MSG", kDim);
+    foldedWrapped(50, yMsg, d.message, 44, sq ? 1 : 2, kText);
   }
 
-  c.drawFastHLine(0, 160, cfg::kScreenW, kFaint);
-  text(8, 166, "LAST ", kDim);
+  if (sq) {
+    const bc::Meeting& q = d.sideQuests[st.sideIndex];
+    c.drawFastHLine(0, 124, cfg::kScreenW, kFaint);
+    const bool today = st.side == bc::SideQuest::Today;
+    text(8, 128, "SIDE QUEST", today ? kHot : kBright);
+    bc::formatDateShort(q.date, date, sizeof date);
+    if (today) snprintf(buf, sizeof buf, "TODAY");
+    else snprintf(buf, sizeof buf, "%s %s", bc::weekdayName(q.date), date);
+    if (q.hasTime) {
+      char tm[8];
+      bc::formatTime(q.minute, tm, sizeof tm);
+      strlcat(buf, " ", sizeof buf);
+      strlcat(buf, tm, sizeof buf);
+    }
+    textRight(cfg::kScreenW - 8, 128, buf, today ? kHot : kText);
+    char what[96];
+    snprintf(what, sizeof what, "%s%s%s", q.plan[0] ? q.plan : "Get-together", q.location[0] ? " @ " : "",
+             q.location);
+    folded(8, 144, what, kText, 51);
+  }
+
+  const int yLast = 166;
+  c.drawFastHLine(0, yLast - 6, cfg::kScreenW, kFaint);
+  text(8, yLast, "LAST ", kDim);
   bc::formatDateShort(d.last.date, date, sizeof date);
-  text(50, 166, date, kText);
-  folded(50, 184, d.last.plan[0] ? d.last.plan : "-", kText, 44);
+  if (sq) {
+    text(50, yLast, date, kText);
+    folded(122, yLast, d.last.plan[0] ? d.last.plan : "-", kText, 32);
+  } else {
+    text(50, yLast, date, kText);
+    folded(50, yLast + 18, d.last.plan[0] ? d.last.plan : "-", kText, 44);
+  }
+  if (sq) text(8, 186, "Side quests don't reset exposure.", kDim);
 
   c.drawFastHLine(0, 206, cfg::kScreenW, kFaint);
   char age[20];
@@ -309,35 +351,65 @@ void drawData(const Model& m) {
 
 // ---- LOG ------------------------------------------------------------------
 
+struct LogEntry {
+  const bc::Meeting* m;
+  int historyIndex;  // -1 for a side quest
+};
+
+// History (newest first) merged with side quests that have happened.
+int buildLog(const Model& m, LogEntry* out, int cap) {
+  const bc::BookClubData& d = *m.data;
+  int h = 0, n = 0;
+  int q = d.sideQuestCount - 1;  // side quests are oldest first
+  if (m.now.valid) {
+    while (q >= 0 && bc::daysBetween(m.now.date, d.sideQuests[q].date) > 0) --q;  // future ones
+  } else {
+    q = -1;
+  }
+  while (n < cap && (h < d.historyCount || q >= 0)) {
+    const bool takeSide = q >= 0 && (h >= d.historyCount ||
+                                     bc::daysBetween(d.history[h].date, d.sideQuests[q].date) > 0);
+    if (takeSide) out[n++] = {&d.sideQuests[q--], -1};
+    else { out[n] = {&d.history[h], h}; ++h; ++n; }
+  }
+  return n;
+}
+
 void drawLog(const Model& m) {
   auto& c = canvas();
   const bc::BookClubData& d = *m.data;
+  static LogEntry log[bc::kMaxHistory + bc::kMaxSideQuests];
+  const int count = buildLog(m, log, bc::kMaxHistory + bc::kMaxSideQuests);
   text(8, 32, "MEETING LOG", kBright);
   textRight(cfg::kScreenW - 8, 32, g_logScroll ? "[TURN: SCROLL]" : "[TURN: TABS]",
             g_logScroll ? kHot : kDim);
-  const int maxTop = d.historyCount > kLogRows ? d.historyCount - kLogRows : 0;
+  const int maxTop = count > kLogRows ? count - kLogRows : 0;
   if (g_logTop > maxTop) g_logTop = maxTop;
   for (int r = 0; r < kLogRows; ++r) {
     const int i = g_logTop + r;
-    if (i >= d.historyCount) break;
-    const bc::Meeting& e = d.history[i];
+    if (i >= count) break;
+    const bc::Meeting& e = *log[i].m;
+    const bool side = log[i].historyIndex < 0;
     const int y = 52 + r * kLogRowH;
     char date[16];
     bc::formatDateShort(e.date, date, sizeof date);
-    text(8, y, date, i == 0 ? kHot : kText);
-    folded(86, y, e.plan[0] ? e.plan : "-", kText, 36);
+    text(8, y, date, log[i].historyIndex == 0 ? kHot : (side ? kDim : kText));
+    folded(86, y, e.plan[0] ? e.plan : (side ? "Get-together" : "-"), side ? kDim : kText, 36);
     folded(86, y + 16, e.location, kDim, 36);
-    if (i + 1 < d.historyCount) {
+    const int hi = log[i].historyIndex;
+    if (side) {
+      text(8, y + 16, "SIDE QUEST", kWarnDim, 1, 2);
+    } else if (hi + 1 < d.historyCount) {
       char gap[24];
-      snprintf(gap, sizeof gap, "+%ldD", (long)bc::daysBetween(d.history[i + 1].date, e.date));
+      snprintf(gap, sizeof gap, "+%ldD", (long)bc::daysBetween(d.history[hi + 1].date, e.date));
       text(8, y + 16, gap, kDim);
     }
   }
   // Scrollbar.
-  if (d.historyCount > kLogRows) {
+  if (count > kLogRows) {
     const int top = 52, h = kLogRows * kLogRowH - 4;
     c.drawFastVLine(cfg::kScreenW - 3, top, h, kFaint);
-    const int th = max(8, h * kLogRows / d.historyCount);
+    const int th = max(8, h * kLogRows / count);
     const int ty = top + (h - th) * g_logTop / maxTop;
     c.fillRect(cfg::kScreenW - 4, ty, 3, th, kBright);
   }

@@ -31,6 +31,7 @@ minutes after an edit.
     { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Pete's house" },
     { "date": "2026-03-02", "plan": "Pub, then co-op games", "location": "The Bell, Winchester" }
   ],
+  "side_quests": [],
   "message": "Bring snacks"
 }
 ```
@@ -40,6 +41,22 @@ minutes after an edit.
   top of `history`, and set `next` to the new date, or to `null` if there
   isn't one yet. Until `last` changes, the exposure counter keeps counting
   and the unit shows **DEBRIEF PENDING**.
+- **Side quests** are get-togethers that aren't a proper club meeting, like
+  the families coming along. List them in `side_quests`, each with a
+  `date` and optionally `time`, `plan` and `location`:
+
+  ```json
+  "side_quests": [
+    { "date": "2026-12-20", "time": "14:00", "plan": "Xmas do with the families", "location": "Pete's house" }
+  ],
+  ```
+
+  The next one shows as a countdown on STAT and in full on DATA, and on the
+  day the unit reassures you that no Fun Caps are being spent. They
+  **never reset the exposure counter**: only a proper meeting in `last`
+  does. Past side quests stay in the LOG, marked as side quests, but don't
+  count towards the meeting total or the longest gap. Leave old ones in the
+  list or delete them, either is fine.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
   all optional. Older files that say `book` instead of `plan` still work.

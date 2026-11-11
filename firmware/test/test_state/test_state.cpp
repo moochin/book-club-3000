@@ -434,6 +434,99 @@ void test_ascii_fold() {
   TEST_ASSERT_EQUAL_STRING("BAD ?", out);
 }
 
+// ---- Side quests -------------------------------------------------------------
+
+static const char* kSideJson = R"J({
+  "last": { "date": "2026-08-15", "plan": "Retro games + curry" },
+  "next": { "date": "2026-12-05", "time": "19:30" },
+  "side_quests": [
+    { "date": "2026-12-20", "time": "14:00", "plan": "Xmas do, families welcome", "location": "Pete's house" },
+    { "date": "2026-09-10", "plan": "BBQ with the kids" },
+    { "date": "not a date", "plan": "ignored" },
+    { "date": "2026-11-25", "plan": "Bonfire night (late)" }
+  ]
+})J";
+
+static BookClubData sideData() {
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(kSideJson, strlen(kSideJson), d));
+  return d;
+}
+
+void test_side_quests_parsed_oldest_first() {
+  BookClubData d = sideData();
+  TEST_ASSERT_EQUAL(3, d.sideQuestCount);
+  TEST_ASSERT_EQUAL_STRING("BBQ with the kids", d.sideQuests[0].plan);
+  TEST_ASSERT_EQUAL_STRING("Bonfire night (late)", d.sideQuests[1].plan);
+  TEST_ASSERT_EQUAL_STRING("Xmas do, families welcome", d.sideQuests[2].plan);
+  TEST_ASSERT_TRUE(d.sideQuests[2].hasTime);
+  // Side quests never join the meeting log or its stats.
+  TEST_ASSERT_EQUAL(1, d.historyCount);
+}
+
+void test_side_quest_never_resets_exposure() {
+  BookClubData d = sideData();
+  // Day after the BBQ side quest: exposure still counts from `last`.
+  auto s = computeState(d, at("2026-09-11"));
+  TEST_ASSERT_EQUAL_INT32(27, s.exposureDays);
+  // On the side quest day itself, too.
+  s = computeState(d, at("2026-12-20"));
+  TEST_ASSERT_EQUAL_INT32(127, s.exposureDays);
+  TEST_ASSERT_EQUAL((int)Level::MinorSickness, (int)s.level);
+  TEST_ASSERT_EQUAL((int)Quest::Overdue, (int)s.quest);  // the main quest is unaffected
+}
+
+void test_side_quest_next_upcoming() {
+  BookClubData d = sideData();
+  auto s = computeState(d, at("2026-11-20"));
+  TEST_ASSERT_EQUAL((int)SideQuest::Upcoming, (int)s.side);
+  TEST_ASSERT_EQUAL_STRING("Bonfire night (late)", d.sideQuests[s.sideIndex].plan);
+  TEST_ASSERT_EQUAL_INT32(5, s.daysToSide);
+  char buf[40];
+  sideQuestLine(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("SIDE QUEST IN 5 DAYS", buf);
+}
+
+void test_side_quest_today_tomorrow_and_none() {
+  BookClubData d = sideData();
+  char buf[40];
+  auto s = computeState(d, at("2026-12-19"));
+  sideQuestLine(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("SIDE QUEST TOMORROW 14:00", buf);
+  s = computeState(d, at("2026-12-20", 9, 0));
+  TEST_ASSERT_EQUAL((int)SideQuest::Today, (int)s.side);
+  sideQuestLine(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("SIDE QUEST TODAY 14:00", buf);
+  s = computeState(d, at("2026-12-21"));
+  TEST_ASSERT_EQUAL((int)SideQuest::None, (int)s.side);
+  sideQuestLine(s, d, buf, sizeof buf);
+  TEST_ASSERT_EQUAL_STRING("", buf);
+}
+
+void test_side_quest_and_meeting_same_day() {
+  const char* j = R"({"last":{"date":"2026-08-15"},"next":{"date":"2026-12-05"},
+    "side_quests":[{"date":"2026-12-05","plan":"Families join after"}]})";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  auto s = computeState(d, at("2026-12-05"));
+  TEST_ASSERT_EQUAL((int)Quest::MeetingDay, (int)s.quest);  // the meeting still wins
+  TEST_ASSERT_EQUAL((int)SideQuest::Today, (int)s.side);
+}
+
+void test_side_quests_keep_the_latest_when_too_many() {
+  char j[2048] = "{\"last\":{\"date\":\"2026-08-15\"},\"side_quests\":[";
+  for (int i = 1; i <= kMaxSideQuests + 3; ++i) {
+    char e[64];
+    snprintf(e, sizeof e, "%s{\"date\":\"2027-01-%02d\"}", i > 1 ? "," : "", i);
+    strcat(j, e);
+  }
+  strcat(j, "]}");
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_EQUAL(kMaxSideQuests, d.sideQuestCount);
+  TEST_ASSERT_TRUE(d.sideQuests[0].date == D("2027-01-04"));  // three oldest dropped
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -472,5 +565,11 @@ int main() {
   RUN_TEST(test_civil_round_trip);
   RUN_TEST(test_versions);
   RUN_TEST(test_ascii_fold);
+  RUN_TEST(test_side_quests_parsed_oldest_first);
+  RUN_TEST(test_side_quest_never_resets_exposure);
+  RUN_TEST(test_side_quest_next_upcoming);
+  RUN_TEST(test_side_quest_today_tomorrow_and_none);
+  RUN_TEST(test_side_quest_and_meeting_same_day);
+  RUN_TEST(test_side_quests_keep_the_latest_when_too_many);
   return UNITY_END();
 }

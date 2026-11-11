@@ -17,7 +17,11 @@ const char* const kSampleJson = R"JSON({
     { "date": "2025-03-08", "plan": "Racing game tournament", "location": "Pete's house" },
     { "date": "2024-10-19", "plan": "Pub quiz", "location": "The Bell, Winchester" }
   ],
-  "message": "Bring snacks"
+  "message": "Bring snacks",
+  "side_quests": [
+    { "date": "2026-06-20", "plan": "BBQ, families welcome", "location": "Riverside" },
+    { "date": "2026-12-20", "time": "14:00", "plan": "Xmas do with the families", "location": "Pete's house" }
+  ]
 })JSON";
 
 // The handover's state engine test table, plus a few extra states.
@@ -35,6 +39,7 @@ static const Scenario kScenarios[] = {
     {"NEXT BEFORE LAST", "2026-08-15", "2026-08-10", nullptr, "2026-08-20", 12, 0},
     {"LAST IN FUTURE", "2026-08-15", nullptr, nullptr, "2026-08-10", 12, 0},
     {"CLOCKS FORWARD 00:30", "2026-08-15", nullptr, nullptr, "2027-03-28", 0, 30},
+    {"SIDE QUEST TODAY", "2026-08-15", "2027-01-16", nullptr, "2026-12-20", 11, 0},
 };
 
 int count() { return sizeof kScenarios / sizeof kScenarios[0]; }

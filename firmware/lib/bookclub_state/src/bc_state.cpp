@@ -75,6 +75,17 @@ DisplayState computeState(const BookClubData& data, const LocalNow& now, const T
   }
 
   s.geigerClicksPerMin = s.antiRad ? 0 : th.geigerClicksPerMin[(int)s.level];
+
+  // Side quest: the first one today or later. Deliberately ignored by the
+  // exposure maths above: only a proper meeting (`last`) resets the counter.
+  for (int i = 0; i < data.sideQuestCount && i < kMaxSideQuests; ++i) {
+    const int32_t until = daysBetween(now.date, data.sideQuests[i].date);
+    if (until < 0) continue;
+    s.side = until == 0 ? SideQuest::Today : SideQuest::Upcoming;
+    s.sideIndex = (int8_t)i;
+    s.daysToSide = until;
+    break;
+  }
   return s;
 }
 
@@ -191,6 +202,20 @@ void exposureLabel(const DisplayState& s, char* buf, int len) {
   } else {
     snprintf(buf, (size_t)len, "LVL %d  %s", (int)s.level, levelName(s.level));
   }
+}
+
+void sideQuestLine(const DisplayState& s, const BookClubData& data, char* buf, int len) {
+  buf[0] = '\0';
+  if (s.side == SideQuest::None || s.sideIndex < 0 || s.sideIndex >= data.sideQuestCount) return;
+  const Meeting& m = data.sideQuests[s.sideIndex];
+  char t[8] = "";
+  if (m.hasTime) {
+    t[0] = ' ';
+    formatTime(m.minute, t + 1, sizeof t - 1);
+  }
+  if (s.side == SideQuest::Today) snprintf(buf, (size_t)len, "SIDE QUEST TODAY%s", t);
+  else if (s.daysToSide == 1) snprintf(buf, (size_t)len, "SIDE QUEST TOMORROW%s", t);
+  else snprintf(buf, (size_t)len, "SIDE QUEST IN %ld DAYS", (long)s.daysToSide);
 }
 
 LogStats computeLogStats(const BookClubData& data) {
