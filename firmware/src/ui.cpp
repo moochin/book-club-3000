@@ -362,14 +362,30 @@ void drawData(const Model& m) {
   c.drawFastHLine(0, yLast - 6, cfg::kScreenW, kFaint);
   text(8, yLast, "LAST ", kDim);
   bc::formatDateShort(d.last.date, date, sizeof date);
-  if (sq) {
-    text(50, yLast, date, kText);
-    folded(122, yLast, d.last.plan[0] ? d.last.plan : "-", kText, 32);
-  } else {
-    text(50, yLast, date, kText);
-    folded(50, yLast + 18, d.last.plan[0] ? d.last.plan : "-", kText, 44);
+  text(50, yLast, date, kText);
+  folded(122, yLast, d.last.plan[0] ? d.last.plan : "-", kText, 32);
+
+  // The next birthday; without one, the side-quest reminder.
+  if (st.nextBirthdayIndex >= 0) {
+    char names[40], when[24];
+    bc::nextBirthdayNames(st, d, names, sizeof names);
+    const bool today = st.daysToNextBirthday == 0;
+    if (today) {
+      snprintf(when, sizeof when, "TODAY!");
+    } else if (st.daysToNextBirthday == 1) {
+      snprintf(when, sizeof when, "TOMORROW");
+    } else {
+      bc::formatDateShort(st.nextBirthdayDate, date, sizeof date);
+      date[6] = 0;  // "14 MAR", no year
+      snprintf(when, sizeof when, "%s (%ldD)", date, (long)st.daysToNextBirthday);
+    }
+    text(8, 186, "BDAY", today ? kHot : kDim);
+    const int whenW = textWidth(when, 1);
+    textRight(cfg::kScreenW - 8, 186, when, today ? kHot : kText);
+    folded(50, 186, names, today ? kHot : kText, (cfg::kScreenW - 8 - whenW - 8 - 50) / 6);
+  } else if (sq) {
+    text(8, 186, "Side quests don't reset exposure.", kDim);
   }
-  if (sq) text(8, 186, "Side quests don't reset exposure.", kDim);
 
   c.drawFastHLine(0, 206, cfg::kScreenW, kFaint);
   char age[20];

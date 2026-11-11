@@ -104,7 +104,8 @@ runs on your computer.
   birthday it is; the birthday person's own unit says "HAPPY BIRTHDAY" and
   plays the jingle once (outside quiet hours). A club meeting on the same
   day still gets its own celebration. A 29 February birthday is marked on
-  28 February in other years.
+  28 February in other years. The DATA tab always shows whose birthday is
+  next, e.g. `BDAY  DAVE  22 OCT (12D)`.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
   all optional. Older files that say `book` instead of `plan` still work.
