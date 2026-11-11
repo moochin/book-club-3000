@@ -34,6 +34,12 @@ constexpr int kPinEncA = 22;
 constexpr int kPinEncB = 27;
 constexpr int kPinEncSw = 35;  // input only; external 10k pull-up to 3.3 V
 constexpr int kPinBoot = 0;
+// XPT2046 resistive touch, on its own SPI pins (VSPI).
+constexpr int kPinTouchSck = 25;
+constexpr int kPinTouchMosi = 32;
+constexpr int kPinTouchMiso = 39;
+constexpr int kPinTouchCs = 33;
+constexpr int kPinTouchIrq = 36;
 
 // ---- LEDC channels ----------------------------------------------------------
 constexpr int kLedcSpeaker = 0;
@@ -50,6 +56,12 @@ constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
 constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per click
 constexpr uint32_t kDebounceMs = 30;
 constexpr uint32_t kLongPressMs = 2000;
+// Touch: tap tabs, menu items and buttons directly; hold anywhere 2 s for a
+// long press. Raw XPT2046 range: calibrate if taps land in the wrong place
+// (input.cpp logs each tap's screen position).
+constexpr uint16_t kTouchXMin = 300, kTouchXMax = 3900;
+constexpr uint16_t kTouchYMin = 200, kTouchYMax = 3700;
+constexpr uint32_t kTouchReleaseMs = 60;  // gap that counts as lifting the finger
 constexpr uint32_t kFactoryResetHoldMs = 10000;  // BOOT button at power-on
 
 // ---- Sync -------------------------------------------------------------------
