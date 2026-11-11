@@ -92,6 +92,12 @@ struct DisplayState {
 
   // Birthday: index into data.birthdays of someone whose birthday is today.
   int8_t birthdayIndex = -1;
+
+  // The next birthday, today included (for DATA). -1: none on file.
+  int8_t nextBirthdayIndex = -1;  // the first of the people on that day
+  int8_t birthdaysOnNextDay = 0;
+  int32_t daysToNextBirthday = 0;
+  Date nextBirthdayDate;
 };
 
 const Thresholds& defaultThresholds();
@@ -125,6 +131,11 @@ LogStats computeLogStats(const BookClubData& data);
 
 // True if the birthday falls on `d` (29 Feb is marked on 28 Feb in other years).
 bool isBirthdayOn(const Birthday& b, const Date& d);
+// The next day this birthday falls on, `from` included.
+Date nextBirthdayFrom(const Birthday& b, const Date& from);
+// Who has the next birthday: "DAVE", "DAVE & SAM" or "DAVE +2" (upper case,
+// accents folded). Empty when there is none.
+void nextBirthdayNames(const DisplayState& s, const BookClubData& d, char* buf, int len);
 // Case- and space-insensitive name match ("pete " == "Pete").
 bool sameName(const char* a, const char* b);
 

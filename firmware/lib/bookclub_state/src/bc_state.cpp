@@ -1,5 +1,7 @@
 #include "bc_state.h"
 
+#include "bc_text.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -83,6 +85,20 @@ DisplayState computeState(const BookClubData& data, const LocalNow& now, const T
       s.birthdayIndex = (int8_t)i;
       if (s.quest != Quest::MeetingDay) s.pose = Pose::Birthday;
       break;
+    }
+  }
+
+  // The next birthday, today included, and how many share that day.
+  for (int i = 0; i < data.birthdayCount && i < kMaxBirthdays; ++i) {
+    const Date when = nextBirthdayFrom(data.birthdays[i], now.date);
+    const int32_t until = daysBetween(now.date, when);
+    if (s.nextBirthdayIndex < 0 || until < s.daysToNextBirthday) {
+      s.nextBirthdayIndex = (int8_t)i;
+      s.birthdaysOnNextDay = 1;
+      s.daysToNextBirthday = until;
+      s.nextBirthdayDate = when;
+    } else if (until == s.daysToNextBirthday) {
+      ++s.birthdaysOnNextDay;
     }
   }
 
@@ -246,6 +262,39 @@ LogStats computeLogStats(const BookClubData& data) {
 const CapsRules& defaultCapsRules() {
   static const CapsRules rules;
   return rules;
+}
+
+Date nextBirthdayFrom(const Birthday& b, const Date& from) {
+  Date when;
+  for (int y = from.year; y <= from.year + 1; ++y) {
+    when.year = (int16_t)y;
+    when.month = b.month;
+    when.day = (b.month == 2 && b.day == 29 && !isLeapYear(y)) ? 28 : b.day;
+    if (daysBetween(from, when) >= 0) break;
+  }
+  return when;
+}
+
+void nextBirthdayNames(const DisplayState& s, const BookClubData& d, char* buf, int len) {
+  buf[0] = 0;
+  if (s.nextBirthdayIndex < 0 || s.nextBirthdayIndex >= d.birthdayCount) return;
+  char a[kNameLen] = "", b[kNameLen] = "";
+  asciiFold(d.birthdays[s.nextBirthdayIndex].name, a, sizeof a);
+  upperAscii(a);
+  if (s.birthdaysOnNextDay == 2) {
+    for (int i = s.nextBirthdayIndex + 1; i < d.birthdayCount; ++i) {
+      if (isBirthdayOn(d.birthdays[i], s.nextBirthdayDate)) {
+        asciiFold(d.birthdays[i].name, b, sizeof b);
+        upperAscii(b);
+        break;
+      }
+    }
+    snprintf(buf, len, "%s & %s", a, b);
+  } else if (s.birthdaysOnNextDay > 2) {
+    snprintf(buf, len, "%s +%d", a, s.birthdaysOnNextDay - 1);
+  } else {
+    snprintf(buf, len, "%s", a);
+  }
 }
 
 bool isBirthdayOn(const Birthday& b, const Date& d) {
