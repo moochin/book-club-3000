@@ -191,8 +191,9 @@ def build():
         with open(OUT, "w") as f:
             f.write(text)
     have = [p for p in POSES if frames[p]]
-    print(f"art: {len(have)}/{len(POSES)} poses drawn" + (f" ({' '.join(have)})" if have else "") +
-          "; the rest use placeholders")
+    missing = [p for p in POSES if not frames[p]]
+    print(f"art: {len(have)}/{len(POSES)} poses drawn" +
+          (f"; placeholders for: {' '.join(missing)}" if missing else ""))
 
 
 if __name__ == "__main__":
