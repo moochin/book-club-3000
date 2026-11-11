@@ -179,7 +179,7 @@ void loop() {
     ev = input::Events();
     g_dirty = true;
   }
-  if (ev.turn) audio::knobClick();
+  if (ev.turn || ev.tap) audio::knobClick();
 
   net::tick(now);
   const bool up = net::connected();

@@ -39,6 +39,7 @@ class Panel : public lgfx::LGFX_Device {
 #endif
   lgfx::Bus_SPI bus_;
   lgfx::Light_PWM light_;
+  lgfx::Touch_XPT2046 touch_;
 };
 #else
 using Panel = lgfx::LGFX_Device;  // host simulator: no real panel

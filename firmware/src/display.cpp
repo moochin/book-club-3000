@@ -48,6 +48,24 @@ Panel::Panel() {
     light_.config(c);
     panel_.setLight(&light_);
   }
+  {
+    auto c = touch_.config();
+    c.x_min = cfg::kTouchXMin;
+    c.x_max = cfg::kTouchXMax;
+    c.y_min = cfg::kTouchYMin;
+    c.y_max = cfg::kTouchYMax;
+    c.pin_int = cfg::kPinTouchIrq;
+    c.bus_shared = false;
+    c.offset_rotation = 0;
+    c.spi_host = VSPI_HOST;
+    c.freq = 1000000;
+    c.pin_sclk = cfg::kPinTouchSck;
+    c.pin_mosi = cfg::kPinTouchMosi;
+    c.pin_miso = cfg::kPinTouchMiso;
+    c.pin_cs = cfg::kPinTouchCs;
+    touch_.config(c);
+    panel_.setTouch(&touch_);
+  }
   setPanel(&panel_);
 }
 

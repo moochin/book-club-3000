@@ -19,7 +19,7 @@ namespace ui {
 
 namespace {
 
-enum class Screen : uint8_t { Tabs, Menu, OwnerCard, About, Debug, ConfirmPortal };
+enum class Screen : uint8_t { Tabs, Menu, OwnerCard, Help, About, Debug, ConfirmPortal };
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kTabCount = 3 };
 
 enum MenuItem : uint8_t {
@@ -29,6 +29,7 @@ enum MenuItem : uint8_t {
   kMiTheme,
   kMiEffects,
   kMiOwner,
+  kMiHelp,
   kMiAbout,
   kMiWifi,
   kMiBack,
@@ -42,6 +43,7 @@ int g_logTop = 0;
 int g_menuSel = 0;
 int g_debugSel = 0;
 bool g_confirmYes = false;
+int g_helpPage = 0;
 uint8_t g_aboutPresses = 0;
 uint32_t g_aboutFirstPressMs = 0;
 
@@ -447,6 +449,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiTheme: snprintf(buf, len, "THEME: %s", m.theme == 1 ? "AMBER" : "GREEN"); break;
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
+    case kMiHelp: snprintf(buf, len, "HOW TO USE"); break;
     case kMiAbout: snprintf(buf, len, "ABOUT"); break;
     case kMiWifi: snprintf(buf, len, "WI-FI RESET"); break;
     case kMiBack: snprintf(buf, len, "< BACK"); break;
@@ -578,7 +581,50 @@ void drawAbout(const Model& m) {
   line("MEMORY", buf);
   snprintf(buf, sizeof buf, "%d", m.lightRaw);
   line("LIGHT", buf);
-  text(8, 222, "PRESS TO GO BACK", kDim);
+  text(8, 222, "TURN, OR TAP THE TITLE, TO GO BACK", kDim);
+}
+
+// ---- How to use -------------------------------------------------------------
+
+struct HelpPage {
+  const char* title;
+  const char* paras[4];
+};
+
+const HelpPage kHelp[] = {
+    {"GETTING AROUND",
+     {"TABS: tap STAT, DATA or LOG at the top, or turn the knob.",
+      "SETTINGS: tap the clock, or hold 2 s anywhere (or hold the knob).",
+      "BACK: tap a screen's title, or hold 2 s.",
+      "LOG: tap the top or bottom half of the list to page through it."}},
+    {"YOUR UNIT",
+     {"Owner name, card stats, theme, rotation and the GitHub token are set on the setup page.",
+      "To open it: SETTINGS > WI-FI RESET > OPEN, then join the BookClub network on your phone "
+      "(or browse to 192.168.4.1) and tap Configure WiFi.",
+      "Your Wi-Fi is kept until you save a new one.", nullptr}},
+    {"THE CLUB FILE",
+     {"Dates come from bookclub.json on GitHub, checked once a day. REFRESH NOW fetches it straight "
+      "away.",
+      "A warning triangle by the clock means the last fetch failed: ABOUT shows why.",
+      "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
+};
+constexpr int kHelpPages = sizeof kHelp / sizeof kHelp[0];
+
+void drawHelp() {
+  auto& c = canvas();
+  const HelpPage& pg = kHelp[g_helpPage];
+  text(8, 4, "HOW TO USE", kBright, 2, 2);
+  char n[8];
+  snprintf(n, sizeof n, "%d/%d", g_helpPage + 1, kHelpPages);
+  textRight(cfg::kScreenW - 8, 6, n, kDim);
+  c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
+  text(8, 32, pg.title, kHot);
+  int y = 54;
+  for (const char* p : pg.paras) {
+    if (!p) break;
+    y += textWrapped(8, y, p, 51, 4, kText) * 16 + 6;
+  }
+  text(8, 222, "TAP LOWER HALF: NEXT  UPPER: BACK", kDim);
 }
 
 void drawConfirmPortal() {
@@ -594,10 +640,12 @@ void drawConfirmPortal() {
   c.drawRect(180, y, 100, 32, !g_confirmYes ? kHot : kFaint);
   textCentered(90, y + 8, "OPEN", g_confirmYes ? kHot : kDim, 2, 2);
   textCentered(230, y + 8, "CANCEL", !g_confirmYes ? kHot : kDim, 2, 2);
-  text(8, 206, "TURN TO CHOOSE, PRESS TO CONFIRM", kDim);
+  text(8, 206, "TAP A BUTTON, OR TURN AND PRESS", kDim);
 }
 
 }  // namespace
+
+Result handleTap(int x, int y, const Model& m, uint32_t now);
 
 void begin() {}
 
@@ -615,6 +663,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
     if (e.longPress && m.portalCancellable) r.action = Action::CancelPortal;
     return r;
   }
+  if (e.tap) return handleTap(e.x, e.y, m, now);
 
   switch (g_screen) {
     case Screen::Tabs:
@@ -649,6 +698,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiTheme: r.action = Action::CycleTheme; break;
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiOwner: g_screen = Screen::OwnerCard; break;
+          case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
           case kMiWifi: g_screen = Screen::ConfirmPortal; g_confirmYes = false; break;
           case kMiBack: g_screen = Screen::Tabs; break;
@@ -658,6 +708,19 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
     case Screen::OwnerCard:
       if (e.shortPress || e.longPress) g_screen = Screen::Menu;
+      break;
+
+    case Screen::Help:
+      // Turn or press to page; past either end, or a hold, goes back.
+      if (e.longPress) {
+        g_screen = Screen::Menu;
+        break;
+      }
+      g_helpPage += e.turn + (e.shortPress ? 1 : 0);
+      if (g_helpPage < 0 || g_helpPage >= kHelpPages) {
+        g_helpPage = 0;
+        g_screen = Screen::Menu;
+      }
       break;
 
     case Screen::About:
@@ -705,6 +768,93 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
   return r;
 }
 
+// A touch-screen tap: pick what was tapped, then reuse the knob logic.
+// Tapping a screen's title goes back (as a long press does).
+Result handleTap(int x, int y, const Model& m, uint32_t now) {
+  Result r;
+  r.redraw = true;
+  input::Events press;
+  press.shortPress = true;
+  input::Events hold;
+  hold.longPress = true;
+  const bool title = y < 27;
+
+  switch (g_screen) {
+    case Screen::Tabs:
+      if (title) {
+        for (int i = 0; i < kTabCount; ++i) {
+          const int tx = 8 + i * 70;  // as drawn by header()
+          if (x >= tx - 4 && x < tx + 66) {
+            g_tab = (uint8_t)i;
+            g_logScroll = false;
+            return r;
+          }
+        }
+        if (x >= 220) return handle(hold, m, now);  // clock corner: settings
+        return r;
+      }
+      // LOG: tap the top or bottom half of the list to page through it.
+      if (g_tab == kLog && m.data && m.state.clockValid) {
+        const int top = 52, bottom = 52 + kLogRows * kLogRowH;
+        if (y >= top - 4 && y < bottom) {
+          g_logTop += y < (top + bottom) / 2 ? -(kLogRows - 1) : (kLogRows - 1);
+          if (g_logTop < 0) g_logTop = 0;  // upper clamp in drawLog
+        }
+      }
+      return r;
+
+    case Screen::Menu:
+    case Screen::Debug: {
+      if (title) return handle(hold, m, now);
+      const bool menu = g_screen == Screen::Menu;
+      const int count = menu ? (int)kMenuCount : scenarios::count() + 1;
+      const int rowH = menu ? 20 : 18;  // as passed to drawList()
+      int& sel = menu ? g_menuSel : g_debugSel;
+      const int visible = (cfg::kScreenH - 34) / rowH;
+      int top = sel - visible + 1;
+      if (top < 0) top = 0;
+      if (y < 31) return r;
+      const int row = (y - 31) / rowH;
+      if (row >= visible || top + row >= count) return r;
+      const int i = top + row;
+      if (row == visible - 1 && i < count - 1) {  // bottom row of a long list: scroll
+        sel = i + 1;
+        return r;
+      }
+      sel = i;
+      return handle(press, m, now);
+    }
+
+    case Screen::OwnerCard:
+      return handle(press, m, now);
+
+    case Screen::Help: {
+      if (title) return handle(hold, m, now);
+      input::Events step;
+      step.turn = y >= cfg::kScreenH / 2 ? 1 : -1;
+      return handle(step, m, now);
+    }
+
+    case Screen::About:
+      return handle(title ? hold : press, m, now);  // body taps count for the hidden menu
+
+    case Screen::ConfirmPortal:
+      if (title) return handle(hold, m, now);
+      if (y >= 146 && y < 186) {  // the OPEN / CANCEL buttons
+        if (x >= 36 && x < 144) {
+          g_confirmYes = true;
+          return handle(press, m, now);
+        }
+        if (x >= 176 && x < 284) {
+          g_confirmYes = false;
+          return handle(press, m, now);
+        }
+      }
+      return r;
+  }
+  return r;
+}
+
 void render(const Model& m, uint32_t t) {
   auto& c = canvas();
   c.fillScreen(kBg);
@@ -721,7 +871,7 @@ void render(const Model& m, uint32_t t) {
       drawCentredScreen("NO DATA YET",
                         m.wifiUp ? "Fetching the club file..." : "Waiting for Wi-Fi...",
                         m.syncError[0] ? m.syncError : nullptr,
-                        "Hold the knob for 2 s for settings.", t);
+                        "Hold 2 s, or tap the clock, for settings.", t);
     } else if (!m.state.clockValid) {
       drawCentredScreen("SYNCING CLOCK",
                         m.wifiUp ? "Asking the time servers..." : "Waiting for Wi-Fi to set the time.",
@@ -740,6 +890,7 @@ void render(const Model& m, uint32_t t) {
         break;
       }
       case Screen::OwnerCard: drawOwnerCard(m); break;
+      case Screen::Help: drawHelp(); break;
       case Screen::About: drawAbout(m); break;
       case Screen::Debug: drawList("PREVIEW STATES", scenarios::count() + 1, g_debugSel, debugLabel, m, 18); break;
       case Screen::ConfirmPortal: drawConfirmPortal(); break;

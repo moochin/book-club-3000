@@ -4,6 +4,7 @@
 #include <ESP32Encoder.h>
 
 #include "config.h"
+#include "display.h"
 
 namespace input {
 
@@ -15,6 +16,60 @@ static bool g_down = false;
 static uint32_t g_changeMs = 0;
 static uint32_t g_downMs = 0;
 static bool g_longFired = false;
+
+// Touch: a tap is reported at the average of the readings taken while the
+// stylus was down. The first couple are skipped: a resistive panel reads off
+// while contact pressure is still building.
+constexpr int kTouchSettleSamples = 2;
+static bool g_touchDown = false;
+static uint32_t g_touchDownMs = 0;
+static uint32_t g_touchSeenMs = 0;
+static int g_touchSamples = 0;
+static int32_t g_touchSumX = 0, g_touchSumY = 0;
+static int g_touchFirstX = 0, g_touchFirstY = 0;
+static bool g_touchLongFired = false;
+
+static void pollTouch(uint32_t now, Events& e) {
+  auto& p = display::panel();
+  lgfx::touch_point_t tp;
+  if (p.getTouch(&tp, 1) > 0) {
+    int x = tp.x, y = tp.y;
+    if (cfg::kTouchFlip) {
+      // Landscape rotations (1, 3): that axis is screen Y; portrait: X.
+      if (p.getRotation() & 1) y = p.height() - 1 - y;
+      else x = p.width() - 1 - x;
+    }
+    if (!g_touchDown) {
+      g_touchDown = true;
+      g_touchDownMs = now;
+      g_touchSamples = 0;
+      g_touchSumX = g_touchSumY = 0;
+      g_touchFirstX = x;
+      g_touchFirstY = y;
+      g_touchLongFired = false;
+    }
+    if (++g_touchSamples > kTouchSettleSamples) {
+      g_touchSumX += x;
+      g_touchSumY += y;
+    }
+    g_touchSeenMs = now;
+    if (!g_touchLongFired && now - g_touchDownMs >= cfg::kLongPressMs) {
+      g_touchLongFired = true;
+      e.longPress = true;
+      Serial.println("[touch] hold -> long press");
+    }
+    return;
+  }
+  if (!g_touchDown || now - g_touchSeenMs < cfg::kTouchReleaseMs) return;
+  g_touchDown = false;
+  if (g_touchLongFired) return;
+  const int n = g_touchSamples - kTouchSettleSamples;
+  e.tap = true;
+  e.x = (int16_t)(n > 0 ? g_touchSumX / n : g_touchFirstX);
+  e.y = (int16_t)(n > 0 ? g_touchSumY / n : g_touchFirstY);
+  Serial.printf("[touch] tap x=%d y=%d (first %d,%d, %d samples)\n", e.x, e.y, g_touchFirstX,
+                g_touchFirstY, g_touchSamples);
+}
 
 void begin() {
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
@@ -58,6 +113,8 @@ Events poll(uint32_t now) {
     g_longFired = true;
     e.longPress = true;
   }
+
+  pollTouch(now, e);
   return e;
 }
 
