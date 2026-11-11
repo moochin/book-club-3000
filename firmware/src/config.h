@@ -60,7 +60,8 @@ constexpr uint32_t kLongPressMs = 2000;
 // long press. Raw XPT2046 range: calibrate if taps land in the wrong place
 // (input.cpp logs each tap's screen position).
 constexpr uint16_t kTouchXMin = 300, kTouchXMax = 3900;
-constexpr uint16_t kTouchYMin = 200, kTouchYMax = 3700;
+// Y is reversed on the USB-C ST7789 board (min > max flips the axis).
+constexpr uint16_t kTouchYMin = 3700, kTouchYMax = 200;
 constexpr uint32_t kTouchReleaseMs = 60;  // gap that counts as lifting the finger
 constexpr uint32_t kFactoryResetHoldMs = 10000;  // BOOT button at power-on
 
