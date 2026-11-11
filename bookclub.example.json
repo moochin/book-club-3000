@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "last": { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Sam's house" },
+  "next": { "date": "2026-12-05", "time": "19:30", "plan": "Film night + pizza", "location": "TBC" },
+  "history": [
+    { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Sam's house" },
+    { "date": "2026-03-02", "plan": "Pub, then co-op games", "location": "The Local" }
+  ],
+  "side_quests": [],
+  "fun_caps": {},
+  "birthdays": {},
+  "message": "Bring snacks"
+}

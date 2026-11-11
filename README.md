@@ -2,25 +2,41 @@
 
 A desk terminal that shows how long it has been since the club last met (your
 "exposure") and counts down to the next meeting (the "quest"). Every unit reads
-the same file, [`bookclub.json`](bookclub.json), from this repo.
+the same file, `bookclub.json`, from a secret GitHub gist that the club shares.
 
 ![Screens rendered by the UI simulator](docs/screens.png)
 
 ```
-bookclub.json   the shared dates file — edit this one
+bookclub.example.json   what the club file looks like (the real one is in the gist)
 firmware/       the PlatformIO project for the ESP32 "Cheap Yellow Display"
 art/            mascot art: PNGs you draw, baked into the firmware (art/README.md)
-tools/          check_bookclub.py (the same checks the units apply), art tools
+tools/          club_editor.py (edit the club file), check_bookclub.py, art tools
 docs/           the original handover/spec
 case/           (to come) STL files for the printed case
 ```
 
-## Updating the dates (everyone)
+## Updating the dates
 
-Open [`bookclub.json`](bookclub.json) on GitHub, click the pencil, edit, and
-commit. Every unit picks it up within 24 hours, or straight away from the
-knob menu: **hold 2 s → REFRESH NOW**. GitHub may serve the old copy for a few
-minutes after an edit.
+The club file lives in a **secret gist**, not in this repo, so the meeting
+details stay out of public view. Ask Pete for its link, and don't post it
+anywhere public. Only the gist's owner can edit it: open the gist, click
+**Edit**, change
+`bookclub.json`, and click **Update secret gist**. Every unit picks it up
+within 24 hours, or straight away from **settings → REFRESH NOW**. GitHub may
+serve the old copy for a few minutes after an edit.
+
+A secret gist isn't listed or searchable, but anyone with the link can read
+it, so treat the link like a spare key. Gists have no collaborators, so
+everyone else sends their changes to the owner.
+
+**The easy way (gist owner):** `python3 tools/club_editor.py` opens a form
+in your browser with every field: next and last meeting, a button for "the
+next meeting happened", side quests, Fun Caps, history, the message and the
+firmware update block. It checks each change with the units' own rules and
+won't save a file they would reject. It needs the GitHub CLI signed in as
+the gist's owner (`gh auth login`). The first run asks for the gist's link
+and remembers it in `.bookclub-gist`, which git ignores. The page only
+runs on your computer.
 
 ```json
 {
@@ -92,10 +108,10 @@ minutes after an edit.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
   all optional. Older files that say `book` instead of `plan` still work.
-- If an edit breaks the file, the **Check bookclub.json** action shows a red
-  cross on the commit, and the units ignore the broken version and keep
-  showing the last good one. Fix it and they pick it up on the next sync.
-  To check locally: `python3 tools/check_bookclub.py`.
+- If an edit breaks the file, the units ignore the broken version and keep
+  showing the last good one; **ABOUT** shows why it was rejected. Fix it and
+  they pick it up on the next sync. To check an edit first, run
+  `python3 tools/check_bookclub.py <the gist's Raw link>`.
 
 ## Setting up a unit (each friend)
 
@@ -105,15 +121,21 @@ minutes after an edit.
    `192.168.4.1`) — tap **Configure WiFi**.
 3. Pick your home network, enter its password, and fill in your name, theme
    (`green` or `amber`), the seven owner-card stats, and the screen rotation.
-   Leave the data URL as it is. Save.
+   For **Data file URL**, paste the gist's **Raw** link (open the gist, click
+   **Raw**, copy the address, then delete the long code between `/raw/` and
+   `/bookclub.json` so it always gets the latest version). Save.
 
 The unit joins your network, sets its clock and fetches the file. If your
 Wi-Fi drops it carries on counting from the dates it already has and keeps
 retrying in the background.
 
+**Touch screen:** tap STAT, DATA or LOG to switch tabs, tap the clock for
+settings, tap the mascot for your owner card, and tap a screen's title to go
+back. On LOG, tap the top or bottom half of the list to page through it. A
+stylus works best.
 **Knob:** turn to switch between STAT, DATA and LOG. On LOG, press to switch
 between changing tabs and scrolling. Hold 2 s for settings (refresh, sound,
-brightness, theme, scanlines, owner card, about, Wi-Fi reset).
+brightness, theme, scanlines, owner card, how to use, about, Wi-Fi reset).
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 
 Firmware details, the bring-up checklist and the release process are in

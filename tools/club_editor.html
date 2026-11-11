@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Club Editor</title>
+<style>
+  :root {
+    --bg: #030c05; --panel: #08180c; --line: #1d4a28; --dim: #5e9a6c;
+    --text: #b8f5c6; --accent: #3cff6e; --hot: #d8ffe2; --warn: #ffb028; --bad: #ff6a4d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: var(--bg);
+    border-bottom: 1px solid var(--line); padding: 12px 16px;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  }
+  h1 { margin: 0; font-size: 18px; color: var(--accent); letter-spacing: 2px; }
+  #state { color: var(--dim); flex: 1; min-width: 200px; }
+  #state.dirty { color: var(--warn); }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; }
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  h2 { margin: 0 0 10px; font-size: 14px; color: var(--accent); letter-spacing: 1px; }
+  h2 small { color: var(--dim); font-weight: normal; letter-spacing: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; }
+  .grid .wide { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--dim); }
+  input, textarea {
+    background: var(--bg); color: var(--hot); border: 1px solid var(--line); border-radius: 3px;
+    padding: 6px 8px; font: inherit; width: 100%; color-scheme: dark;
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { min-height: 260px; resize: vertical; font-size: 13px; }
+  button {
+    background: transparent; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 3px; padding: 6px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { background: #0f2a16; }
+  button.primary { background: var(--accent); color: var(--bg); font-weight: bold; }
+  button.primary:hover { background: var(--hot); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.x { border-color: var(--line); color: var(--dim); padding: 6px 9px; align-self: end; }
+  .row { display: grid; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .row.meet { grid-template-columns: 150px 1fr 1fr auto; }
+  .row.quest { grid-template-columns: 150px 100px 1fr 1fr auto; }
+  .row.cap { grid-template-columns: 1fr 100px 2fr auto; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .check { display: flex; gap: 8px; align-items: center; flex-direction: row; color: var(--text); font-size: 14px; }
+  .check input { width: auto; }
+  #report { margin: 0; padding: 0; list-style: none; }
+  #report li { padding: 2px 0; }
+  #report .err { color: var(--bad); }
+  #report .warn { color: var(--warn); }
+  #report .ok { color: var(--accent); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 14px; letter-spacing: 1px; }
+  details[open] summary { margin-bottom: 10px; }
+  .hint { color: var(--dim); font-size: 12px; margin: 6px 0 0; }
+  a { color: var(--accent); }
+  @media (max-width: 640px) {
+    .row.meet, .row.quest, .row.cap { grid-template-columns: 1fr 1fr; }
+    .row .x { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>BOOK-CLUB 3000 // CLUB FILE</h1>
+  <span id="state">Loading…</span>
+  <button id="reload">Reload</button>
+  <button id="save" class="primary" disabled>Save to gist</button>
+</header>
+<main>
+  <section>
+    <h2>CHECK</h2>
+    <ul id="report"><li>Loading the club file…</li></ul>
+  </section>
+
+  <section>
+    <h2>NEXT MEETING</h2>
+    <label class="check"><input type="checkbox" id="noNext"> No date yet</label>
+    <div class="grid" id="next" style="margin-top:8px"></div>
+  </section>
+
+  <section>
+    <h2>LAST MEETING <small>resets the exposure counter</small></h2>
+    <div class="grid" id="last"></div>
+    <div class="actions">
+      <button id="happened">The next meeting happened ▸ make it the last</button>
+    </div>
+    <p class="hint">Moves NEXT into LAST, adds it to the top of the history, and clears NEXT.</p>
+  </section>
+
+  <section>
+    <h2>MESSAGE</h2>
+    <div class="grid" id="msg"></div>
+  </section>
+
+  <section>
+    <h2>SIDE QUESTS <small>get-togethers that don't reset exposure</small></h2>
+    <div id="quests"></div>
+    <button id="addQuest">+ Side quest</button>
+  </section>
+
+  <section>
+    <h2>FUN CAPS <small>bonus (+) or penalty (−), running totals per person</small></h2>
+    <div id="caps"></div>
+    <button id="addCap">+ Person</button>
+  </section>
+
+  <section>
+    <h2>HISTORY <small>newest first</small></h2>
+    <div id="history"></div>
+    <button id="addHist">+ Meeting</button>
+  </section>
+
+  <section>
+    <details>
+      <summary>FIRMWARE UPDATE</summary>
+      <div class="grid" id="fw"></div>
+      <p class="hint">Units older than this version download it on their next sync. Leave all three empty for no update.</p>
+    </details>
+  </section>
+
+  <section>
+    <details>
+      <summary>RAW JSON</summary>
+      <textarea id="raw" spellcheck="false"></textarea>
+      <p class="hint">Edit directly if you like: the form follows once the JSON is valid.</p>
+    </details>
+  </section>
+  <p class="hint" id="gistLink"></p>
+</main>
+
+<script>
+"use strict";
+let doc = {};          // the club file, edited in place (unknown keys are kept)
+let saved = "";        // text last loaded or saved
+const $ = (id) => document.getElementById(id);
+
+const text = () => JSON.stringify(doc, null, 2) + "\n";
+
+// ---- small DOM helpers ----------------------------------------------------
+function input(obj, key, label, type = "text", opts = {}) {
+  const l = document.createElement("label");
+  if (opts.wide) l.className = "wide";
+  l.textContent = label;
+  const i = document.createElement("input");
+  i.type = type;
+  if (opts.placeholder) i.placeholder = opts.placeholder;
+  const v = obj[key];
+  i.value = v === undefined || v === null ? "" : v;
+  i.addEventListener("input", () => {
+    let val = i.value;
+    if (type === "number") val = val === "" ? "" : Number(val);
+    if (val === "" && !opts.keepEmpty) delete obj[key];
+    else obj[key] = val;
+    changed();
+  });
+  l.appendChild(i);
+  return l;
+}
+
+function removeBtn(onClick) {
+  const b = document.createElement("button");
+  b.className = "x";
+  b.title = "Remove";
+  b.textContent = "✕";
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function fill(el, nodes) {
+  el.replaceChildren(...nodes);
+}
+
+// ---- rendering --------------------------------------------------------------
+function render(fromRaw = false) {
+  if (!doc.last || typeof doc.last !== "object") doc.last = {};
+  fill($("last"), [
+    input(doc.last, "date", "Date", "date", { keepEmpty: true }),
+    input(doc.last, "plan", "Plan"),
+    input(doc.last, "location", "Location"),
+  ]);
+
+  const hasNext = doc.next && typeof doc.next === "object";
+  $("noNext").checked = !hasNext;
+  $("happened").disabled = !(hasNext && doc.next.date);
+  fill($("next"), hasNext ? [
+    input(doc.next, "date", "Date", "date", { keepEmpty: true }),
+    input(doc.next, "time", "Time", "time"),
+    input(doc.next, "plan", "Plan"),
+    input(doc.next, "location", "Location"),
+  ] : []);
+
+  fill($("msg"), [input(doc, "message", "Shown on the units", "text", { wide: true, placeholder: "Bring snacks" })]);
+
+  renderList("quests", "side_quests", "quest", (q) => [
+    input(q, "date", "Date", "date", { keepEmpty: true }),
+    input(q, "time", "Time", "time"),
+    input(q, "plan", "Plan"),
+    input(q, "location", "Location"),
+  ]);
+
+  renderList("history", "history", "meet", (m) => [
+    input(m, "date", "Date", "date", { keepEmpty: true }),
+    input(m, "plan", "Plan"),
+    input(m, "location", "Location"),
+  ]);
+
+  renderCaps();
+
+  const fw = doc.firmware && typeof doc.firmware === "object" ? doc.firmware : {};
+  const fwInputs = [
+    input(fw, "version", "Version", "text", { placeholder: "1.1.0" }),
+    input(fw, "url_st7789", "ST7789 build URL", "url", { wide: true }),
+    input(fw, "url", "ILI9341 build URL", "url", { wide: true }),
+  ];
+  // Attach the block only while it has something in it.
+  fwInputs.forEach((l) => l.querySelector("input").addEventListener("input", () => {
+    if (Object.keys(fw).length) doc.firmware = fw; else delete doc.firmware;
+    changed();
+  }));
+  fill($("fw"), fwInputs);
+
+  if (!fromRaw) $("raw").value = text();
+}
+
+function renderList(elId, key, cls, fields) {
+  if (!Array.isArray(doc[key])) doc[key] = [];
+  const list = doc[key];
+  fill($(elId), list.map((item, i) => {
+    const row = document.createElement("div");
+    row.className = "row " + cls;
+    row.append(...fields(item), removeBtn(() => { list.splice(i, 1); changed(); render(); }));
+    return row;
+  }));
+}
+
+function renderCaps() {
+  if (!doc.fun_caps || typeof doc.fun_caps !== "object" || Array.isArray(doc.fun_caps)) doc.fun_caps = {};
+  // Edit as rows; write back as { name: n } or { name: { adjust, note } }.
+  const rows = Object.entries(doc.fun_caps).map(([name, v]) => ({
+    name, adjust: typeof v === "object" && v ? v.adjust : v, note: typeof v === "object" && v ? (v.note || "") : "",
+  }));
+  const write = () => {
+    const out = {};
+    for (const r of rows) {
+      const name = (r.name || "").trim();
+      if (!name) continue;
+      const n = r.adjust === "" || r.adjust === undefined ? 0 : Number(r.adjust);
+      out[name] = r.note ? { adjust: n, note: r.note } : n;
+    }
+    doc.fun_caps = out;
+    changed();
+  };
+  const draw = () => fill($("caps"), rows.map((r, i) => {
+    const row = document.createElement("div");
+    row.className = "row cap";
+    const fields = [
+      input(r, "name", "Name (as set on their unit)", "text", { keepEmpty: true }),
+      input(r, "adjust", "Caps", "number", { keepEmpty: true }),
+      input(r, "note", "Why", "text", { keepEmpty: true }),
+    ];
+    fields.forEach((l) => l.querySelector("input").addEventListener("input", write));
+    row.append(...fields, removeBtn(() => { rows.splice(i, 1); write(); draw(); }));
+    return row;
+  }));
+  draw();
+  $("addCap").onclick = () => { rows.push({ name: "", adjust: 1, note: "" }); draw(); };
+}
+
+// ---- checking and saving ------------------------------------------------------
+let checkTimer = null;
+function changed(fromRaw = false) {
+  if (!fromRaw) $("raw").value = text();
+  const dirty = text() !== saved;
+  $("state").textContent = dirty ? "Unsaved changes" : "Saved — matches the gist";
+  $("state").className = dirty ? "dirty" : "";
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(runCheck, 250);
+}
+
+function report(errors, warnings, extra) {
+  const items = [];
+  for (const e of errors) items.push(["err", "✖ " + e]);
+  for (const w of warnings) items.push(["warn", "▲ " + w]);
+  if (!errors.length) items.push(["ok", extra || (warnings.length ? "Units will accept this file." : "✔ All good: units will accept this file.")]);
+  fill($("report"), items.map(([cls, t]) => {
+    const li = document.createElement("li");
+    li.className = cls;
+    li.textContent = t;
+    return li;
+  }));
+  $("save").disabled = errors.length > 0 || text() === saved;
+}
+
+async function post(path, content) {
+  const r = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }),
+  });
+  return [r.status, await r.json()];
+}
+
+async function runCheck() {
+  try {
+    const [, res] = await post("/api/check", text());
+    report(res.errors || [], res.warnings || []);
+  } catch (e) {
+    report(["The editor isn't running any more: restart tools/club_editor.py."], []);
+  }
+}
+
+async function load() {
+  $("state").textContent = "Loading…";
+  try {
+    const r = await fetch("/api/file");
+    const res = await r.json();
+    if (!r.ok) throw new Error(res.error);
+    try {
+      doc = JSON.parse(res.content);
+      saved = text();  // compare against our own formatting of what's there
+    } catch {
+      doc = {};
+      saved = res.content;
+    }
+    $("gistLink").innerHTML = "";
+    const a = document.createElement("a");
+    a.href = res.url; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "Open the gist (its Revisions tab undoes any save)";
+    $("gistLink").appendChild(a);
+    render();
+    changed();
+    // Report the file as it is on the gist, even if it doesn't round-trip exactly.
+    report(res.errors, res.warnings);
+    $("save").disabled = text() === saved || res.errors.length > 0;
+  } catch (e) {
+    $("state").textContent = "Couldn't load";
+    report(["Couldn't load the gist: " + e.message], []);
+  }
+}
+
+$("save").addEventListener("click", async () => {
+  $("save").disabled = true;
+  $("state").textContent = "Saving…";
+  const content = text();
+  try {
+    const [status, res] = await post("/api/save", content);
+    if (status === 200) {
+      saved = content;
+      changed();
+      report([], res.warnings || [], "✔ Saved. Units pick it up within 24 h, or now with SETTINGS ▸ REFRESH NOW.");
+    } else {
+      $("state").textContent = "Not saved";
+      report(res.errors || [res.error || "Save failed"], res.warnings || []);
+    }
+  } catch (e) {
+    $("state").textContent = "Not saved";
+    report(["Save failed: " + e.message], []);
+  }
+});
+
+$("reload").addEventListener("click", () => {
+  if (text() !== saved && !confirm("Throw away your unsaved changes?")) return;
+  load();
+});
+
+$("noNext").addEventListener("change", () => {
+  if ($("noNext").checked) doc.next = null;
+  else doc.next = { date: "" };
+  changed(); render();
+});
+
+$("happened").addEventListener("click", () => {
+  const n = doc.next;
+  if (!n || !n.date) return;
+  const meeting = { date: n.date };
+  if (n.plan) meeting.plan = n.plan;
+  if (n.location) meeting.location = n.location;
+  doc.last = { ...meeting };
+  if (!Array.isArray(doc.history)) doc.history = [];
+  if (!doc.history.length || doc.history[0].date !== meeting.date) doc.history.unshift({ ...meeting });
+  doc.next = null;
+  changed(); render();
+});
+
+$("addQuest").addEventListener("click", () => {
+  if (!Array.isArray(doc.side_quests)) doc.side_quests = [];
+  doc.side_quests.push({ date: "" });
+  changed(); render();
+});
+
+$("addHist").addEventListener("click", () => {
+  if (!Array.isArray(doc.history)) doc.history = [];
+  doc.history.push({ date: "" });
+  changed(); render();
+});
+
+$("raw").addEventListener("input", () => {
+  try {
+    doc = JSON.parse($("raw").value);
+    render(true);   // leave the textarea (and the cursor) alone while typing
+    changed(true);
+  } catch {
+    $("state").textContent = "Raw JSON has a mistake";
+    $("state").className = "dirty";
+    report(["Not valid JSON yet: keep typing, or fix it."], []);
+  }
+});
+
+window.addEventListener("beforeunload", (e) => {
+  if (text() !== saved) e.preventDefault();
+});
+
+load();
+</script>
+</body>
+</html>

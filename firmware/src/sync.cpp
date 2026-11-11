@@ -58,6 +58,10 @@ static void secureClient(WiFiClientSecure& c) {
 
 // Downloads at most bc::kMaxFileBytes into buf. Returns length or -1.
 static int download(const char* url, const char* token, char* buf, size_t cap) {
+  if (!url[0]) {
+    setError("no data URL: set it on the setup page");
+    return -1;
+  }
   WiFiClientSecure client;
   secureClient(client);
   HTTPClient http;
@@ -77,7 +81,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   const int code = http.GET();
   if (code != HTTP_CODE_OK) {
     if (code < 0) setError("fetch failed: %s", HTTPClient::errorToString(code).c_str());
-    else setError("HTTP %d%s", code, (code == 404 && !(token && token[0])) ? " (private repo?)" : "");
+    else setError("HTTP %d%s", code, (code == 404 && !(token && token[0])) ? " (check the data URL)" : "");
     http.end();
     return -1;
   }
