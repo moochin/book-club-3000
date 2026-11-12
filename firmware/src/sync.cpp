@@ -136,9 +136,16 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   httpUpdate.rebootOnUpdate(true);
   httpUpdate.onProgress([](int cur, int total) {
     if (total > 0) g_updatePct = cur * 100 / total;
+    vTaskDelay(1);  // let core 0's idle task run between chunks
   });
+  // The download and flash writes keep core 0 busy for long stretches, and
+  // the task watchdog then reset the board mid-install (from 1.2.0 to 1.3.0
+  // it looped: reset, retry, reset). Don't watch core 0's idle task while
+  // the update runs; success reboots, failure turns it back on below.
+  disableCore0WDT();
   const t_httpUpdate_return r = httpUpdate.update(client, url);
   // Only reached on failure (success reboots).
+  enableCore0WDT();
   strlcpy(g_failedFwVersion, fw.version, sizeof g_failedFwVersion);
   setError("update %s failed: %s", fw.version,
            r == HTTP_UPDATE_NO_UPDATES ? "no update" : httpUpdate.getLastErrorString().c_str());
