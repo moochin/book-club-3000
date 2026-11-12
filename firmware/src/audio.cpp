@@ -71,7 +71,10 @@ static void tone(uint16_t freq, uint8_t duty) {
     ledcChangeFrequency(cfg::kLedcSpeaker, freq, 8);
     g_curFreq = freq;
   }
-  ledcWrite(cfg::kLedcSpeaker, duty);
+  // Scale every generated sound: full duty pulled enough current through the
+  // CYD's speaker amp to sag USB power. Keep at least 1 so quiet hums survive.
+  uint32_t d = (uint32_t)duty * cfg::kToneLevel >> 8;
+  ledcWrite(cfg::kLedcSpeaker, d ? d : 1);
 }
 
 static void schedule(uint32_t us) {
@@ -219,7 +222,7 @@ static hw_timer_t* g_sampleTimer = nullptr;
 static Clip g_oneShot = Clip::Count;
 static uint32_t g_dacLastActiveMs = 0;
 
-constexpr uint16_t kBiasTop = 128 * 4;  // ~46 ms ramp at 11 kHz
+constexpr uint16_t kBiasTop = cfg::kClipBias * 4;  // ramped up over ~15 ms at 11 kHz
 constexpr uint32_t kGainMax = 65535;
 
 static inline void IRAM_ATTR dacOut(uint32_t v) {
@@ -252,7 +255,7 @@ static void IRAM_ATTR onSample() {
       else v.active = false;
     }
   }
-  int32_t out = 128 + (((acc >> 8) * cfg::kClipVolume) >> 8);
+  int32_t out = cfg::kClipBias + (((acc >> 8) * cfg::kClipSwing) >> 7);
   dacOut(out < 0 ? 0 : out > 255 ? 255 : out);
   portEXIT_CRITICAL_ISR(&g_pcmMux);
 }
