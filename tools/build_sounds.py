@@ -12,6 +12,7 @@ Runs before every firmware build (firmware/scripts/sounds.py).
 """
 import array
 import math
+import random
 import os
 import shutil
 import subprocess
@@ -104,20 +105,55 @@ def decode(path):
     return [v / 32768.0 for v in a], RATE
 
 
+def lowpass(x, rate, cutoff):
+    """Windowed-sinc FIR low-pass (Blackman window), so the top end above the
+    unit's Nyquist frequency is removed rather than folding back as harsh
+    aliasing (the old moving average let most of it through)."""
+    fc = cutoff / rate
+    taps = int(4 / fc) | 1  # ~4 cycles of the cutoff: a steep enough edge
+    m = taps // 2
+    h = []
+    for i in range(taps):
+        n = i - m
+        sinc = 2 * fc if n == 0 else math.sin(2 * math.pi * fc * n) / (math.pi * n)
+        w = 0.42 - 0.5 * math.cos(2 * math.pi * i / (taps - 1)) + 0.08 * math.cos(4 * math.pi * i / (taps - 1))
+        h.append(sinc * w)
+    g = sum(h)
+    h = [v / g for v in h]
+    out = []
+    for i in range(len(x)):
+        acc = 0.0
+        for j in range(taps):
+            k = i + m - j
+            if 0 <= k < len(x):
+                acc += x[k] * h[j]
+        out.append(acc)
+    return out
+
+
+def compress(x, rate, threshold=0.25, ratio=3.0):
+    """Gentle compression: brings the body of spiky sounds up relative to
+    their peaks, so they use more of the unit's few output levels."""
+    att = math.exp(-1 / (rate * 0.002))   # 2 ms attack
+    rel = math.exp(-1 / (rate * 0.060))   # 60 ms release
+    env, out = 0.0, []
+    for v in x:
+        a = abs(v)
+        env = att * env + (1 - att) * a if a > env else rel * env + (1 - rel) * a
+        g = 1.0
+        if env > threshold:
+            g = (threshold * (env / threshold) ** (1 / ratio)) / env
+        out.append(v * g)
+    return out
+
+
 def resample(x, rate):
-    if rate == RATE or not x:
+    if not x:
         return x
-    # Low-pass first (a moving average as wide as one output step) to keep
-    # the top end from folding back as hiss, then interpolate linearly.
-    k = max(1, int(round(rate / RATE)))
-    if k > 1:
-        acc, sm = 0.0, []
-        for i, v in enumerate(x):
-            acc += v
-            if i >= k:
-                acc -= x[i - k]
-            sm.append(acc / min(i + 1, k))
-        x = sm
+    # Remove everything above ~0.45 of the output rate first.
+    x = lowpass(x, rate, RATE * 0.45)
+    if rate == RATE:
+        return x
     n = int(len(x) * RATE / rate)
     step = rate / RATE
     out = []
@@ -139,6 +175,9 @@ def process(name, loops, path):
     mean = sum(x) / len(x)
     x = [v - mean for v in x]
     peak = max(abs(v) for v in x) or 1.0
+    x = [v / peak for v in x]
+    x = compress(x, RATE)
+    peak = max(abs(v) for v in x) or 1.0
     x = [v / peak * 0.98 for v in x]
     if not loops:
         start = next((i for i, v in enumerate(x) if abs(v) > SILENCE), 0)
@@ -153,7 +192,11 @@ def process(name, loops, path):
     if len(x) > limit:
         print(f"build_sounds: {name}: cut to {MAX_SECONDS:g} s")
         x = x[:limit]
-    return bytes(max(0, min(255, int(round(128 + v * 127)))) for v in x)
+    # TPDF dither: rounding straight to 8 bits turns quiet passages into gritty
+    # distortion; a little triangular noise first leaves an even, faint hiss.
+    # Seeded by name, so builds are repeatable.
+    rnd = random.Random(name)
+    return bytes(max(0, min(255, int(round(128 + v * 127 + rnd.random() - rnd.random())))) for v in x)
 
 
 def main():
