@@ -7,6 +7,7 @@
 #include <freertos/semphr.h>
 #include <math.h>
 #include <soc/rtc_io_reg.h>
+#include <soc/sens_reg.h>
 
 #include "audio_gen.h"
 #include "config.h"
@@ -274,7 +275,11 @@ static void enterDac() {
   silence();
   ledcDetachPin(cfg::kPinSpeaker);
   dac_output_enable(DAC_CHANNEL_2);
-  dacOut(0);
+  // The DAC's cosine generator owns its output out of reset (SENS_DAC_CW_EN2
+  // defaults to 1), so dacOut()'s raw writes went nowhere: clips played as
+  // a hiss of exactly their length. Hand the output to the register.
+  CLEAR_PERI_REG_MASK(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_CW_EN2_M);
+  dac_output_voltage(DAC_CHANNEL_2, 0);
   portENTER_CRITICAL(&g_pcmMux);
   g_bias = 0;
   portEXIT_CRITICAL(&g_pcmMux);
