@@ -5,6 +5,7 @@
 // screen shows; the UI only draws what it is given. Slow work (HTTPS) runs in
 // its own FreeRTOS task, so the knob stays responsive during a fetch.
 #include <Arduino.h>
+#include <esp_system.h>
 
 #include <memory>
 
@@ -37,6 +38,7 @@ bc::LocalNow g_previewNow;
 
 bc::Date g_jingledOn;  // meeting-day / birthday jingle plays once per day
 uint32_t g_lastFrameMs = 0;
+uint32_t g_lastInputMs = 0;
 bool g_dirty = true;
 
 // Nudges: the one on screen, the LED flash, and the note after sending.
@@ -153,6 +155,34 @@ bool quietHours(const bc::LocalNow& n) {
   return n.minuteOfDay >= cfg::kQuietFromMinute || n.minuteOfDay < cfg::kQuietToMinute;
 }
 
+// The cassette-loading boot noise: when someone has just plugged the unit in,
+// or on a restart outside quiet hours (the clock survives a soft restart).
+// Not for an update or crash restart in the night.
+bool bootSoundWanted() {
+  if (!settings::get().sound) return false;
+  if (esp_reset_reason() == ESP_RST_POWERON) return true;
+  return !quietHours(clockmod::localNow());
+}
+
+// Sounds for what the knob or a tap just did: the microfiche whir between
+// tabs, the valve radio warming up and tuning in settings, else a click.
+void inputSound(const input::Events& ev, const ui::View& was, const ui::View& is, uint32_t now) {
+  if (ev.any()) g_lastInputMs = now;
+  // The settings hum, until settings close or sit untouched for a while.
+  audio::setAmbient(is.settings && now - g_lastInputMs < cfg::kSettingsHumMs);
+  if (!ev.any()) return;
+  if (!was.settings && !is.settings && is.tab != was.tab) {
+    const int dir = ev.turn ? ev.turn : (is.tab > was.tab ? 1 : -1);
+    audio::tabAdvance(dir);
+  } else if (is.settings && !was.settings) {
+    audio::settingsWarmUp();
+  } else if (is.menu && was.menu && is.menuSel != was.menuSel) {
+    audio::tunerScan(was.menuSel, is.menuSel, ui::kMenuItems);
+  } else if (ev.turn || ev.tap) {
+    audio::knobClick();
+  }
+}
+
 ui::SyncInfo syncInfo(datasync::Status s) {
   switch (s) {
     case datasync::Status::Fetching: return ui::SyncInfo::Fetching;
@@ -181,6 +211,7 @@ void setup() {
   checkFactoryReset();
 #if !BC_BRINGUP
   // Start-up screen. Blocking is fine here: nothing else is running yet.
+  if (bootSoundWanted()) audio::bootTape();
   for (uint32_t start = millis(), t = 0; t < cfg::kBootSplashMs; t = millis() - start) {
     ui::drawBoot(t);
     delay(33);
@@ -218,7 +249,6 @@ void loop() {
     ev = input::Events();
     g_dirty = true;
   }
-  if (ev.turn || ev.tap) audio::knobClick();
 
   net::tick(now);
   const bool up = net::connected();
@@ -336,7 +366,9 @@ void loop() {
   m.toast = g_toast[0] ? g_toast : nullptr;
   m.toastWarn = g_toastWarn;
 
+  const ui::View viewWas = ui::view();
   const ui::Result r = ui::handle(ev, m, now);
+  inputSound(ev, viewWas, ui::view(), now);
   if (r.action != ui::Action::None) {
     doAction(r);
     return;  // redraw next pass with the updated model

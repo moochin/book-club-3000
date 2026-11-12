@@ -83,6 +83,16 @@ void render(const Model& m, uint32_t nowMs);
 // True when the current screen animates (needs frequent redraws).
 bool animating(const Model& m);
 
+// Where the UI is, so the main loop can pick sounds for changes.
+struct View {
+  bool settings = false;  // the settings menu or a screen opened from it
+  bool menu = false;      // the settings list itself
+  int menuSel = 0;
+  uint8_t tab = 0;
+};
+View view();
+constexpr int kMenuItems = 13;  // rows in the settings list
+
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);
 

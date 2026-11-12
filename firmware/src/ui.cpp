@@ -809,6 +809,19 @@ void drawIncoming(const Model& m, uint32_t t) {
 
 void begin() {}
 
+static_assert(kMenuCount == kMenuItems, "ui.h kMenuItems is out of date");
+
+View view() {
+  View v;
+  // The owner card opened by tapping the mascot belongs to the tabs.
+  v.settings = g_screen != Screen::Tabs &&
+               !(g_screen == Screen::OwnerCard && g_cardReturn == Screen::Tabs);
+  v.menu = g_screen == Screen::Menu;
+  v.menuSel = g_menuSel;
+  v.tab = g_tab;
+  return v;
+}
+
 bool animating(const Model& m) {
   if (m.portal || m.updatePct >= 0) return false;
   return g_screen == Screen::Tabs && g_tab == kStat;

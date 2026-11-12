@@ -41,7 +41,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: previews
-          path: art/preview/*.png
+          path: |
+            art/preview/*.png
+            art/preview/sounds/*.wav
       - name: Check the tag matches BC_FW_VERSION
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
