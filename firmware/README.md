@@ -92,8 +92,9 @@ src/mascot     draws ../art/mascot PNGs (baked into src/art_data.h by
                scripts/art.py before each build); placeholders for the rest
 src/display    LovyanGFX panel + one 320x240 4-bit palette canvas, scanlines
 src/input      EC11 on the hardware pulse counter, debounced push switch
-src/audio      generated Geiger ticks, knob clicks, meeting-day jingle;
-               src/audio_gen has the machine noises (see "Sounds" below)
+src/audio      generated Geiger ticks, knob clicks, meeting-day jingle, and
+               recorded clips from ../art/sounds via the DAC; src/audio_gen
+               has the machine noises (see "Sounds" below)
 src/nudge      nudges: inbox check every minute, sending, the friends list,
                via the hub in ../worker (shares sync's TLS lock: one HTTPS
                connection at a time)
@@ -117,8 +118,14 @@ crackle and relay clatter. There are no samples.
 | Opening settings | The power switch, then valves warming into a hum with crackle, and the tuning dial sweeping down the band onto a station. |
 | In settings | A low valve hum with the odd crackle. Moving through the list scans the dial to the next "station", whistling through static. The hum fades out when you close settings, or after 30 s with no input. |
 
-The sound setting and quiet hours mute all of these. To hear them without a
-unit, render them to WAV files (in `art/preview/sounds/`):
+**Recorded sounds:** a file in `../art/sounds/` named after a slot (`boot.wav`,
+`tab_next.mp3`, `nudge.wav`...) replaces that generated sound. It is baked into
+the firmware at build time (`tools/build_sounds.py` writes `src/sound_data.h`)
+and plays as 8-bit 11 kHz audio through the speaker pin's DAC. Slot names,
+formats and tips are in `../art/sounds/README.md`.
+
+The sound setting and quiet hours mute all of these. To hear the generated
+ones without a unit, render them to WAV files (in `art/preview/sounds/`):
 
 ```
 cd firmware && mkdir -p sim/out ../art/preview/sounds

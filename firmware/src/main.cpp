@@ -176,6 +176,8 @@ void inputSound(const input::Events& ev, const ui::View& was, const ui::View& is
     audio::tabAdvance(dir);
   } else if (is.settings && !was.settings) {
     audio::settingsWarmUp();
+  } else if (was.settings && !is.settings) {
+    audio::settingsClose();
   } else if (is.menu && was.menu && is.menuSel != was.menuSel) {
     audio::tunerScan(was.menuSel, is.menuSel, ui::kMenuItems);
   } else if (ev.turn || ev.tap) {
@@ -260,6 +262,7 @@ void loop() {
   nudge::tick(now, up, g_hasData ? g_data.nudges.url : "");
   if (datasync::takeNewData(g_data)) {
     g_hasData = true;
+    audio::newData();
     g_dirty = true;
   }
   if (net::takeSettingsChanged()) {
@@ -286,7 +289,8 @@ void loop() {
   if (!preview && state.clockValid && (state.quest == bc::Quest::MeetingDay || ownBirthday) &&
       g_jingledOn != liveNow.date && audio::canPlay()) {
     g_jingledOn = liveNow.date;
-    audio::jingle();
+    if (state.quest == bc::Quest::MeetingDay) audio::jingle();
+    else audio::birthday();
   }
   // A received nudge: show it; outside quiet hours also chirp, flash the
   // LED and wake the screen. In quiet hours it waits on screen, silently.
@@ -311,6 +315,8 @@ void loop() {
     const char* to = nudge::sendTo();
     const char* who = strcmp(to, "*") == 0 ? "EVERYONE" : to;
     g_toastWarn = ss == nudge::SendState::Failed;
+    if (ss == nudge::SendState::Sent) audio::nudgeSent();
+    else if (ss == nudge::SendState::Failed) audio::errorBuzz();
     if (ss == nudge::SendState::Sending) snprintf(g_toast, sizeof g_toast, "SENDING NUDGE...");
     else if (ss == nudge::SendState::Sent) snprintf(g_toast, sizeof g_toast, "NUDGE SENT TO %s", who);
     else if (ss == nudge::SendState::Failed) snprintf(g_toast, sizeof g_toast, "NOT SENT: %s", nudge::sendError());

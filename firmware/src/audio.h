@@ -1,6 +1,8 @@
-// Sound on GPIO 26 (through the PAM8002A amp). Everything is generated in
-// code: Geiger ticks, knob clicks, a short jingle, and the machine noises
-// (cassette-loading boot, microfiche tab advance, valve-radio settings).
+// Sound on GPIO 26 (through the PAM8002A amp). By default everything is
+// generated in code: Geiger ticks, knob clicks, a short jingle, and the
+// machine noises (cassette-loading boot, microfiche tab advance, valve-radio
+// settings). A recorded clip in art/sounds/ replaces the generated sound for
+// its slot; clips play as 8-bit audio through the pin's DAC (see audio.cpp).
 // Timing runs off esp_timer, so a slow screen push never stretches a 2 ms
 // tick into a beep. The pin is held low whenever nothing is playing, to keep
 // the amp quiet.
@@ -29,6 +31,7 @@ void setGeigerRate(int clicksPerMin);
 void knobClick();
 void geigerClick();
 void jingle();      // meeting day fanfare, ~1.5 s
+void birthday();    // on this unit owner's birthday (the jingle unless a clip is given)
 void confirmBeep();
 void nudgeChirp();  // an incoming nudge: a quick "bip-bip-BWEEP"
 
@@ -49,6 +52,13 @@ void settingsWarmUp();
 // "station" to the next, whistling through static. pos/count place the
 // station on the dial.
 void tunerScan(int fromPos, int toPos, int count);
+
+// Leaving settings, a nudge delivered, a nudge that failed, and club data
+// fetched. Silent unless art/sounds has a clip for them.
+void settingsClose();
+void nudgeSent();
+void errorBuzz();
+void newData();
 
 // The valve hum with the odd crackle, while settings are open. It fades in
 // and out, and pauses under other sounds.
