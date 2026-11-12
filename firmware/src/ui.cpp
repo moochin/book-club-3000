@@ -512,17 +512,52 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
   }
 }
 
+// A list too long for the screen is shown a page at a time: the page's first
+// slot becomes "BACK" when there are items above, its last slot "MORE" when
+// there are items below. Pages are fixed, worked out from the selection, so
+// the knob and touch always agree on what's where.
+struct ListPage {
+  int first;  // index of the first item shown
+  int n;      // items shown
+  bool up;    // slot 0 is the BACK row
+  bool down;  // slot up + n is the MORE row
+};
+
+ListPage listPage(int count, int sel, int rowH) {
+  const int slots = (cfg::kScreenH - 34) / rowH;
+  ListPage p{0, 0, false, false};
+  for (;;) {
+    p.up = p.first > 0;
+    const int left = count - p.first;
+    p.down = left > slots - (p.up ? 1 : 0);
+    p.n = p.down ? slots - (p.up ? 1 : 0) - 1 : left;
+    if (!p.down || sel < p.first + p.n) return p;
+    p.first += p.n;
+  }
+}
+
+void pageRow(int slot, int rowH, bool down, int hidden) {
+  auto& c = canvas();
+  const int y = 32 + slot * rowH, cx = 16, cy = y + rowH / 2 - 2;
+  if (down) c.fillTriangle(cx - 5, cy - 3, cx + 5, cy - 3, cx, cy + 3, kBright);
+  else c.fillTriangle(cx - 5, cy + 3, cx + 5, cy + 3, cx, cy - 3, kBright);
+  char buf[24];
+  if (down) snprintf(buf, sizeof buf, "MORE (%d)", hidden);
+  else snprintf(buf, sizeof buf, "BACK");
+  text(28, y + 1, buf, kBright);
+}
+
 void drawList(const char* title, int count, int sel, void (*label)(int, const Model&, char*, int),
               const Model& m, int rowH = 20) {
   auto& c = canvas();
   text(8, 4, title, kBright, 2, 2);
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
-  const int visible = (cfg::kScreenH - 34) / rowH;
-  int top = sel - visible + 1;
-  if (top < 0) top = 0;
-  for (int r = 0; r < visible && top + r < count; ++r) {
-    const int i = top + r;
-    const int y = 32 + r * rowH;
+  const ListPage pg = listPage(count, sel, rowH);
+  if (pg.up) pageRow(0, rowH, false, 0);
+  if (pg.down) pageRow((pg.up ? 1 : 0) + pg.n, rowH, true, count - pg.first - pg.n);
+  for (int k = 0; k < pg.n; ++k) {
+    const int i = pg.first + k;
+    const int y = 32 + ((pg.up ? 1 : 0) + k) * rowH;
     char buf[48];
     label(i, m, buf, sizeof buf);
     if (i == sel) {
@@ -1038,18 +1073,20 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         default: count = bc::nudgeMessageCount(m.data); selp = &g_msgSel; break;
       }
       int& sel = *selp;
-      const int visible = (cfg::kScreenH - 34) / rowH;
-      int top = sel - visible + 1;
-      if (top < 0) top = 0;
+      const ListPage pg = listPage(count, sel, rowH);
       if (y < 31) return r;
-      const int row = (y - 31) / rowH;
-      if (row >= visible || top + row >= count) return r;
-      const int i = top + row;
-      if (row == visible - 1 && i < count - 1) {  // bottom row of a long list: scroll
-        sel = i + 1;
+      const int slot = (y - 31) / rowH;
+      if (pg.up && slot == 0) {  // BACK: the previous page
+        sel = pg.first - 1;
         return r;
       }
-      sel = i;
+      const int k = slot - (pg.up ? 1 : 0);
+      if (pg.down && k == pg.n) {  // MORE: the next page
+        sel = pg.first + pg.n;
+        return r;
+      }
+      if (k < 0 || k >= pg.n) return r;
+      sel = pg.first + k;
       return handle(press, m, now);
     }
 
