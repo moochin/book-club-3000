@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.3.8"
+#define BC_FW_VERSION "1.3.9"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -48,7 +48,7 @@ constexpr int kLedcBacklight = 7;  // used by LovyanGFX's Light_PWM
 // ---- Screen -----------------------------------------------------------------
 constexpr int kScreenW = 320;
 constexpr int kScreenH = 240;
-constexpr uint8_t kDefaultRotation = 1;  // confirm at bring-up (README)
+constexpr uint8_t kDefaultRotation = 3;  // right way up in the printed case (knob on the right)
 constexpr uint32_t kFrameMsEffects = 66;  // ~15 fps while scanline sweep runs
 constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
 constexpr uint32_t kBootSplashMs = 3200;  // start-up screen with the scrolling boot log

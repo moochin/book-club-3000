@@ -102,8 +102,8 @@ static const char kPortalSecTerminal[] =
     "<select id='bc-theme' data-for='theme'><option value='green'>Phosphor green</option>"
     "<option value='amber'>Amber</option></select>"
     "<label for='bc-rot'>Screen rotation</label>"
-    "<select id='bc-rot' data-for='rot'><option value='0'>0</option><option value='1'>1 (usual)</option>"
-    "<option value='2'>2</option><option value='3'>3</option></select>"
+    "<select id='bc-rot' data-for='rot'><option value='0'>0</option><option value='1'>1</option>"
+    "<option value='2'>2</option><option value='3'>3 (in the case)</option></select>"
     "<div class='bc-hint'>Pick the one that reads the right way up in the case.</div>";
 static const char kPortalSecClub[] = "<div class='bc-sec'>CLUB LINK</div>";
 static const char kPortalAdvancedOpen[] = "<details><summary>ADVANCED</summary>";

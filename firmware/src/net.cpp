@@ -29,7 +29,7 @@ static WiFiManagerParameter g_pStats("stats", "Owner card stats", "", 31, "input
 static WiFiManagerParameter g_statsHint(kPortalStatsHint);
 static WiFiManagerParameter g_secTerminal(kPortalSecTerminal);
 static WiFiManagerParameter g_pTheme("theme", "", "green", 6, "type='hidden'", WFM_NO_LABEL);
-static WiFiManagerParameter g_pRotation("rot", "", "1", 1, "type='hidden'", WFM_NO_LABEL);
+static WiFiManagerParameter g_pRotation("rot", "", "3", 1, "type='hidden'", WFM_NO_LABEL);
 static WiFiManagerParameter g_secClub(kPortalSecClub);
 static WiFiManagerParameter g_pUrl("url", "Club file (the gist's Raw link)", "", 159,
                                    "type='url' autocapitalize='none' autocorrect='off' placeholder='https://gist.githubusercontent.com/...'");

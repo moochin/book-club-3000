@@ -74,7 +74,7 @@ Flash it with the `cyd_st7789` env.
 | --- | --- |
 | Panel driver | ST7789 |
 | `BC_PANEL_INVERT` | 0 (`rgb_order` false) |
-| Rotation in the case | ? |
+| Rotation in the case | 3 (knob on the right); the firmware default |
 | Encoder counts per detent | ? |
 | LDR bright / dark readings | ? / ? |
 
