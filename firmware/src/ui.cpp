@@ -21,11 +21,14 @@ namespace ui {
 
 namespace {
 
-enum class Screen : uint8_t { Tabs, Menu, OwnerCard, Help, About, Debug, ConfirmPortal };
+enum class Screen : uint8_t {
+  Tabs, Menu, OwnerCard, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup
+};
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kTabCount = 3 };
 
 enum MenuItem : uint8_t {
   kMiRefresh,
+  kMiNudge,
   kMiSound,
   kMiBrightness,
   kMiTheme,
@@ -46,6 +49,9 @@ bool g_logScroll = false;
 int g_logTop = 0;
 int g_menuSel = 0;
 int g_debugSel = 0;
+int g_nudgeSel = 0;  // NUDGE WHO?: 0 = everyone, 1.. = friends
+int g_nudgeTo = -1;  // the chosen friend (-1 = everyone)
+int g_msgSel = 0;    // SAY WHAT?
 bool g_confirmYes = false;
 int g_helpPage = 0;
 Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
@@ -487,6 +493,7 @@ void drawLog(const Model& m) {
 void menuLabel(int i, const Model& m, char* buf, int len) {
   switch (i) {
     case kMiRefresh: snprintf(buf, len, "REFRESH NOW"); break;
+    case kMiNudge: snprintf(buf, len, m.nudgesConfigured ? "SEND NUDGE" : "SEND NUDGE (NOT SET UP)"); break;
     case kMiSound: snprintf(buf, len, "SOUND: %s", m.sound ? "ON" : "OFF"); break;
     case kMiBrightness:
       if (m.autoBrightness) snprintf(buf, len, "BRIGHTNESS: AUTO");
@@ -656,6 +663,12 @@ const HelpPage kHelp[] = {
       "fetches it straight away.",
       "A warning triangle by the clock means the last fetch failed: ABOUT shows why.",
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
+    {"NUDGES",
+     {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
+      "A friend's nudge chirps, flashes the light and stays on screen until you press or tap. "
+      "In quiet hours it just waits.",
+      "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
+      nullptr}},
     {"THE SCREEN",
      {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room. "
       "Turn the knob or tap to wake it.",
@@ -702,6 +715,98 @@ void drawConfirmPortal() {
 
 Result handleTap(int x, int y, const Model& m, uint32_t now);
 
+// ---- Nudges -------------------------------------------------------------------
+
+namespace {
+
+void foldTitle(char* s) {
+  char f[48];
+  bc::asciiFold(s, f, sizeof f);
+  bc::upperAscii(f);
+  strlcpy(s, f, 32);
+}
+
+void nudgeToLabel(int i, const Model& m, char* buf, int len) {
+  if (i == 0) {
+    snprintf(buf, len, "EVERYONE");
+    return;
+  }
+  char f[bc::kNameLen];
+  bc::asciiFold(i - 1 < m.friendCount ? m.friends[i - 1] : "", f, sizeof f);
+  bc::upperAscii(f);
+  snprintf(buf, len, "%s", f);
+}
+
+void nudgeMsgLabel(int i, const Model& m, char* buf, int len) {
+  snprintf(buf, len, "%s", bc::nudgeMessage(m.data, i));
+}
+
+void drawNudgeSetup() {
+  auto& c = canvas();
+  text(8, 4, "SEND NUDGE", kBright, 2, 2);
+  c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
+  text(8, 40, "NUDGES AREN'T SET UP YET", kWarn);
+  textWrapped(8, 68,
+              "The club file needs the nudge hub's address, and this unit needs its token: ask "
+              "whoever runs the hub.",
+              50, 3, kText);
+  textWrapped(8, 132,
+              "Enter the token on the setup page: SETTINGS > WI-FI RESET > OPEN.", 50, 2, kText);
+  text(8, 210, "PRESS OR TAP TO GO BACK", kDim);
+}
+
+void drawToast(const Model& m) {
+  auto& c = canvas();
+  c.fillRect(0, cfg::kScreenH - 20, cfg::kScreenW, 20, kBg);
+  c.drawFastHLine(0, cfg::kScreenH - 21, cfg::kScreenW, m.toastWarn ? kWarn : kBright);
+  char f[56];
+  bc::asciiFold(m.toast, f, sizeof f);
+  bc::upperAscii(f);
+  f[52] = '\0';
+  textCentered(cfg::kScreenW / 2, cfg::kScreenH - 18, f, m.toastWarn ? kWarn : kHot);
+}
+
+// A received nudge, over whatever is on screen until someone dismisses it.
+void drawIncoming(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  const int x = 6, y = 34, w = cfg::kScreenW - 12, h = 196;
+  c.fillRect(0, 28, cfg::kScreenW, cfg::kScreenH - 28, kBg);  // nothing peeks out around it
+  const bool flash = (t / 400) % 2;
+  c.drawRect(x, y, w, h, flash ? kHot : kBright);
+  c.drawRect(x + 2, y + 2, w - 4, h - 4, kMid);
+  mascot::draw(x + 10, y + 50, m.state.clockValid ? m.state.pose : bc::Pose::Level1, t, false);
+  char from[bc::kNameLen], title[40];
+  bc::asciiFold(m.incoming->from, from, sizeof from);
+  bc::upperAscii(from);
+  snprintf(title, sizeof title, "NUDGE FROM %s", from);
+  textCentered(cfg::kScreenW / 2, y + 12, title, kHot, 2, 2);
+  c.drawFastHLine(x + 10, y + 40, w - 20, kMid);
+  char msg[bc::kNudgeMsgLen];
+  bc::asciiFold(m.incoming->msg, msg, sizeof msg);
+  bc::upperAscii(msg);
+  // Big letters, wrapped to the space beside the mascot (17 characters a line).
+  char line[20];
+  int row = 0;
+  const char* p = msg;
+  while (*p && row < 4) {
+    while (*p == ' ') ++p;
+    int n = (int)strlen(p);
+    if (n > 17) {
+      n = 17;
+      while (n > 0 && p[n] != ' ') --n;
+      if (n == 0) n = 17;
+    }
+    memcpy(line, p, (size_t)n);
+    line[n] = '\0';
+    text(x + 84, y + 56 + row * 30, line, kBright, 2, 3);
+    p += n;
+    ++row;
+  }
+  textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
+}
+
+}  // namespace
+
 void begin() {}
 
 bool animating(const Model& m) {
@@ -716,6 +821,11 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
   if (m.portal) {
     if (e.longPress && m.portalCancellable) r.action = Action::CancelPortal;
+    return r;
+  }
+  // A nudge on screen: any knob or touch event just dismisses it.
+  if (m.incoming) {
+    r.action = Action::DismissNudge;
     return r;
   }
   if (e.tap) return handleTap(e.x, e.y, m, now);
@@ -748,6 +858,10 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       if (e.shortPress) {
         switch (g_menuSel) {
           case kMiRefresh: r.action = Action::RefreshNow; g_screen = Screen::Tabs; g_tab = kData; break;
+          case kMiNudge:
+            g_screen = m.nudgesConfigured ? Screen::NudgeTo : Screen::NudgeSetup;
+            g_nudgeSel = 0;
+            break;
           case kMiSound: r.action = Action::ToggleSound; break;
           case kMiBrightness: r.action = Action::CycleBrightness; break;
           case kMiTheme: r.action = Action::CycleTheme; break;
@@ -793,6 +907,37 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         }
       }
       if (e.longPress || e.turn) g_screen = Screen::Menu;
+      break;
+
+    case Screen::NudgeTo:
+      if (e.longPress) {
+        g_screen = Screen::Menu;
+        break;
+      }
+      g_nudgeSel = constrain(g_nudgeSel + e.turn, 0, m.friendCount);
+      if (e.shortPress) {
+        g_nudgeTo = g_nudgeSel - 1;
+        g_msgSel = 0;
+        g_screen = Screen::NudgeMsg;
+      }
+      break;
+
+    case Screen::NudgeMsg:
+      if (e.longPress) {
+        g_screen = Screen::NudgeTo;
+        break;
+      }
+      g_msgSel = constrain(g_msgSel + e.turn, 0, bc::nudgeMessageCount(m.data) - 1);
+      if (e.shortPress) {
+        r.action = Action::SendNudge;
+        r.arg = g_nudgeTo;
+        r.arg2 = g_msgSel;
+        g_screen = Screen::Tabs;
+      }
+      break;
+
+    case Screen::NudgeSetup:
+      if (e.shortPress || e.longPress) g_screen = Screen::Menu;
       break;
 
     case Screen::Debug:
@@ -867,12 +1012,19 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       return r;
 
     case Screen::Menu:
-    case Screen::Debug: {
+    case Screen::Debug:
+    case Screen::NudgeTo:
+    case Screen::NudgeMsg: {
       if (title) return handle(hold, m, now);
-      const bool menu = g_screen == Screen::Menu;
-      const int count = menu ? (int)kMenuCount : scenarios::count() + 1;
-      const int rowH = menu ? 20 : 18;  // as passed to drawList()
-      int& sel = menu ? g_menuSel : g_debugSel;
+      int count, rowH = 20;  // as passed to drawList()
+      int* selp;
+      switch (g_screen) {
+        case Screen::Menu: count = kMenuCount; selp = &g_menuSel; break;
+        case Screen::Debug: count = scenarios::count() + 1; selp = &g_debugSel; rowH = 18; break;
+        case Screen::NudgeTo: count = m.friendCount + 1; selp = &g_nudgeSel; break;
+        default: count = bc::nudgeMessageCount(m.data); selp = &g_msgSel; break;
+      }
+      int& sel = *selp;
       const int visible = (cfg::kScreenH - 34) / rowH;
       int top = sel - visible + 1;
       if (top < 0) top = 0;
@@ -889,6 +1041,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
     }
 
     case Screen::OwnerCard:
+    case Screen::NudgeSetup:
       return handle(press, m, now);
 
     case Screen::Help: {
@@ -957,9 +1110,20 @@ void render(const Model& m, uint32_t t) {
       case Screen::About: drawAbout(m); break;
       case Screen::Debug: drawList("PREVIEW STATES", scenarios::count() + 1, g_debugSel, debugLabel, m, 18); break;
       case Screen::ConfirmPortal: drawConfirmPortal(); break;
+      case Screen::NudgeTo: drawList("NUDGE WHO?", m.friendCount + 1, g_nudgeSel, nudgeToLabel, m); break;
+      case Screen::NudgeMsg: {
+        char title[32];
+        snprintf(title, sizeof title, "TO %s:", g_nudgeTo < 0 ? "EVERYONE" : m.friends[g_nudgeTo]);
+        foldTitle(title);
+        drawList(title, bc::nudgeMessageCount(m.data), g_msgSel, nudgeMsgLabel, m);
+        break;
+      }
+      case Screen::NudgeSetup: drawNudgeSetup(); break;
       default: break;
     }
   }
+  if (!m.portal && m.toast && g_screen == Screen::Tabs) drawToast(m);
+  if (!m.portal && m.incoming) drawIncoming(m, t);
   previewBanner(m);
   present(m.effects, t);
 }

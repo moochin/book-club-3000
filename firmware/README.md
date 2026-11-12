@@ -93,6 +93,9 @@ src/mascot     draws ../art/mascot PNGs (baked into src/art_data.h by
 src/display    LovyanGFX panel + one 320x240 4-bit palette canvas, scanlines
 src/input      EC11 on the hardware pulse counter, debounced push switch
 src/audio      generated Geiger ticks, knob clicks, meeting-day jingle
+src/nudge      nudges: inbox check every minute, sending, the friends list,
+               via the hub in ../worker (shares sync's TLS lock: one HTTPS
+               connection at a time)
 src/backlight  auto-dimming from the LDR; the screen-power policy
                (lib/bookclub_state/src/bc_screen.h): off at night and after
                10 min in a dark room, dim when idle, 2-min wake at night

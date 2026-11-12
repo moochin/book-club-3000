@@ -21,6 +21,8 @@ constexpr int kNameLen = 24;
 constexpr int kMaxBirthdays = 12;
 constexpr int kVersionLen = 16;
 constexpr int kUrlLen = 160;
+constexpr int kNudgeTextLen = 41;      // 40 characters, as the nudge hub enforces
+constexpr int kMaxNudgeMessages = 16;
 // Largest bookclub.json the firmware accepts (bytes).
 constexpr size_t kMaxFileBytes = 12 * 1024;
 
@@ -55,6 +57,14 @@ struct Birthday {
   int8_t day = 0;    // 1..31
 };
 
+// The optional "nudges" block: where the nudge hub lives, and the club's own
+// messages (if none, the units use their built-in set).
+struct NudgeConfig {
+  char url[kUrlLen] = "";  // https only
+  int messageCount = 0;
+  char messages[kMaxNudgeMessages][kNudgeTextLen] = {};
+};
+
 struct BookClubData {
   int version = 0;
   Meeting last;           // always has a valid date after a successful parse
@@ -72,6 +82,7 @@ struct BookClubData {
   int birthdayCount = 0;
   Birthday birthdays[kMaxBirthdays];
   FirmwareInfo firmware;  // optional "firmware" block for over-the-air updates
+  NudgeConfig nudges;     // optional "nudges" block
 };
 
 enum class ParseError : uint8_t {

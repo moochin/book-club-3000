@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "bc_data.h"
+#include "bc_text.h"
 
 namespace bc {
 
@@ -165,6 +166,24 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
     b.month = dt.month;
     b.day = dt.day;
     if (b.name[0]) ++d->birthdayCount;
+  }
+
+  // Nudges: the hub's URL and the club's own messages (ASCII, 40 characters).
+  JsonVariantConst nz = root["nudges"];
+  if (nz.is<JsonObjectConst>()) {
+    char url[kUrlLen];
+    copyText(nz["url"], url, sizeof url);
+    if (strncmp(url, "https://", 8) == 0) memcpy(d->nudges.url, url, sizeof url);
+    d->nudges.messageCount = 0;
+    for (JsonVariantConst m : nz["messages"].as<JsonArrayConst>()) {
+      if (d->nudges.messageCount >= kMaxNudgeMessages) break;
+      const char* s = m.is<const char*>() ? m.as<const char*>() : nullptr;
+      if (!s) continue;
+      char folded[kNudgeTextLen + 8];
+      asciiFold(s, folded, sizeof folded);
+      if (!folded[0] || strlen(folded) > kNudgeTextLen - 1) continue;  // the hub would refuse it
+      strcpy(d->nudges.messages[d->nudges.messageCount++], folded);
+    }
   }
 
   JsonVariantConst fw = root["firmware"];

@@ -127,10 +127,12 @@ int main(int argc, char** argv) {
 
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +7); ev(m, 0, true); shot("owner_card", m);  // menu item 7: OWNER CARD
+  ev(m, +8); ev(m, 0, true); shot("owner_card", m);  // menu item 8: OWNER CARD
   ev(m, 0, true); ev(m, +1); ev(m, 0, true);           // HOW TO USE
   for (int i = 0; i < 3; ++i) ev(m, +1);
-  shot("help_screen", m);                                // its last page: THE SCREEN
+  shot("help_nudges", m);                                // page 4: NUDGES
+  ev(m, +1);
+  shot("help_screen", m);                                // page 5: THE SCREEN
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("about", m);
   for (int i = 0; i < 5; ++i) ev(m, 0, true);
   shot("debug_menu", m);
@@ -165,7 +167,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +7); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +8); ev(cm, 0, true);  // menu > owner card
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;
@@ -175,6 +177,35 @@ int main(int argc, char** argv) {
     cm.caps.balance = -2;
     shot("owner_card_overdrawn", cm);
     ev(cm, 0, true); ev(cm, 0, false, true);  // back to tabs
+  }
+
+  // Nudges: who, what, the note after sending, an incoming one, not set up.
+  {
+    static const char* const kFriends[] = {"Dave", "Sam", "Jonno"};
+    ui::Model nm = m;
+    nm.nudgesConfigured = true;
+    nm.friendCount = 3;
+    for (int i = 0; i < 3; ++i) nm.friends[i] = kFriends[i];
+    ev(nm, 0, false, true); ev(nm, +1); ev(nm, 0, true);  // menu > SEND NUDGE
+    ev(nm, +1); shot("nudge_who", nm);                      // highlight DAVE
+    ev(nm, 0, true); ev(nm, +1); shot("nudge_what", nm);    // TO DAVE:, 2nd message
+    nm.toast = "NUDGE SENT TO DAVE";
+    ev(nm, 0, true); shot("nudge_sent", nm);                // sends, back to the tabs
+    nm.toast = nullptr;
+    bc::Nudge in;
+    strcpy(in.from, "Sam");
+    strcpy(in.msg, "GET YOUR ASS ONLINE");
+    nm.incoming = &in;
+    g_simMillis = 1000;
+    shot("nudge_incoming", nm);
+    strcpy(in.from, "Jonno");
+    strcpy(in.msg, "I'M ON. YOU'RE NOT. SHAME.");
+    shot("nudge_incoming_long", nm);
+    nm.incoming = nullptr;
+    nm.nudgesConfigured = false;
+    ev(nm, 0, false, true); ev(nm, +1); ev(nm, 0, true);
+    shot("nudge_setup", nm);
+    ev(nm, 0, true); ev(nm, 0, false, true);                // back to the tabs
   }
 
   // Full-screen states.

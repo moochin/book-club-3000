@@ -19,6 +19,7 @@
 #include "display.h"
 #include "input.h"
 #include "net.h"
+#include "nudge.h"
 #include "ota.h"
 #include "scenarios.h"
 #include "settings.h"
@@ -37,6 +38,16 @@ bc::LocalNow g_previewNow;
 bc::Date g_jingledOn;  // meeting-day / birthday jingle plays once per day
 uint32_t g_lastFrameMs = 0;
 bool g_dirty = true;
+
+// Nudges: the one on screen, the LED flash, and the note after sending.
+bc::Nudge g_nudge;
+bool g_nudgeShown = false;
+bool g_nudgeWake = false;       // wake the screen on the next tick
+uint32_t g_ledUntilMs = 0;
+nudge::SendState g_seenSend = nudge::SendState::Idle;
+uint32_t g_toastSinceMs = 0;
+char g_toast[56] = "";
+bool g_toastWarn = false;
 
 void ledsOff() {
   for (int pin : {cfg::kPinLedR, cfg::kPinLedG, cfg::kPinLedB}) {
@@ -126,6 +137,13 @@ void doAction(const ui::Result& r) {
       if (scenarios::build(r.arg, g_previewData, g_previewNow)) g_preview = r.arg;
       return;
     case ui::Action::ExitPreview: g_preview = -1; return;
+    case ui::Action::SendNudge: {
+      const char* to = r.arg < 0 ? "*" : nudge::friendName(r.arg);
+      const char* msg = bc::nudgeMessage(g_hasData ? &g_data : nullptr, r.arg2);
+      if (to[0] && msg[0]) nudge::send(to, msg);
+      return;
+    }
+    case ui::Action::DismissNudge: g_nudgeShown = false; return;
   }
   settings::save();
 }
@@ -174,6 +192,7 @@ void setup() {
   loadCache();
   net::begin();
   datasync::begin();
+  nudge::begin();  // after datasync: shares its TLS lock
   ui::begin();
 }
 
@@ -185,7 +204,8 @@ void loop() {
   const bool wasBlank = backlight::blanked();
   backlight::holdAwake(net::portalActive());
   const bc::LocalNow localForScreen = clockmod::localNow();
-  backlight::tick(now, ev.any(), localForScreen);
+  backlight::tick(now, ev.any() || g_nudgeWake, localForScreen);
+  g_nudgeWake = false;
   {
     // Move the picture by a pixel each hour (a 4-step cycle) against image
     // retention. Uses the real clock when set, so every unit agrees.
@@ -207,6 +227,7 @@ void loop() {
   if (ota::active()) return;  // ArduinoOTA draws its own progress
 
   datasync::tick(now, up);
+  nudge::tick(now, up, g_hasData ? g_data.nudges.url : "");
   if (datasync::takeNewData(g_data)) {
     g_hasData = true;
     g_dirty = true;
@@ -236,6 +257,40 @@ void loop() {
       g_jingledOn != liveNow.date && audio::canPlay()) {
     g_jingledOn = liveNow.date;
     audio::jingle();
+  }
+  // A received nudge: show it; outside quiet hours also chirp, flash the
+  // LED and wake the screen. In quiet hours it waits on screen, silently.
+  if (!g_nudgeShown && nudge::takeIncoming(g_nudge)) {
+    g_nudgeShown = true;
+    g_dirty = true;
+    if (!quietHours(liveNow)) {
+      audio::nudgeChirp();
+      g_ledUntilMs = now + 8000;
+      g_nudgeWake = true;
+    }
+  }
+  // The RGB LED (active low): blue blinks while a new nudge is fresh.
+  digitalWrite(cfg::kPinLedB, (now < g_ledUntilMs && (now / 200) % 2) ? LOW : HIGH);
+
+  // After sending: a short note at the bottom of the screen.
+  const nudge::SendState ss = nudge::sendState();
+  if (ss != g_seenSend) {
+    g_seenSend = ss;
+    g_toastSinceMs = now;
+    g_dirty = true;
+    const char* to = nudge::sendTo();
+    const char* who = strcmp(to, "*") == 0 ? "EVERYONE" : to;
+    g_toastWarn = ss == nudge::SendState::Failed;
+    if (ss == nudge::SendState::Sending) snprintf(g_toast, sizeof g_toast, "SENDING NUDGE...");
+    else if (ss == nudge::SendState::Sent) snprintf(g_toast, sizeof g_toast, "NUDGE SENT TO %s", who);
+    else if (ss == nudge::SendState::Failed) snprintf(g_toast, sizeof g_toast, "NOT SENT: %s", nudge::sendError());
+    else g_toast[0] = '\0';
+  }
+  if (g_toast[0] && ss != nudge::SendState::Sending &&
+      now - g_toastSinceMs > (g_toastWarn ? 8000UL : 4000UL)) {
+    g_toast[0] = '\0';
+    nudge::clearSendState();
+    g_dirty = true;
   }
   audio::tick(now);
 
@@ -270,6 +325,16 @@ void loop() {
   m.stats = u.stats;
   m.lightRaw = backlight::rawReading();
   if (data) m.caps = bc::computeFunCaps(*data, now_, u.owner);
+  m.nudgesConfigured = nudge::configured();
+  m.friendCount = nudge::friendCount();
+  static char friendNames[bc::kMaxFriends][bc::kNameLen];
+  for (int i = 0; i < m.friendCount && i < bc::kMaxFriends; ++i) {
+    strlcpy(friendNames[i], nudge::friendName(i), bc::kNameLen);
+    m.friends[i] = friendNames[i];
+  }
+  m.incoming = g_nudgeShown ? &g_nudge : nullptr;
+  m.toast = g_toast[0] ? g_toast : nullptr;
+  m.toastWarn = g_toastWarn;
 
   const ui::Result r = ui::handle(ev, m, now);
   if (r.action != ui::Action::None) {

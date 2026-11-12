@@ -21,6 +21,8 @@ static const Note kJingle[] = {
     {1047, 420, 90},
 };
 static const Note kConfirm[] = {{880, 50, 60}, {0, 20, 0}, {1320, 70, 60}};
+static const Note kNudge[] = {{1568, 45, 70}, {0, 40, 0}, {1568, 45, 70}, {0, 60, 0},
+                              {1047, 60, 80}, {1397, 60, 80}, {2093, 160, 90}};
 
 static esp_timer_handle_t g_timer;
 static volatile bool g_busy = false;
@@ -138,5 +140,6 @@ void geigerClick() {
 
 void jingle() { play(kJingle, sizeof kJingle / sizeof kJingle[0]); }
 void confirmBeep() { play(kConfirm, sizeof kConfirm / sizeof kConfirm[0]); }
+void nudgeChirp() { play(kNudge, sizeof kNudge / sizeof kNudge[0]); }
 
 }  // namespace audio

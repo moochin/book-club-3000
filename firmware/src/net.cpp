@@ -25,6 +25,8 @@ static WiFiManagerParameter g_pStats("stats", "Owner card stats: seven numbers 1
 static WiFiManagerParameter g_pUrl("url", "Data file URL (the gist's Raw link)", "", 159);
 static WiFiManagerParameter g_pToken("token", "GitHub token (private repo only). Blank keeps the saved one, '-' clears it", "", 127,
                                      "type='password' autocomplete='off'");
+static WiFiManagerParameter g_pNudge("ntoken", "Nudge token (from whoever runs the club's nudge hub). Blank keeps the saved one, '-' clears it", "", 63,
+                                     "type='password' autocomplete='off'");
 static WiFiManagerParameter g_pRotation("rot", "Screen rotation 0-3", "1", 1);
 static WiFiManagerParameter g_pOta("otapass", "OTA password (optional). Blank keeps, '-' clears", "", 31,
                                    "type='password' autocomplete='off'");
@@ -51,6 +53,7 @@ static void refreshFields() {
   g_pStats.setValue(g_statsStr, 31);
   g_pUrl.setValue(u.dataUrl, 159);
   g_pToken.setValue("", 127);  // never echo secrets back into the page
+  g_pNudge.setValue("", 63);
   g_pRotation.setValue(g_rotationStr, 1);
   g_pOta.setValue("", 31);
 }
@@ -88,6 +91,10 @@ static void onSaveParams() {
   trimCopy(secret, sizeof secret, g_pToken.getValue());
   if (strcmp(secret, "-") == 0) u.token[0] = 0;
   else if (secret[0]) strlcpy(u.token, secret, sizeof u.token);
+
+  trimCopy(secret, sizeof secret, g_pNudge.getValue());
+  if (strcmp(secret, "-") == 0) u.nudgeToken[0] = 0;
+  else if (secret[0]) strlcpy(u.nudgeToken, secret, sizeof u.nudgeToken);
 
   trimCopy(secret, sizeof secret, g_pOta.getValue());
   if (strcmp(secret, "-") == 0) u.otaPass[0] = 0;
@@ -147,6 +154,7 @@ void begin() {
   g_wm.addParameter(&g_pStats);
   g_wm.addParameter(&g_pUrl);
   g_wm.addParameter(&g_pToken);
+  g_wm.addParameter(&g_pNudge);
   g_wm.addParameter(&g_pRotation);
   g_wm.addParameter(&g_pOta);
 

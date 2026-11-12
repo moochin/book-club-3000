@@ -36,6 +36,7 @@ void begin() {
   if (p.getBytesLength("stats") == kStatCount) p.getBytes("stats", u.stats, kStatCount);
   loadStr(p, "url", u.dataUrl, sizeof u.dataUrl, cfg::kDefaultDataUrl);
   loadStr(p, "token", u.token, sizeof u.token, "");
+  loadStr(p, "ntoken", u.nudgeToken, sizeof u.nudgeToken, "");
   loadStr(p, "otapass", u.otaPass, sizeof u.otaPass, "");
   u.rotation = p.getUChar("rot", cfg::kDefaultRotation) & 3;
   u.sound = p.getBool("sound", true);
@@ -59,6 +60,7 @@ void save() {
   p.putBytes("stats", u.stats, kStatCount);
   p.putString("url", u.dataUrl);
   p.putString("token", u.token);
+  p.putString("ntoken", u.nudgeToken);
   p.putString("otapass", u.otaPass);
   p.putUChar("rot", u.rotation);
   p.putBool("sound", u.sound);

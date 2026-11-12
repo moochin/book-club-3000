@@ -23,5 +23,6 @@ void knobClick();
 void geigerClick();
 void jingle();      // meeting day fanfare, ~1.5 s
 void confirmBeep();
+void nudgeChirp();  // an incoming nudge: a quick "bip-bip-BWEEP"
 
 }  // namespace audio

@@ -52,6 +52,7 @@
   .row.quest { grid-template-columns: 150px 100px 1fr 1fr auto; }
   .row.cap { grid-template-columns: 1fr 100px 2fr auto; }
   .row.bday { grid-template-columns: 1fr 150px auto; }
+  .row.nmsg { grid-template-columns: 1fr auto; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .check { display: flex; gap: 8px; align-items: center; flex-direction: row; color: var(--text); font-size: 14px; }
   .check input { width: auto; }
@@ -113,6 +114,14 @@
     <h2>FUN CAPS <small>bonus (+) or penalty (−), running totals per person</small></h2>
     <div id="caps"></div>
     <button id="addCap">+ Person</button>
+  </section>
+
+  <section>
+    <h2>NUDGES <small>the hub's address, and your own messages (40 characters each)</small></h2>
+    <div class="grid" id="nudgeUrl"></div>
+    <div id="nudgeMsgs"></div>
+    <button id="addNudgeMsg">+ Message</button>
+    <p class="hint">No messages here means the units use their built-in ones ("GET YOUR ASS ONLINE", …).</p>
   </section>
 
   <section>
@@ -223,6 +232,7 @@ function render(fromRaw = false) {
 
   renderCaps();
   renderBirthdays();
+  renderNudges();
 
   const fw = doc.firmware && typeof doc.firmware === "object" ? doc.firmware : {};
   const fwInputs = [
@@ -282,6 +292,35 @@ function renderCaps() {
   }));
   draw();
   $("addCap").onclick = () => { rows.push({ name: "", adjust: 1, note: "" }); draw(); };
+}
+
+function renderNudges() {
+  // Kept out of the file entirely until something is filled in.
+  const nz = doc.nudges && typeof doc.nudges === "object" && !Array.isArray(doc.nudges) ? doc.nudges : {};
+  const msgs = Array.isArray(nz.messages) ? nz.messages.map((m) => ({ text: String(m) })) : [];
+  const write = () => {
+    const out = {};
+    if (nz.url) out.url = nz.url;
+    const kept = msgs.map((m) => (m.text || "").trim()).filter(Boolean);
+    if (kept.length) out.messages = kept;
+    if (Object.keys(out).length) doc.nudges = out; else delete doc.nudges;
+    changed();
+  };
+  const urlInput = input(nz, "url", "Nudge hub URL (from wrangler deploy)", "url",
+                         { wide: true, placeholder: "https://bookclub-nudge.<you>.workers.dev" });
+  urlInput.querySelector("input").addEventListener("input", write);
+  fill($("nudgeUrl"), [urlInput]);
+  const draw = () => fill($("nudgeMsgs"), msgs.map((m, i) => {
+    const row = document.createElement("div");
+    row.className = "row nmsg";
+    const f = input(m, "text", "Message", "text", { keepEmpty: true, placeholder: "GET YOUR ASS ONLINE" });
+    f.querySelector("input").maxLength = 40;
+    f.querySelector("input").addEventListener("input", write);
+    row.append(f, removeBtn(() => { msgs.splice(i, 1); write(); draw(); }));
+    return row;
+  }));
+  draw();
+  $("addNudgeMsg").onclick = () => { msgs.push({ text: "" }); draw(); };
 }
 
 function renderBirthdays() {

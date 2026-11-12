@@ -24,4 +24,10 @@ bool takeNewData(bc::BookClubData& out);
 // Firmware update progress, 0..100, while status() == Updating.
 int updateProgress();
 
+// One HTTPS connection at a time: each TLS session needs ~40 KB of RAM, and
+// this board has no PSRAM. The sync task and the nudge task both take this.
+// begin() creates it, so call datasync::begin() before nudge::begin().
+void lockTls();
+void unlockTls();
+
 }  // namespace datasync

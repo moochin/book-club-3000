@@ -115,6 +115,26 @@ def check(raw):
             if not ok:
                 warnings.append(f'birthday for "{name}" should be "MM-DD" or "YYYY-MM-DD"; it will be ignored')
 
+        nz = doc.get("nudges")
+        if nz is not None:
+            if not isinstance(nz, dict):
+                warnings.append('"nudges" should be an object with "url" and "messages"; it will be ignored')
+            else:
+                url = nz.get("url", "")
+                if url and not str(url).startswith("https://"):
+                    warnings.append('"nudges.url" must start with https://; units will ignore it')
+                msgs = nz.get("messages", [])
+                if not isinstance(msgs, list):
+                    warnings.append('"nudges.messages" should be a [ ... ] list; units will use their built-in ones')
+                    msgs = []
+                for i, m in enumerate(msgs):
+                    if not isinstance(m, str) or not m.strip():
+                        warnings.append(f"nudge message {i + 1} is empty or not text; it will be skipped")
+                    elif len(m) > 40:
+                        warnings.append(f'nudge message {i + 1} ("{m[:20]}...") is over 40 characters; it will be skipped')
+                if len(msgs) > 16:
+                    warnings.append("units show at most 16 nudge messages; the rest will be ignored")
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []

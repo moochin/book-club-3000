@@ -1,0 +1,14 @@
+# Book-Club 3000 nudge hub. Setup steps are in README.md.
+name = "bookclub-nudge"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# The KV namespace for inboxes. Create it with
+#   npx wrangler kv namespace create NUDGES
+# and paste the id it prints here.
+[[kv_namespaces]]
+binding = "NUDGES"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+
+# UNITS (the per-unit tokens) is a secret, never in this file:
+#   npx wrangler secret put UNITS
