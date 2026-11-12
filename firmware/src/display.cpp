@@ -43,7 +43,9 @@ Panel::Panel() {
     auto c = light_.config();
     c.pin_bl = cfg::kPinBacklight;
     c.invert = false;
-    c.freq = 12000;
+    // Above hearing: at 12 kHz the backlight's switching current came out of
+    // the speaker amp as a steady whine (the strongest tone in a recording).
+    c.freq = 30000;
     c.pwm_channel = cfg::kLedcBacklight;
     light_.config(c);
     panel_.setLight(&light_);
