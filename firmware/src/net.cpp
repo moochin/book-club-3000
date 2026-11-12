@@ -6,6 +6,8 @@
 #include <ctype.h>
 
 #include "config.h"
+#include "art_data.h"
+#include "portal_theme.h"
 #include "settings.h"
 
 namespace net {
@@ -17,19 +19,45 @@ static char g_ip[16] = "-";
 static char g_rotationStr[2];
 static char g_statsStr[32];
 
-// Portal fields. Values are refreshed from settings each time the portal opens.
-static WiFiManagerParameter g_header("<h3>Book-Club 3000 unit settings</h3>");
-static WiFiManagerParameter g_pOwner("owner", "Owner name", "", 23);
-static WiFiManagerParameter g_pTheme("theme", "Theme colour: green or amber", "green", 6);
-static WiFiManagerParameter g_pStats("stats", "Owner card stats: seven numbers 1-10, e.g. 7,3,9,5,8,2,6", "", 31);
-static WiFiManagerParameter g_pUrl("url", "Data file URL (the gist's Raw link)", "", 159);
-static WiFiManagerParameter g_pToken("token", "GitHub token (private repo only). Blank keeps the saved one, '-' clears it", "", 127,
-                                     "type='password' autocomplete='off'");
-static WiFiManagerParameter g_pNudge("ntoken", "Nudge token (from whoever runs the club's nudge hub). Blank keeps the saved one, '-' clears it", "", 63,
-                                     "type='password' autocomplete='off'");
-static WiFiManagerParameter g_pRotation("rot", "Screen rotation 0-3", "1", 1);
-static WiFiManagerParameter g_pOta("otapass", "OTA password (optional). Blank keeps, '-' clears", "", 31,
-                                   "type='password' autocomplete='off'");
+// Portal fields, grouped into the Book-Club 3000 sections (portal_theme.h).
+// Values are refreshed from settings each time the portal opens. Theme and
+// rotation are hidden fields that the page's dropdowns fill in.
+static WiFiManagerParameter g_secOperative(kPortalSecOperative);
+static WiFiManagerParameter g_pOwner("owner", "Your name (as your friends know you)", "", 23,
+                                     "autocapitalize='words' placeholder='Pete'");
+static WiFiManagerParameter g_pStats("stats", "Owner card stats", "", 31, "inputmode='numeric' placeholder='7,3,9,5,8,2,6'");
+static WiFiManagerParameter g_statsHint(kPortalStatsHint);
+static WiFiManagerParameter g_secTerminal(kPortalSecTerminal);
+static WiFiManagerParameter g_pTheme("theme", "", "green", 6, "type='hidden'", WFM_NO_LABEL);
+static WiFiManagerParameter g_pRotation("rot", "", "1", 1, "type='hidden'", WFM_NO_LABEL);
+static WiFiManagerParameter g_secClub(kPortalSecClub);
+static WiFiManagerParameter g_pUrl("url", "Club file (the gist's Raw link)", "", 159,
+                                   "type='url' autocapitalize='none' autocorrect='off' placeholder='https://gist.githubusercontent.com/...'");
+static WiFiManagerParameter g_pNudge("ntoken", "Nudge token", "", 63,
+                                     "type='password' autocomplete='off' placeholder='blank = keep · - = clear'");
+static WiFiManagerParameter g_advOpen(kPortalAdvancedOpen);
+static WiFiManagerParameter g_pToken("token", "GitHub token (private club file only)", "", 127,
+                                     "type='password' autocomplete='off' placeholder='blank = keep · - = clear'");
+static WiFiManagerParameter g_pOta("otapass", "Update password (optional)", "", 31,
+                                   "type='password' autocomplete='off' placeholder='blank = keep · - = clear'");
+static WiFiManagerParameter g_advClose(kPortalAdvancedClose);
+
+// The page's theme, built for this unit's colour when the portal opens.
+static String g_portalHead;
+
+static void buildPortalHead() {
+  const bool amber = settings::get().theme == settings::kThemeAmber;
+  g_portalHead = kPortalHead;
+  g_portalHead.replace("%A%", amber ? "#FFB028" : "#3CFF6E");
+  g_portalHead.replace("%D%", amber ? "#B07818" : "#24A048");
+  g_portalHead.replace("%F%", amber ? "#4A3410" : "#10401E");
+  g_portalHead.replace("%BG%", amber ? "#0C0802" : "#030C05");
+  g_portalHead.replace("%G%", amber ? "rgba(255,176,40,.45)" : "rgba(60,255,110,.45)");
+  g_portalHead.replace("%HUE%", amber ? "0" : "70");
+  g_portalHead.replace("%IMG%", amber ? art::kPortalMascot_amber : art::kPortalMascot_green);
+  g_portalHead.replace("%AP%", g_apName);
+  g_wm.setCustomHeadElement(g_portalHead.c_str());
+}
 
 static bool g_portal = false;
 static bool g_settingsChanged = false;
@@ -125,6 +153,7 @@ static void makeNames() {
 static void startPortal(uint32_t timeoutS) {
   makeNames();
   refreshFields();
+  buildPortalHead();
   g_wm.setConfigPortalTimeout(timeoutS);
   g_wm.startConfigPortal(g_apName);
   g_portal = true;
@@ -141,22 +170,19 @@ void begin() {
   g_wm.setConfigPortalBlocking(false);
   g_wm.setTitle("Book-Club 3000");
   g_wm.setDarkMode(true);
+  g_wm.setCustomMenuHTML(kPortalIntro);
   g_wm.setHostname(g_hostname);
   g_wm.setConnectTimeout(20);
   g_wm.setSaveConnectTimeout(20);
   g_wm.setBreakAfterConfig(true);  // close the portal once saved, even if the join fails
   g_wm.setSaveParamsCallback(onSaveParams);
-  std::vector<const char*> menu = {"wifi", "info", "exit"};
+  std::vector<const char*> menu = {"custom", "wifi", "info", "exit"};  // custom = the welcome text
   g_wm.setMenu(menu);
-  g_wm.addParameter(&g_header);
-  g_wm.addParameter(&g_pOwner);
-  g_wm.addParameter(&g_pTheme);
-  g_wm.addParameter(&g_pStats);
-  g_wm.addParameter(&g_pUrl);
-  g_wm.addParameter(&g_pToken);
-  g_wm.addParameter(&g_pNudge);
-  g_wm.addParameter(&g_pRotation);
-  g_wm.addParameter(&g_pOta);
+  for (WiFiManagerParameter* p :
+       {&g_secOperative, &g_pOwner, &g_pStats, &g_statsHint, &g_secTerminal, &g_pTheme, &g_pRotation,
+        &g_secClub, &g_pUrl, &g_pNudge, &g_advOpen, &g_pToken, &g_pOta, &g_advClose}) {
+    g_wm.addParameter(p);
+  }
 
   if (g_wm.getWiFiIsSaved()) {
     Serial.println("[net] connecting to saved network");

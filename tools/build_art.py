@@ -17,7 +17,9 @@ birthday
 Each frame is exactly 64 x 96 pixels. Transparent pixels (or the palette's
 background colour, index 0) let the screen show through.
 """
+import base64
 import os
+import tempfile
 import re
 import sys
 
@@ -120,6 +122,35 @@ def pack(indices):
     return data
 
 
+def portal_mascot_lines():
+    """The Wi-Fi setup page's mascot: level0 (thumbs up) as a small PNG in
+    each theme's colours, base64-encoded for an <img src="data:..."> tag."""
+    src = os.path.join(ART_DIR, "level0.png")
+    out = ["", "// The setup page's mascot (art/mascot/level0.png), as PNG data URIs.",
+           "// Empty if that pose hasn't been drawn."]
+    if not os.path.exists(src):
+        for theme in THEMES:
+            out.append(f'static const char kPortalMascot_{theme}[] = "";')
+        return out
+    w, h, rows = read_png(src)
+    idx = quantise("art/mascot/level0.png", rows)
+    for theme in THEMES:
+        pal = palette(theme)
+        rgba = [[(0, 0, 0, 0) if i == 0 else (*pal[i], 255) for i in row] for row in idx]
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            tmp = f.name
+        try:
+            write_png(tmp, w, h, rgba)
+            b64 = base64.b64encode(open(tmp, "rb").read()).decode()
+        finally:
+            os.remove(tmp)
+        out.append(f"static const char kPortalMascot_{theme}[] =")
+        for i in range(0, len(b64), 100):
+            out.append(f'    "{b64[i:i + 100]}"')
+        out[-1] += ";"
+    return out
+
+
 def build():
     frames = {p: [] for p in POSES}
     errors = []
@@ -185,6 +216,7 @@ def build():
         lines.append(f"    {a},  // {pose}")
     lines.append("};")
     lines.append("")
+    lines += portal_mascot_lines()
     lines.append("}  // namespace art")
     text = "\n".join(lines) + "\n"
     old = open(OUT).read() if os.path.exists(OUT) else None
