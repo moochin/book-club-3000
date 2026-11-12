@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
-#include <HTTPUpdate.h>
+#include <Update.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_random.h>
@@ -118,6 +118,83 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   return (int)n;
 }
 
+// Downloads `url` straight into the spare app slot. Arduino's HTTPUpdate
+// feeds Update.writeStream(), which pulls TLS data one byte at a time through
+// Stream::readBytes(): about 2.5 KB/s, so a 1.4 MB update took ~10 minutes.
+// Bulk reads into a 4 KB buffer instead. Writes a reason into `err` on failure.
+static bool fetchFirmware(const char* url, char* err, size_t errLen) {
+  WiFiClientSecure client;
+  secureClient(client);
+  HTTPClient http;
+  http.setTimeout(cfg::kHttpTimeoutMs);
+  http.setConnectTimeout(cfg::kHttpTimeoutMs);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub release assets redirect
+  http.setUserAgent("BookClub3000/" BC_FW_VERSION);
+  if (!http.begin(client, url)) {
+    snprintf(err, errLen, "bad URL");
+    return false;
+  }
+  const int code = http.GET();
+  const int total = http.getSize();
+  if (code != HTTP_CODE_OK || total <= 0) {
+    if (code != HTTP_CODE_OK) snprintf(err, errLen, "HTTP %d", code);
+    else snprintf(err, errLen, "no length");
+    http.end();
+    return false;
+  }
+  std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[4096]);
+  if (!buf || !Update.begin((size_t)total, U_FLASH)) {
+    snprintf(err, errLen, "%s", buf ? Update.errorString() : "out of memory");
+    http.end();
+    return false;
+  }
+  WiFiClient* in = http.getStreamPtr();
+  size_t done = 0;
+  const uint32_t startMs = millis();
+  uint32_t lastData = startMs, lastLog = startMs;
+  while (done < (size_t)total) {
+    const int avail = in->available();
+    if (avail > 0) {
+      size_t want = (size_t)avail < 4096 ? (size_t)avail : 4096;
+      if (want > (size_t)total - done) want = (size_t)total - done;
+      const int n = in->read(buf.get(), want);
+      if (n > 0) {
+        if (Update.write(buf.get(), (size_t)n) != (size_t)n) {
+          snprintf(err, errLen, "flash write: %s", Update.errorString());
+          Update.abort();
+          http.end();
+          return false;
+        }
+        done += (size_t)n;
+        g_updatePct = (int)(done * 100 / (size_t)total);
+        lastData = millis();
+      }
+      vTaskDelay(1);  // let core 0's idle task in now and then
+    } else {
+      if (!in->connected() || millis() - lastData > 30000) break;
+      vTaskDelay(pdMS_TO_TICKS(2));
+    }
+    if (millis() - lastLog >= 5000) {
+      lastLog = millis();
+      Serial.printf("[sync] update %d%%, %lu KB/s\n", g_updatePct,
+                    (unsigned long)(done / (millis() - startMs + 1)));  // bytes per ms = KB/s
+    }
+  }
+  http.end();
+  if (done != (size_t)total) {
+    snprintf(err, errLen, "cut short (%u of %d bytes)", (unsigned)done, total);
+    Update.abort();
+    return false;
+  }
+  if (!Update.end(true)) {
+    snprintf(err, errLen, "%s", Update.errorString());
+    return false;
+  }
+  Serial.printf("[sync] update downloaded: %d bytes in %lu s\n", total,
+                (unsigned long)((millis() - startMs) / 1000));
+  return true;
+}
+
 static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
 #if defined(BC_PANEL_ST7789)
   const char* url = fw.urlFor(true);
@@ -130,25 +207,21 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   Serial.printf("[sync] firmware %s available (running %s)\n", fw.version, BC_FW_VERSION);
   g_status = Status::Updating;
   g_updatePct = 0;
-  WiFiClientSecure client;
-  secureClient(client);
-  httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub release assets redirect
-  httpUpdate.rebootOnUpdate(true);
-  httpUpdate.onProgress([](int cur, int total) {
-    if (total > 0) g_updatePct = cur * 100 / total;
-    vTaskDelay(1);  // let core 0's idle task run between chunks
-  });
   // The download and flash writes keep core 0 busy for long stretches, and
   // the task watchdog then reset the board mid-install (from 1.2.0 to 1.3.0
   // it looped: reset, retry, reset). Don't watch core 0's idle task while
-  // the update runs; success reboots, failure turns it back on below.
+  // the update runs.
   disableCore0WDT();
-  const t_httpUpdate_return r = httpUpdate.update(client, url);
-  // Only reached on failure (success reboots).
+  char err[64] = "";
+  const bool ok = fetchFirmware(url, err, sizeof err);
   enableCore0WDT();
+  if (ok) {
+    Serial.println("[sync] update installed, restarting");
+    delay(200);
+    ESP.restart();
+  }
   strlcpy(g_failedFwVersion, fw.version, sizeof g_failedFwVersion);
-  setError("update %s failed: %s", fw.version,
-           r == HTTP_UPDATE_NO_UPDATES ? "no update" : httpUpdate.getLastErrorString().c_str());
+  setError("update %s failed: %s", fw.version, err);
 }
 
 static void runFetch() {
