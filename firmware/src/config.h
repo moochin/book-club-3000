@@ -100,5 +100,7 @@ constexpr uint32_t kBlankAfterDarkMs = 10UL * 60 * 1000;
 // ---- Sound --------------------------------------------------------------------
 constexpr int kQuietFromMinute = 22 * 60;  // no sound 22:00..08:00
 constexpr int kQuietToMinute = 8 * 60;
+constexpr int kClipVolume = 200;  // recorded clips: 0..256 (256 = full scale)
+constexpr uint32_t kSettingsHumMs = 30UL * 1000;  // hum fades after this long untouched
 
 }  // namespace cfg

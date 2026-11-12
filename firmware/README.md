@@ -92,7 +92,9 @@ src/mascot     draws ../art/mascot PNGs (baked into src/art_data.h by
                scripts/art.py before each build); placeholders for the rest
 src/display    LovyanGFX panel + one 320x240 4-bit palette canvas, scanlines
 src/input      EC11 on the hardware pulse counter, debounced push switch
-src/audio      generated Geiger ticks, knob clicks, meeting-day jingle
+src/audio      generated Geiger ticks, knob clicks, meeting-day jingle, and
+               recorded clips from ../art/sounds via the DAC; src/audio_gen
+               has the machine noises (see "Sounds" below)
 src/nudge      nudges: inbox check every minute, sending, the friends list,
                via the hub in ../worker (shares sync's TLS lock: one HTTPS
                connection at a time)
@@ -102,6 +104,36 @@ src/backlight  auto-dimming from the LDR; the screen-power policy
 src/ota        ArduinoOTA for LAN flashing
 src/main.cpp   the non-blocking loop that ticks each module
 ```
+
+### Sounds
+
+All sound is a square wave on one pin, with its pitch and pulse width changed
+every fraction of a millisecond. Fast random pitch changes give static,
+crackle and relay clatter. There are no samples.
+
+| When | What you hear |
+| --- | --- |
+| Start-up (~3 s) | Relay clicks, a falling power-on squeal, the tape motor spooling up, a leader tone, the screech of data loading from cassette, the relay dropping out and back in, more data, then the motor spooling down. It plays on power-on, or on a restart outside quiet hours. |
+| Changing tabs | A microfiche reader: film whirs past with a tick per frame, then the lens carrier snaps into place. Going backwards, the whir falls instead of rising. |
+| Opening settings | The power switch, then valves warming into a hum with crackle, and the tuning dial sweeping down the band onto a station. |
+| In settings | A low valve hum with the odd crackle. Moving through the list scans the dial to the next "station", whistling through static. The hum fades out when you close settings, or after 30 s with no input. |
+
+**Recorded sounds:** a file in `../art/sounds/` named after a slot (`boot.wav`,
+`tab_next.mp3`, `nudge.wav`...) replaces that generated sound. It is baked into
+the firmware at build time (`tools/build_sounds.py` writes `src/sound_data.h`)
+and plays as 8-bit 11 kHz audio through the speaker pin's DAC. Slot names,
+formats and tips are in `../art/sounds/README.md`.
+
+The sound setting and quiet hours mute all of these. To hear the generated
+ones without a unit, render them to WAV files (in `art/preview/sounds/`):
+
+```
+cd firmware && mkdir -p sim/out ../art/preview/sounds
+g++ -std=gnu++17 -O2 -Isrc sim/sound_preview.cpp src/audio_gen.cpp -o sim/out/sound_preview
+sim/out/sound_preview ../art/preview/sounds
+```
+
+`art/preview.sh` does this too.
 
 The state engine alone decides what the screen shows. `computeState()` takes
 the parsed file and the local date/time and returns the exposure level, bar,
