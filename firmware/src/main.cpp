@@ -382,18 +382,36 @@ void loop() {
 
   const ui::View viewWas = ui::view();
   const ui::Result r = ui::handle(ev, m, now);
-  inputSound(ev, viewWas, ui::view(), now);
+  const ui::View viewIs = ui::view();
   if (r.action != ui::Action::None) {
+    inputSound(ev, viewWas, viewIs, now);
     doAction(r);
     return;  // redraw next pass with the updated model
   }
   if (r.redraw) g_dirty = true;
 
-  if (backlight::blanked()) return;
-  const uint32_t interval = (ui::animating(m) || m.updatePct >= 0) ? cfg::kFrameMsEffects : cfg::kFrameMsIdle;
-  if (g_dirty || now - g_lastFrameMs >= interval) {
+  if (backlight::blanked()) {
+    inputSound(ev, viewWas, viewIs, now);
+    return;
+  }
+  // Each full-screen push puts a crackle on the CYD's speaker amp (they share
+  // a supply). Input is drawn at once, *then* its sound starts; animation
+  // frames wait while a one-shot sound plays; the update screen redraws every
+  // 5 % rather than every frame.
+  static int lastPctStep = -1;
+  bool due = now - g_lastFrameMs >= ((ui::animating(m) || m.updatePct >= 0) ? cfg::kFrameMsEffects
+                                                                             : cfg::kFrameMsIdle);
+  if (m.updatePct >= 0) {
+    due = m.updatePct / 5 != lastPctStep;
+  } else {
+    lastPctStep = -1;
+  }
+  if (due && audio::playing()) due = false;
+  if (g_dirty || due) {
     ui::render(m, now);
     g_lastFrameMs = now;
     g_dirty = false;
+    if (m.updatePct >= 0) lastPctStep = m.updatePct / 5;
   }
+  inputSound(ev, viewWas, viewIs, now);
 }

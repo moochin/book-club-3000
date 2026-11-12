@@ -375,6 +375,8 @@ void begin() {
 
 bool canPlay() { return g_enabled && !g_quiet; }
 
+bool playing() { return g_fg != Fg::None || pcmActive(0); }
+
 void setVolume(uint8_t step) {
   if (step > 3) step = 3;
   g_volScale = 64u * (step + 1);
