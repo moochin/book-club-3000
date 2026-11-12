@@ -146,6 +146,25 @@ On the device, **hold 2 s → ABOUT → press 5 times quickly** opens the hidden
 from a built-in sample file. A banner shows while a preview is active; pick
 **LIVE DATA** to leave.
 
+
+## The setup page without a board
+
+The Wi-Fi setup page (WiFiManager's captive portal) is styled in the
+Book-Club 3000 look by `src/portal_theme.h`: CSS, the mascot as an embedded
+image, friendlier wording, and dropdowns for colour and rotation. Everything
+is inline, because phones have no internet while joined to the setup network.
+To preview it, rebuild the pages from the library's HTML templates and our
+theme, then screenshot them at phone size (needs Playwright):
+
+```bash
+python3 ../tools/build_art.py && python3 sim/portal_preview.py sim/out/portal
+```
+
+```bash
+node sim/portal_preview.js sim/out/portal
+```
+
+The HTML files open in any browser, too.
 ## Firmware updates
 
 **Over the LAN** (Pete's own network): `pio run -e cyd_ota -t upload
