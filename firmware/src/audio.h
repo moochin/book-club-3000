@@ -26,6 +26,9 @@ void setEnabled(bool on);
 void setVolume(uint8_t step);
 void setQuietHours(bool quiet);
 bool canPlay();
+// True while a one-shot sound (a clip or a generated tune) is playing; the
+// settings hum doesn't count. The main loop holds animation frames meanwhile.
+bool playing();
 
 // Average Geiger clicks per minute (0 = off). Random (Poisson) spacing.
 void setGeigerRate(int clicksPerMin);
