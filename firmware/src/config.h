@@ -103,12 +103,14 @@ constexpr int kQuietToMinute = 8 * 60;
 // Recorded clips on the DAC. The CYD's speaker amp takes the pin's DC level
 // too: clips centred on mid-scale (128, 1.65 V) drove a steady current
 // through the speaker, distorting them and browning out the USB link. They
-// now sit on a low level with a matching swing, so the DAC stays in 0..80.
-constexpr int kClipBias = 20;   // DAC level under a clip (0..255 = 0..3.3 V)
-constexpr int kClipSwing = 20;  // peak deviation from kClipBias
+// now sit on a low level with a matching swing: these are the levels at
+// VOLUME 4/4 (DAC 0..20). 20/20 and half tone duty still reset USB on the
+// TPM408-2.8; a 10-33 ohm resistor in series with the speaker allows more.
+constexpr int kClipBias = 10;   // DAC level under a clip (0..255 = 0..3.3 V)
+constexpr int kClipSwing = 10;  // peak deviation from kClipBias
 // Generated sounds (LEDC PWM): duty is scaled by kToneLevel / 256. At full
 // level any sound pulled enough current to drop the board's USB link.
-constexpr int kToneLevel = 128;
+constexpr int kToneLevel = 64;
 constexpr uint32_t kSettingsHumMs = 30UL * 1000;  // hum fades after this long untouched
 
 }  // namespace cfg
