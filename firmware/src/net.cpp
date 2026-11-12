@@ -160,9 +160,18 @@ static void startPortal(uint32_t timeoutS) {
   Serial.printf("[net] setup portal open: %s\n", g_apName);
 }
 
+// Full-power Wi-Fi. The ESP32's default modem sleep dozes between beacons,
+// which crawled a 1.4 MB firmware update along for about 20 minutes. The
+// units run on USB power, so there is nothing to save. Set after every
+// change of mode, which can bring the default back.
+static void stationMode() {
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+}
+
 void begin() {
   makeNames();
-  WiFi.mode(WIFI_STA);
+  stationMode();
   WiFi.setHostname(g_hostname);
   WiFi.setAutoReconnect(true);
 
@@ -199,7 +208,7 @@ void tick(uint32_t now) {
     if (!g_wm.getConfigPortalActive()) {
       g_portal = false;
       Serial.println("[net] portal closed");
-      if (WiFi.getMode() != WIFI_STA) WiFi.mode(WIFI_STA);
+      if (WiFi.getMode() != WIFI_STA) stationMode();
       if (!WiFi.isConnected() && g_wm.getWiFiIsSaved()) WiFi.begin();
     }
   }
@@ -241,7 +250,7 @@ void closePortal() {
   if (!g_portal) return;
   g_wm.stopConfigPortal();
   g_portal = false;
-  WiFi.mode(WIFI_STA);
+  stationMode();
   if (g_wm.getWiFiIsSaved()) WiFi.begin();
 }
 
