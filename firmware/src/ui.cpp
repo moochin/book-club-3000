@@ -30,6 +30,7 @@ enum MenuItem : uint8_t {
   kMiRefresh,
   kMiNudge,
   kMiSound,
+  kMiVolume,
   kMiBrightness,
   kMiTheme,
   kMiEffects,
@@ -495,6 +496,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiRefresh: snprintf(buf, len, "REFRESH NOW"); break;
     case kMiNudge: snprintf(buf, len, m.nudgesConfigured ? "SEND NUDGE" : "SEND NUDGE (NOT SET UP)"); break;
     case kMiSound: snprintf(buf, len, "SOUND: %s", m.sound ? "ON" : "OFF"); break;
+    case kMiVolume: snprintf(buf, len, "VOLUME: %d/4", m.volume + 1); break;
     case kMiBrightness:
       if (m.autoBrightness) snprintf(buf, len, "BRIGHTNESS: AUTO");
       else snprintf(buf, len, "BRIGHTNESS: FIXED %d%%", m.fixedBrightness * 100 / 255);
@@ -911,6 +913,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
             g_nudgeSel = 0;
             break;
           case kMiSound: r.action = Action::ToggleSound; break;
+          case kMiVolume: r.action = Action::CycleVolume; break;
           case kMiBrightness: r.action = Action::CycleBrightness; break;
           case kMiTheme: r.action = Action::CycleTheme; break;
           case kMiEffects: r.action = Action::ToggleEffects; break;

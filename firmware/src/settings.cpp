@@ -40,6 +40,8 @@ void begin() {
   loadStr(p, "otapass", u.otaPass, sizeof u.otaPass, "");
   u.rotation = p.getUChar("rot", cfg::kDefaultRotation) & 3;
   u.sound = p.getBool("sound", true);
+  u.volume = p.getUChar("vol", 3);
+  if (u.volume > 3) u.volume = 3;
   u.autoBrightness = p.getBool("autobr", true);
   u.fixedBrightness = p.getUChar("fixbr", 160);
   u.effects = p.getBool("fx", true);
@@ -64,6 +66,7 @@ void save() {
   p.putString("otapass", u.otaPass);
   p.putUChar("rot", u.rotation);
   p.putBool("sound", u.sound);
+  p.putUChar("vol", u.volume);
   p.putBool("autobr", u.autoBrightness);
   p.putUChar("fixbr", u.fixedBrightness);
   p.putBool("fx", u.effects);

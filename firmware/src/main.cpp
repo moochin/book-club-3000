@@ -100,6 +100,7 @@ void applySettings() {
   display::setRotation(u.rotation);
   display::setTheme(u.theme);
   audio::setEnabled(u.sound);
+  audio::setVolume(u.volume);
 }
 
 void doAction(const ui::Result& r) {
@@ -111,6 +112,11 @@ void doAction(const ui::Result& r) {
       u.sound = !u.sound;
       audio::setEnabled(u.sound);
       if (u.sound) audio::confirmBeep();
+      break;
+    case ui::Action::CycleVolume:
+      u.volume = (uint8_t)((u.volume + 1) % 4);
+      audio::setVolume(u.volume);
+      audio::confirmBeep();  // at the new level
       break;
     case ui::Action::CycleBrightness: {
       // AUTO -> 25 -> 50 -> 75 -> 100 % -> AUTO
@@ -221,6 +227,7 @@ void setup() {
 #endif
   backlight::begin();
   audio::setEnabled(u.sound);
+  audio::setVolume(u.volume);
   clockmod::begin();
   loadCache();
   net::begin();
@@ -351,6 +358,7 @@ void loop() {
   m.updatePct = datasync::status() == datasync::Status::Updating ? datasync::updateProgress() : -1;
   m.previewName = preview ? scenarios::get(g_preview).name : nullptr;
   m.sound = u.sound;
+  m.volume = u.volume;
   m.autoBrightness = u.autoBrightness;
   m.fixedBrightness = u.fixedBrightness;
   m.theme = u.theme;

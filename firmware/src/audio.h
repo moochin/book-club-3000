@@ -22,6 +22,8 @@ void tick(uint32_t nowMs);
 
 // Muted by the sound setting or quiet hours. Muting stops anything playing.
 void setEnabled(bool on);
+// Volume step 0..3 (25/50/75/100 % of the safe maximum in config.h).
+void setVolume(uint8_t step);
 void setQuietHours(bool quiet);
 bool canPlay();
 
