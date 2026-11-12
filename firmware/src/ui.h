@@ -36,6 +36,7 @@ struct Model {
   bool sound = true;
   bool autoBrightness = true;
   uint8_t fixedBrightness = 160;
+  uint8_t volume = 3;  // 0..3
   uint8_t theme = 0;
   bool effects = true;
   uint8_t nightPreset = 1;
@@ -57,6 +58,7 @@ enum class Action : uint8_t {
   None,
   RefreshNow,
   ToggleSound,
+  CycleVolume,
   CycleBrightness,
   CycleTheme,
   ToggleEffects,
@@ -91,7 +93,7 @@ struct View {
   uint8_t tab = 0;
 };
 View view();
-constexpr int kMenuItems = 13;  // rows in the settings list
+constexpr int kMenuItems = 14;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);

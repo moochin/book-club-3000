@@ -7,6 +7,7 @@
 #include <freertos/semphr.h>
 #include <math.h>
 #include <soc/rtc_io_reg.h>
+#include <soc/sens_reg.h>
 
 #include "audio_gen.h"
 #include "config.h"
@@ -60,6 +61,11 @@ static void silence() {
   ledcWrite(cfg::kLedcSpeaker, 0);  // pin held low: no amp hiss
 }
 
+// Volume, as a scale of the safe maximum: 64..256 (256 = 100 %).
+static uint32_t g_volScale = 256;
+static volatile int32_t g_clipBias = cfg::kClipBias;
+static volatile int32_t g_clipSwing = cfg::kClipSwing;
+
 static void tone(uint16_t freq, uint8_t duty) {
   if (freq == 0 || duty == 0) {
     silence();
@@ -70,7 +76,10 @@ static void tone(uint16_t freq, uint8_t duty) {
     ledcChangeFrequency(cfg::kLedcSpeaker, freq, 8);
     g_curFreq = freq;
   }
-  ledcWrite(cfg::kLedcSpeaker, duty);
+  // Scale every generated sound: full duty pulled enough current through the
+  // CYD's speaker amp to sag USB power. Keep at least 1 so quiet hums survive.
+  uint32_t d = ((uint32_t)duty * cfg::kToneLevel >> 8) * g_volScale >> 8;
+  ledcWrite(cfg::kLedcSpeaker, d ? d : 1);
 }
 
 static void schedule(uint32_t us) {
@@ -218,7 +227,7 @@ static hw_timer_t* g_sampleTimer = nullptr;
 static Clip g_oneShot = Clip::Count;
 static uint32_t g_dacLastActiveMs = 0;
 
-constexpr uint16_t kBiasTop = 128 * 4;  // ~46 ms ramp at 11 kHz
+static volatile uint16_t g_biasTop = cfg::kClipBias * 4;  // the bias ramp's top, x4
 constexpr uint32_t kGainMax = 65535;
 
 static inline void IRAM_ATTR dacOut(uint32_t v) {
@@ -229,7 +238,7 @@ static inline void IRAM_ATTR dacOut(uint32_t v) {
 // while flash is busy, and may read the clips straight from flash.
 static void IRAM_ATTR onSample() {
   portENTER_CRITICAL_ISR(&g_pcmMux);
-  if (!g_dacWanted || g_bias < kBiasTop) {
+  if (!g_dacWanted || g_bias < g_biasTop) {
     if (g_dacWanted) ++g_bias;
     else if (g_bias) --g_bias;
     dacOut(g_bias >> 2);
@@ -251,7 +260,7 @@ static void IRAM_ATTR onSample() {
       else v.active = false;
     }
   }
-  int32_t out = 128 + (((acc >> 8) * cfg::kClipVolume) >> 8);
+  int32_t out = g_clipBias + (((acc >> 8) * g_clipSwing) >> 7);
   dacOut(out < 0 ? 0 : out > 255 ? 255 : out);
   portEXIT_CRITICAL_ISR(&g_pcmMux);
 }
@@ -274,7 +283,11 @@ static void enterDac() {
   silence();
   ledcDetachPin(cfg::kPinSpeaker);
   dac_output_enable(DAC_CHANNEL_2);
-  dacOut(0);
+  // The DAC's cosine generator owns its output out of reset (SENS_DAC_CW_EN2
+  // defaults to 1), so dacOut()'s raw writes went nowhere: clips played as
+  // a hiss of exactly their length. Hand the output to the register.
+  CLEAR_PERI_REG_MASK(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_CW_EN2_M);
+  dac_output_voltage(DAC_CHANNEL_2, 0);
   portENTER_CRITICAL(&g_pcmMux);
   g_bias = 0;
   portEXIT_CRITICAL(&g_pcmMux);
@@ -361,6 +374,17 @@ void begin() {
 }
 
 bool canPlay() { return g_enabled && !g_quiet; }
+
+void setVolume(uint8_t step) {
+  if (step > 3) step = 3;
+  g_volScale = 64u * (step + 1);
+  portENTER_CRITICAL(&g_pcmMux);
+  g_clipBias = cfg::kClipBias * (int32_t)g_volScale >> 8;
+  g_clipSwing = cfg::kClipSwing * (int32_t)g_volScale >> 8;
+  g_biasTop = (uint16_t)(g_clipBias * 4);
+  if (g_bias > g_biasTop) g_bias = g_biasTop;
+  portEXIT_CRITICAL(&g_pcmMux);
+}
 
 static void stopAll() {
   Lock l;

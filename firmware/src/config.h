@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.3.3"
+#define BC_FW_VERSION "1.3.4"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -100,7 +100,15 @@ constexpr uint32_t kBlankAfterDarkMs = 10UL * 60 * 1000;
 // ---- Sound --------------------------------------------------------------------
 constexpr int kQuietFromMinute = 22 * 60;  // no sound 22:00..08:00
 constexpr int kQuietToMinute = 8 * 60;
-constexpr int kClipVolume = 200;  // recorded clips: 0..256 (256 = full scale)
+// Recorded clips on the DAC. The CYD's speaker amp takes the pin's DC level
+// too: clips centred on mid-scale (128, 1.65 V) drove a steady current
+// through the speaker, distorting them and browning out the USB link. They
+// now sit on a low level with a matching swing, so the DAC stays in 0..80.
+constexpr int kClipBias = 20;   // DAC level under a clip (0..255 = 0..3.3 V)
+constexpr int kClipSwing = 20;  // peak deviation from kClipBias
+// Generated sounds (LEDC PWM): duty is scaled by kToneLevel / 256. At full
+// level any sound pulled enough current to drop the board's USB link.
+constexpr int kToneLevel = 128;
 constexpr uint32_t kSettingsHumMs = 30UL * 1000;  // hum fades after this long untouched
 
 }  // namespace cfg

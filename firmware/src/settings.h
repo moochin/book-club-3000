@@ -19,6 +19,7 @@ struct Unit {
   char otaPass[32] = "";   // optional ArduinoOTA password
   uint8_t rotation = 1;    // 0..3
   bool sound = true;
+  uint8_t volume = 3;             // 0..3: 25/50/75/100 % of the safe maximum
   bool autoBrightness = true;
   uint8_t fixedBrightness = 160;  // 0..255 when !autoBrightness
   bool effects = true;            // scanlines + sweep
