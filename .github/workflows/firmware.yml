@@ -12,6 +12,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Publishing a release needs write access; the repo's default token is read-only.
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: firmware
