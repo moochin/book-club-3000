@@ -40,6 +40,17 @@ NightWindow nightPreset(int i) {
   return kPresets[(i >= 0 && i < kNightPresets) ? i : 0];
 }
 
+NightWindow quietPreset(int i) {
+  static const NightWindow kPresets[kQuietPresets] = {
+      {false, 0, 0, "NEVER"},
+      {true, 22 * 60, 8 * 60, "22:00-08:00"},
+      {true, 21 * 60, 8 * 60, "21:00-08:00"},
+      {true, 23 * 60, 7 * 60, "23:00-07:00"},
+      {true, 0, 7 * 60, "00:00-07:00"},
+  };
+  return kPresets[(i >= 0 && i < kQuietPresets) ? i : 1];
+}
+
 uint32_t idleDimPresetMs(int i) {
   static const uint32_t kMs[kIdlePresets] = {0, 10UL * 60 * 1000, 30UL * 60 * 1000, 60UL * 60 * 1000};
   return kMs[(i >= 0 && i < kIdlePresets) ? i : 0];

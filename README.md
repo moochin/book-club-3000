@@ -151,7 +151,7 @@ can't burn in, but this saves its backlight, which slowly wears with use.
 Poke a friend from your desk: **SETTINGS → SEND NUDGE**, pick a friend (or
 EVERYONE), then a message. It lands on their unit within a minute, with a
 chirp, a flashing blue light and the message in big letters until they press
-or tap. In quiet hours (22:00–08:00) it arrives silently and waits on screen.
+or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → QUIET HOURS**) it arrives silently and waits on screen.
 
 The built-in messages include *GET YOUR ASS ONLINE*, *THINKING OF YOU,
 LOSER*, *WHERE ARE YOU, COWARD?* and *I'M ON. YOU'RE NOT. SHAME.* To use the

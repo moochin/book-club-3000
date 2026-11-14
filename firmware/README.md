@@ -124,7 +124,10 @@ the firmware at build time (`tools/build_sounds.py` writes `src/sound_data.h`)
 and plays as 8-bit 11 kHz audio through the speaker pin's DAC. Slot names,
 formats and tips are in `../art/sounds/README.md`.
 
-The sound setting and quiet hours mute all of these. To hear the generated
+The sound setting and quiet hours mute all of these. Quiet hours are set in
+**SETTINGS → QUIET HOURS** (NEVER, 22:00–08:00 by default, 21:00–08:00,
+23:00–07:00 or 00:00–07:00); while they are muting sound, a crossed-out
+speaker shows at the top right of the screen. To hear the generated
 ones without a unit, render them to WAV files (in `art/preview/sounds/`):
 
 ```

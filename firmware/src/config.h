@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.3.10"
+#define BC_FW_VERSION "1.3.11"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -98,8 +98,7 @@ constexpr int kLdrDarkRoom = 700;  // at or beyond this counts as "dark" for bla
 constexpr uint32_t kBlankAfterDarkMs = 10UL * 60 * 1000;
 
 // ---- Sound --------------------------------------------------------------------
-constexpr int kQuietFromMinute = 22 * 60;  // no sound 22:00..08:00
-constexpr int kQuietToMinute = 8 * 60;
+// Quiet hours (no sound) are a setting: see bc::quietPreset().
 // Recorded clips on the DAC. The CYD's speaker amp takes the pin's DC level
 // too: clips centred on mid-scale (128, 1.65 V) drove a steady current
 // through the speaker, distorting them and browning out the USB link. They

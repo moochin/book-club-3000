@@ -6,6 +6,7 @@
 #include <nvs_flash.h>
 #include <string.h>
 
+#include "bc_screen.h"
 #include "config.h"
 
 namespace settings {
@@ -47,6 +48,8 @@ void begin() {
   u.effects = p.getBool("fx", true);
   u.nightPreset = p.getUChar("night", 1);
   u.idlePreset = p.getUChar("idle", 2);
+  u.quietPreset = p.getUChar("quiet", 1);
+  if (u.quietPreset >= bc::kQuietPresets) u.quietPreset = 1;
   p.end();
   for (auto& s : u.stats) s = constrain(s, 1, 10);
 }
@@ -72,6 +75,7 @@ void save() {
   p.putBool("fx", u.effects);
   p.putUChar("night", u.nightPreset);
   p.putUChar("idle", u.idlePreset);
+  p.putUChar("quiet", u.quietPreset);
   p.end();
 }
 

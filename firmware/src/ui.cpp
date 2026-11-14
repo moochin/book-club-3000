@@ -31,6 +31,7 @@ enum MenuItem : uint8_t {
   kMiNudge,
   kMiSound,
   kMiVolume,
+  kMiQuiet,
   kMiBrightness,
   kMiTheme,
   kMiEffects,
@@ -108,6 +109,15 @@ void warnIcon(int x, int y) {
   c.fillRect(x + 6, y + 10, 3, 2, kBg);
 }
 
+// A speaker with a cross: quiet hours are muting the sound.
+void quietIcon(int x, int y) {
+  auto& c = canvas();
+  c.fillRect(x, y + 4, 3, 5, kDim);
+  c.fillTriangle(x + 2, y + 6, x + 7, y + 1, x + 7, y + 11, kDim);
+  c.drawLine(x + 9, y + 3, x + 14, y + 9, kWarn);
+  c.drawLine(x + 9, y + 9, x + 14, y + 3, kWarn);
+}
+
 void header(const Model& m) {
   auto& c = canvas();
   static const char* const kNames[kTabCount] = {"STAT", "DATA", "LOG"};
@@ -130,6 +140,7 @@ void header(const Model& m) {
   wifiIcon(cfg::kScreenW - 54, 6, m.wifiUp);
   if (m.syncStale || m.sync == SyncInfo::Failed) warnIcon(cfg::kScreenW - 76, 5);
   if (m.sync == SyncInfo::Fetching) text(cfg::kScreenW - 72, 6, "~", kBright);
+  if (m.quietNow) quietIcon(cfg::kScreenW - 96, 6);
 }
 
 void previewBanner(const Model& m) {
@@ -497,6 +508,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiNudge: snprintf(buf, len, m.nudgesConfigured ? "SEND NUDGE" : "SEND NUDGE (NOT SET UP)"); break;
     case kMiSound: snprintf(buf, len, "SOUND: %s", m.sound ? "ON" : "OFF"); break;
     case kMiVolume: snprintf(buf, len, "VOLUME: %d/4", m.volume + 1); break;
+    case kMiQuiet: snprintf(buf, len, "QUIET HOURS: %s", bc::quietPreset(m.quietPreset).label); break;
     case kMiBrightness:
       if (m.autoBrightness) snprintf(buf, len, "BRIGHTNESS: AUTO");
       else snprintf(buf, len, "BRIGHTNESS: FIXED %d%%", m.fixedBrightness * 100 / 255);
@@ -914,6 +926,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
             break;
           case kMiSound: r.action = Action::ToggleSound; break;
           case kMiVolume: r.action = Action::CycleVolume; break;
+          case kMiQuiet: r.action = Action::CycleQuiet; break;
           case kMiBrightness: r.action = Action::CycleBrightness; break;
           case kMiTheme: r.action = Action::CycleTheme; break;
           case kMiEffects: r.action = Action::ToggleEffects; break;
