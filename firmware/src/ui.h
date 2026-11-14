@@ -41,6 +41,8 @@ struct Model {
   bool effects = true;
   uint8_t nightPreset = 1;
   uint8_t idlePreset = 2;
+  uint8_t quietPreset = 1;
+  bool quietNow = false;    // quiet hours are muting the sound right now
   const char* owner = "";
   const uint8_t* stats = nullptr;
   int lightRaw = 0;
@@ -64,6 +66,7 @@ enum class Action : uint8_t {
   ToggleEffects,
   CycleNight,
   CycleIdleDim,
+  CycleQuiet,
   OpenPortal,
   CancelPortal,
   Preview,      // arg = scenario index
@@ -93,7 +96,7 @@ struct View {
   uint8_t tab = 0;
 };
 View view();
-constexpr int kMenuItems = 14;  // rows in the settings list
+constexpr int kMenuItems = 15;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);

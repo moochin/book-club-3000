@@ -138,6 +138,7 @@ void doAction(const ui::Result& r) {
       break;
     case ui::Action::ToggleEffects: u.effects = !u.effects; break;
     case ui::Action::CycleNight: u.nightPreset = (uint8_t)((u.nightPreset + 1) % bc::kNightPresets); break;
+    case ui::Action::CycleQuiet: u.quietPreset = (uint8_t)((u.quietPreset + 1) % bc::kQuietPresets); break;
     case ui::Action::CycleIdleDim: u.idlePreset = (uint8_t)((u.idlePreset + 1) % bc::kIdlePresets); break;
     case ui::Action::OpenPortal: net::openPortal(); return;
     case ui::Action::CancelPortal: net::closePortal(); return;
@@ -157,8 +158,10 @@ void doAction(const ui::Result& r) {
 }
 
 bool quietHours(const bc::LocalNow& n) {
+  const bc::NightWindow w = bc::quietPreset(settings::get().quietPreset);
+  if (!w.enabled) return false;
   if (!n.valid) return true;  // unknown time: stay quiet
-  return n.minuteOfDay >= cfg::kQuietFromMinute || n.minuteOfDay < cfg::kQuietToMinute;
+  return bc::inMinuteWindow(n.minuteOfDay, w.from, w.to);
 }
 
 // The cassette-loading boot noise: when someone has just plugged the unit in,
@@ -287,7 +290,13 @@ void loop() {
   if (data) state = bc::computeState(*data, now_);
   else state.clockValid = now_.valid;
 
-  audio::setQuietHours(quietHours(liveNow));
+  {
+    const bool quiet = quietHours(liveNow);
+    audio::setQuietHours(quiet);
+    static bool wasQuiet = !quiet;
+    if (quiet != wasQuiet) g_dirty = true;  // show or hide the quiet icon
+    wasQuiet = quiet;
+  }
   audio::setGeigerRate(data && state.clockValid ? state.geigerClicksPerMin : 0);
   // The jingle: once on meeting day, and once on this unit owner's birthday.
   const bool ownBirthday = data && state.birthdayIndex >= 0 &&
@@ -365,6 +374,8 @@ void loop() {
   m.effects = u.effects;
   m.nightPreset = u.nightPreset;
   m.idlePreset = u.idlePreset;
+  m.quietPreset = u.quietPreset;
+  m.quietNow = u.sound && quietHours(liveNow);
   m.owner = u.owner;
   m.stats = u.stats;
   m.lightRaw = backlight::rawReading();

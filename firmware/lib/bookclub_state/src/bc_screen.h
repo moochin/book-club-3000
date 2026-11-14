@@ -49,6 +49,10 @@ struct NightWindow {
 };
 NightWindow nightPreset(int i);
 
+// Quiet hours: no sound in this window. Index 0 = never, 1 = the default.
+constexpr int kQuietPresets = 5;
+NightWindow quietPreset(int i);
+
 constexpr int kIdlePresets = 4;  // index 0 = never
 uint32_t idleDimPresetMs(int i);
 const char* idleDimPresetLabel(int i);

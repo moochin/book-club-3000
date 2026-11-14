@@ -734,6 +734,12 @@ void test_minute_window_and_shift() {
   TEST_ASSERT_FALSE(nightPreset(0).enabled);
   TEST_ASSERT_FALSE(nightPreset(99).enabled);  // bad stored value: safe default
   TEST_ASSERT_EQUAL_UINT32(0, idleDimPresetMs(-1));
+  TEST_ASSERT_FALSE(quietPreset(0).enabled);
+  const NightWindow q = quietPreset(1);  // the default: 22:00-08:00
+  TEST_ASSERT_TRUE(q.enabled);
+  TEST_ASSERT_TRUE(inMinuteWindow(22 * 60 + 17, q.from, q.to));
+  TEST_ASSERT_FALSE(inMinuteWindow(8 * 60, q.from, q.to));
+  TEST_ASSERT_EQUAL_STRING("22:00-08:00", quietPreset(99).label);  // bad stored value: the default
 }
 
 // ---- Nudges ------------------------------------------------------------------------

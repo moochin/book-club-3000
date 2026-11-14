@@ -127,7 +127,8 @@ int main(int argc, char** argv) {
 
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +8); ev(m, 0, true); shot("owner_card", m);  // menu item 8: OWNER CARD
+  ev(m, +4); shot("menu_quiet", m);                    // menu item 4: QUIET HOURS
+  ev(m, +6); ev(m, 0, true); shot("owner_card", m);  // menu item 10: OWNER CARD
   ev(m, 0, true); ev(m, +1); ev(m, 0, true);           // HOW TO USE
   for (int i = 0; i < 3; ++i) ev(m, +1);
   shot("help_nudges", m);                                // page 4: NUDGES
@@ -139,6 +140,13 @@ int main(int argc, char** argv) {
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("wifi_confirm", m);
   ev(m, +1); shot("wifi_confirm_open", m);
   ev(m, 0, false, true); ev(m, 0, false, true);  // back to tabs
+
+  // Quiet hours muting the sound: the crossed-out speaker in the header.
+  {
+    ui::Model qm = m;
+    qm.quietNow = true;
+    shot("stat_quiet", qm);
+  }
 
   // Stale sync + offline on DATA.
   ui::Model stale = m;
@@ -167,7 +175,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +8); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +10); ev(cm, 0, true);  // menu > owner card
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;

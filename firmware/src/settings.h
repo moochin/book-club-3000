@@ -24,6 +24,7 @@ struct Unit {
   uint8_t fixedBrightness = 160;  // 0..255 when !autoBrightness
   bool effects = true;            // scanlines + sweep
   uint8_t nightPreset = 1;        // bc::nightPreset(): 0 never, 1 = 23:00-07:00 off
+  uint8_t quietPreset = 1;        // bc::quietPreset(): 0 never, 1 = no sound 22:00-08:00
   uint8_t idlePreset = 2;         // bc::idleDimPresetMs(): 0 never, 2 = dim after 30 min
   char nudgeToken[64] = "";       // this unit's token for the nudge hub; never logged
 };
