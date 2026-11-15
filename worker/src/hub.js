@@ -16,6 +16,9 @@
 //                  it signs in with one, then uses the routes below)
 //   POST /signal   {"msg": "..."} -> {"signal": {"from","msg","at","left"}}
 //   GET  /signals  -> {"signals": [{"from","msg","at","left"}]}  (newest first)
+//   GET  /poll     -> all three in one reply: {"me","friends","nudges","signals"}
+//                  (and empties the inbox). Units from 1.5 use this alone, so
+//                  each check is one TLS connection instead of three.
 //
 // Signals are quotes broadcast to the whole club, one per unit per day (UK
 // time), and each is gone 24 hours after it was sent: KV
@@ -110,11 +113,32 @@ export async function handle(request, env, now) {
     return json(200, { me, friends: Object.keys(all).filter((n) => n !== me) });
   }
 
-  if (request.method === "GET" && url.pathname === "/inbox") {
+  const takeInbox = async () => {
     const key = `inbox:${me}`;
     const nudges = (await env.NUDGES.get(key, "json")) || [];
     if (nudges.length) await env.NUDGES.delete(key);  // only write when there was mail
-    return json(200, { nudges });
+    return nudges;
+  };
+  const liveSignals = async () => {
+    const signals = [];
+    for (const name of Object.keys(all)) {
+      const sig = liveSignal(await env.NUDGES.get(`signal:${name}`, "json"), now);
+      if (sig) signals.push(sig);
+    }
+    return signals.sort((a, b) => b.at - a.at);
+  };
+
+  if (request.method === "GET" && url.pathname === "/inbox") {
+    return json(200, { nudges: await takeInbox() });
+  }
+
+  if (request.method === "GET" && url.pathname === "/poll") {
+    return json(200, {
+      me,
+      friends: Object.keys(all).filter((n) => n !== me),
+      nudges: await takeInbox(),
+      signals: await liveSignals(),
+    });
   }
 
   if (request.method === "POST" && url.pathname === "/nudge") {
@@ -152,13 +176,7 @@ export async function handle(request, env, now) {
   }
 
   if (request.method === "GET" && url.pathname === "/signals") {
-    const signals = [];
-    for (const name of Object.keys(all)) {
-      const sig = liveSignal(await env.NUDGES.get(`signal:${name}`, "json"), now);
-      if (sig) signals.push(sig);
-    }
-    signals.sort((a, b) => b.at - a.at);
-    return json(200, { signals });
+    return json(200, { signals: await liveSignals() });
   }
 
   if (request.method === "POST" && url.pathname === "/signal") {

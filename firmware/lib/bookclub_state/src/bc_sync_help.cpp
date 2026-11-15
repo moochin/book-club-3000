@@ -31,6 +31,10 @@ const char* syncAdvice(const char* error, bool stale) {
     return "Set the gist's Raw link on the setup page (SETTINGS > WI-FI RESET > OPEN).";
   }
   if (starts(e, "no Wi-Fi")) return "Not connected to Wi-Fi. It retries every minute.";
+  if (strstr(e, "low memory")) {
+    return "Memory was too low for a secure connection, so it waited. It tries again soon, and "
+           "restarts itself quietly if memory stays low.";
+  }
   if (starts(e, "out of memory") || strstr(e, "lloc")) {
     return "The unit ran short of memory for a secure connection. Unplug it and plug it back in, "
            "and note ABOUT's MEMORY line for whoever looks after the firmware.";

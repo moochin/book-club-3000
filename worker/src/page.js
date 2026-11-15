@@ -147,7 +147,7 @@ export const PAGE = `<!doctype html>
         <input id="nudgeMsg" type="text" maxlength="40" autocomplete="off" placeholder="GET YOUR ASS ONLINE" required>
         <div class="count" id="nudgeCount">0/40</div>
         <button type="submit">Send nudge</button>
-        <p class="hint">Pops up on their terminal within a minute.</p>
+        <p class="hint">Pops up on their terminal within 5 minutes.</p>
       </form>
 
       <form id="signalForm" hidden>

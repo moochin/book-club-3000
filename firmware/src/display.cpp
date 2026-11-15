@@ -95,7 +95,10 @@ static void buildPalette(uint8_t theme) {
   const Rgb warn = theme == 1 ? Rgb{0xFF, 0x50, 0x30} : Rgb{0xFF, 0xB0, 0x28};
   const Rgb bg = theme == 1 ? Rgb{0x0C, 0x08, 0x02} : Rgb{0x03, 0x0C, 0x05};
   // Ramp 0..12: background to full accent, gamma-ish so low shades stay visible.
-  static const uint8_t kCurve[13] = {0, 8, 18, 30, 44, 60, 78, 98, 120, 150, 185, 220, 255};
+  // kDim (5) sits at ~43%: at 24% secondary text all but vanished on the real
+  // ST7789 panel, though it looked fine on a monitor. kText (10) stays well
+  // above it, so labels still read as secondary.
+  static const uint8_t kCurve[13] = {0, 10, 24, 42, 70, 110, 125, 138, 150, 172, 200, 228, 255};
   for (int i = 0; i <= 12; ++i) {
     g_canvas.setPaletteColor(i, lerp8(bg.r, accent.r, kCurve[i], 255),
                              lerp8(bg.g, accent.g, kCurve[i], 255),

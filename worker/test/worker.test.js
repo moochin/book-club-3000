@@ -224,3 +224,28 @@ test("the web page is served without a token, locked down", async () => {
 test("other pages still need a token", async () => {
   assert.equal((await req(setup(), null, "GET", "/roster")).status, 401);
 });
+
+// ---- One poll for everything (firmware 1.5+) ------------------------------------
+
+test("poll returns who I am, friends, my nudges and the signals, in one go", async () => {
+  const env = setup();
+  await req(env, "Pete", "POST", "/nudge", { to: "Dave", msg: "GET YOUR ASS ONLINE" });
+  await req(env, "Sam", "POST", "/signal", { msg: "Hope is the thing with feathers" });
+  const r = await req(env, "Dave", "GET", "/poll");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.me, "Dave");
+  assert.deepEqual(r.body.friends, ["Pete", "Sam"]);
+  assert.deepEqual(r.body.nudges.map((n) => n.msg), ["GET YOUR ASS ONLINE"]);
+  assert.deepEqual(r.body.signals.map((s) => s.from), ["Sam"]);
+  // The inbox is emptied, as with /inbox; signals stay on the air.
+  const again = await req(env, "Dave", "GET", "/poll");
+  assert.deepEqual(again.body.nudges, []);
+  assert.equal(again.body.signals.length, 1);
+});
+
+test("an empty poll costs no KV writes", async () => {
+  const env = setup();
+  await req(env, "Dave", "GET", "/poll");
+  assert.equal(env.NUDGES.writes, 0);
+  assert.equal((await req(env, null, "GET", "/poll")).status, 401);
+});

@@ -10,6 +10,7 @@
 #include "bc_data.h"
 #include "bc_date.h"
 #include "bc_nudge.h"
+#include "bc_health.h"
 #include "bc_signal.h"
 #include "bc_sync_help.h"
 #include "bc_screen.h"
@@ -871,6 +872,7 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("file too large (20000 bytes)", false), "12 KB"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("something new", false), "failed"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: can't look up gist.githubusercontent.com", false), "DNS"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: low memory (trying later)", false), "restarts itself"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: can't connect to gist.githubusercontent.com", false), "MEMORY"));
   // TLS's own reasons, from WiFiClientSecure::lastError().
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - Memory allocation failed", false), "memory"));
@@ -879,6 +881,58 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", true), "7 days"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", false), "All good"));
   TEST_ASSERT_NOT_NULL(syncAdvice(nullptr, false));
+}
+
+// ---- Self-healing restarts -----------------------------------------------------------
+
+void test_health_restarts() {
+  constexpr uint32_t H = 60UL * 60 * 1000, M = 60UL * 1000;
+  HealthInput in;
+  in.now.valid = true;
+  in.now.minuteOfDay = 4 * 60;  // 04:00
+  in.uptimeMs = 21 * H;
+  in.idleMs = 30 * M;
+  TEST_ASSERT_EQUAL((int)Restart::Daily, (int)restartDue(in));
+  in.idleMs = 5 * M;  // someone's using it: wait
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.idleMs = 30 * M;
+  in.uptimeMs = 3 * H;  // restarted recently anyway
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.uptimeMs = 21 * H;
+  in.now.minuteOfDay = 14 * 60;  // afternoon: not daily
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.now.minuteOfDay = 5 * 60;   // 05:00 is past the window
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.busy = true;                // never mid-update
+  in.now.minuteOfDay = 4 * 60;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.busy = false;
+
+  // No clock: every two days, when idle.
+  in.now.valid = false;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.uptimeMs = 49 * H;
+  TEST_ASSERT_EQUAL((int)Restart::Daily, (int)restartDue(in));
+
+  // Low memory: after 10 minutes, at any hour, once untouched for a minute.
+  HealthInput lm;
+  lm.now.valid = true;
+  lm.now.minuteOfDay = 14 * 60;
+  lm.uptimeMs = 2 * H;
+  lm.hadMemory = true;
+  lm.lowMemoryMs = 9 * M;
+  lm.idleMs = 5 * M;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.lowMemoryMs = 10 * M;
+  TEST_ASSERT_EQUAL((int)Restart::LowMemory, (int)restartDue(lm));
+  lm.idleMs = 30 * 1000;  // mid-use: wait
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.idleMs = 5 * M;
+  lm.hadMemory = false;   // never had enough: a restart wouldn't help, so no loop
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.hadMemory = true;
+  lm.uptimeMs = 20 * M;   // only just started
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
 }
 
 void setUp() {}
@@ -983,5 +1037,6 @@ int main() {
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);
   RUN_TEST(test_sync_advice);
+  RUN_TEST(test_health_restarts);
   return UNITY_END();
 }

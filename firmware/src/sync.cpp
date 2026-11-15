@@ -12,11 +12,9 @@
 #include "bc_state.h"
 #include "clock.h"
 #include "config.h"
+#include "https.h"
 #include "settings.h"
 
-// The full Mozilla root CA bundle, already compiled into the core's mbedTLS
-// library. Using it means GitHub's certificates validate without pinning.
-extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
 
 namespace datasync {
 
@@ -51,12 +49,6 @@ static void setError(const char* fmt, ...) {
   Serial.printf("[sync] %s\n", buf);
 }
 
-static void secureClient(WiFiClientSecure& c) {
-  c.setCACertBundle(x509_crt_bundle_start);
-  c.setTimeout(cfg::kHttpTimeoutMs / 1000);
-  c.setHandshakeTimeout(cfg::kHttpTimeoutMs / 1000);
-}
-
 // "gist.githubusercontent.com" from "https://gist.githubusercontent.com/...".
 static void hostOf(const char* url, char* host, size_t cap) {
   const char* p = strstr(url, "://");
@@ -84,13 +76,15 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
     setError("fetch failed: can't look up %s", host);
     return -1;
   }
+  // Rather than fail partway through a handshake, don't start one.
+  if (!https::memoryOk()) {
+    setError("fetch failed: low memory (trying later)");
+    return -1;
+  }
   WiFiClientSecure client;
-  secureClient(client);
   HTTPClient http;
-  http.setTimeout(cfg::kHttpTimeoutMs);
-  http.setConnectTimeout(cfg::kHttpTimeoutMs);
+  https::setup(client, http);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setUserAgent("BookClub3000/" BC_FW_VERSION);
   if (!http.begin(client, url)) {
     setError("bad URL");
     return -1;
@@ -106,44 +100,25 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
     // client knows better: -1 is the network (no socket, refused, timed out,
     // often short of memory too); below that, TLS's own error.
     char tls[48] = "";
-    const int le = code < 0 ? client.lastError(tls, sizeof tls) : 0;
-    if (le < -1 && tls[0]) setError("fetch failed: %s", tls);
+    if (code < 0) https::tlsReason(client, tls, sizeof tls);
+    if (tls[0]) setError("fetch failed: %s", tls);
     else if (code == HTTPC_ERROR_CONNECTION_REFUSED) setError("fetch failed: can't connect to %s", host);
     else if (code < 0) setError("fetch failed: %s", HTTPClient::errorToString(code).c_str());
     else setError("HTTP %d%s", code, (code == 404 && !(token && token[0])) ? " (check the data URL)" : "");
     http.end();
     return -1;
   }
-  const int declared = http.getSize();
-  if (declared > (int)cap - 1) {
-    setError("file too large (%d bytes)", declared);
-    http.end();
+  const int n = https::readBody(http, buf, cap, cfg::kHttpTimeoutMs);
+  http.end();
+  if (n == -1) {
+    setError("file too large");
     return -1;
   }
-  WiFiClient* stream = http.getStreamPtr();
-  size_t n = 0;
-  const uint32_t start = millis();
-  while (http.connected() && (declared < 0 || n < (size_t)declared)) {
-    const int avail = stream->available();
-    if (avail > 0) {
-      if (n + (size_t)avail > cap - 1) {
-        setError("file too large");
-        http.end();
-        return -1;
-      }
-      n += stream->readBytes(buf + n, (size_t)avail);
-    } else {
-      if (millis() - start > cfg::kHttpTimeoutMs) break;
-      vTaskDelay(pdMS_TO_TICKS(5));
-    }
-  }
-  http.end();
-  if (declared >= 0 && n != (size_t)declared) {
+  if (n < 0) {
     setError("download cut short");
     return -1;
   }
-  buf[n] = 0;
-  return (int)n;
+  return n;
 }
 
 // Downloads `url` straight into the spare app slot. Arduino's HTTPUpdate
@@ -151,13 +126,14 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
 // Stream::readBytes(): about 2.5 KB/s, so a 1.4 MB update took ~10 minutes.
 // Bulk reads into a 4 KB buffer instead. Writes a reason into `err` on failure.
 static bool fetchFirmware(const char* url, char* err, size_t errLen) {
+  if (!https::memoryOk()) {
+    snprintf(err, errLen, "low memory (trying later)");
+    return false;
+  }
   WiFiClientSecure client;
-  secureClient(client);
   HTTPClient http;
-  http.setTimeout(cfg::kHttpTimeoutMs);
-  http.setConnectTimeout(cfg::kHttpTimeoutMs);
+  https::setup(client, http);
   http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub release assets redirect
-  http.setUserAgent("BookClub3000/" BC_FW_VERSION);
   if (!http.begin(client, url)) {
     snprintf(err, errLen, "bad URL");
     return false;

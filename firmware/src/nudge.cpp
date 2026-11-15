@@ -6,18 +6,19 @@
 #include <WiFiClientSecure.h>
 
 #include "config.h"
+#include "https.h"
 #include "settings.h"
 #include "sync.h"
 
-// The Mozilla root CA bundle compiled into the core (see sync.cpp).
-extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
-
 namespace nudge {
 
-constexpr uint32_t kPollMs = 60UL * 1000;          // inbox check
-constexpr uint32_t kRosterMs = 60UL * 60 * 1000;   // friends list refresh
-constexpr uint32_t kSignalsMs = 10UL * 60 * 1000;  // signals check
-constexpr size_t kReplyCap = 4096;
+// One /poll every 5 minutes brings nudges, signals and the friends list in a
+// single TLS connection. It used to be up to three connections a minute,
+// which churned the heap (TLS needs a big block each time) for little gain.
+constexpr uint32_t kPollMs = 5UL * 60 * 1000;
+constexpr uint32_t kWakeMs = 60UL * 1000;          // how often the task looks
+constexpr uint32_t kRosterMs = 60UL * 60 * 1000;   // friends list, on an old hub
+constexpr size_t kReplyCap = 6144;                 // 20 nudges + 8 signals + roster
 // The TLS handshake takes most of a 10 KB stack; sending a 100-character
 // signal's buffers on top of that overflowed it and restarted the unit.
 constexpr uint32_t kTaskStack = 16384;
@@ -42,8 +43,8 @@ static char g_me[bc::kNameLen] = "";
 static bc::Signal g_signals[bc::kMaxSignals];
 static int g_signalCount = 0;
 static uint32_t g_signalsAtMs = 0;     // when g_signals was fetched
-static uint32_t g_signalsTryMs = 0;    // the last check, good or bad
-static bool g_signalsDue = true;
+static uint32_t g_pollTryMs = 0;       // the last poll, good or bad
+static bool g_pollDue = true;          // poll at the next wake, whatever the time
 static volatile uint32_t g_signalsVersion = 0;
 static char g_signalsError[48] = "";
 static volatile SendState g_sendState = SendState::Idle;
@@ -61,6 +62,8 @@ static void setError(char* dst, size_t cap, const char* msg) {
   strlcpy(dst, msg, cap);
 }
 
+constexpr int kLowMemory = -200;  // request() didn't try: not enough heap for TLS
+
 // One HTTPS request to the hub. Returns the HTTP status (or a negative
 // HTTPClient error) and the reply body in `out`.
 static int request(const char* method, const char* path, const char* body, char* out, size_t cap) {
@@ -76,15 +79,13 @@ static int request(const char* method, const char* path, const char* body, char*
   char auth[sizeof settings::Unit::nudgeToken + 8];
   snprintf(auth, sizeof auth, "Bearer %s", settings::get().nudgeToken);
 
-  WiFiClientSecure client;
-  client.setCACertBundle(x509_crt_bundle_start);
-  client.setTimeout(cfg::kHttpTimeoutMs / 1000);
-  client.setHandshakeTimeout(cfg::kHttpTimeoutMs / 1000);
-  HTTPClient http;
-  http.setTimeout(cfg::kHttpTimeoutMs);
-  http.setConnectTimeout(cfg::kHttpTimeoutMs);
-  http.setUserAgent("BookClub3000/" BC_FW_VERSION);
+  out[0] = '\0';
   g_tlsWhy[0] = '\0';
+  // Rather than fail partway through a handshake, don't start one.
+  if (!https::memoryOk()) return kLowMemory;
+  WiFiClientSecure client;
+  HTTPClient http;
+  https::setup(client, http);
   if (!http.begin(client, url)) return -100;
   http.addHeader("Authorization", auth);
   int code;
@@ -94,14 +95,9 @@ static int request(const char* method, const char* path, const char* body, char*
   } else {
     code = http.GET();
   }
-  out[0] = '\0';
-  // Below -1 is TLS's own error; -1 is the network (see sync.cpp).
-  if (code < 0 && client.lastError(g_tlsWhy, sizeof g_tlsWhy) >= -1) g_tlsWhy[0] = '\0';
-  if (code > 0) {
-    // getString() decodes chunked replies; the hub's are a few hundred bytes.
-    const String reply = http.getString();
-    strlcpy(out, reply.c_str(), cap);
-  }
+  if (code < 0) https::tlsReason(client, g_tlsWhy, sizeof g_tlsWhy);
+  // Not getString(): its reads can spin on core 0 (see https.h).
+  if (code > 0 && https::readBody(http, out, cap, cfg::kHttpTimeoutMs) < 0) out[0] = '\0';
   http.end();
   Serial.printf("[nudge] %s %s -> %d (stack free %u)\n", method, path, code,
                 (unsigned)uxTaskGetStackHighWaterMark(nullptr));
@@ -119,6 +115,8 @@ static void describe(int code, const char* reply, char* dst, size_t cap) {
       ++i;
     }
     dst[i] = '\0';
+  } else if (code == kLowMemory) {
+    snprintf(dst, cap, "low memory: trying later");
   } else if (code < 0 && g_tlsWhy[0]) {
     snprintf(dst, cap, "hub: %s", g_tlsWhy);
   } else if (code < 0) {
@@ -167,7 +165,7 @@ static void doSend(char* buf) {
     g_sendState = SendState::Sent;
     if (signal) {
       Lock l;
-      g_signalsDue = true;  // show our own straight away
+      g_pollDue = true;  // show our own straight away
     }
     Serial.printf("[nudge] %s\n", signal ? "signal broadcast" : "sent");
   } else {
@@ -179,38 +177,27 @@ static void doSend(char* buf) {
   }
 }
 
-static void doRoster(char* buf, uint32_t now) {
-  const int code = request("GET", "/roster", "", buf, kReplyCap);
+// Each of these takes a hub reply (from /poll, or an old hub's own route)
+// and updates the shared state. False if the reply wasn't usable.
+static bool applyRoster(const char* buf, int code, uint32_t now) {
   char friends[bc::kMaxFriends][bc::kNameLen];
   char me[bc::kNameLen];
   const int n = code == 200 ? bc::parseRoster(buf, strlen(buf), friends, bc::kMaxFriends, me, sizeof me) : -1;
-  if (n < 0) {
-    char why[48];
-    describe(code, buf, why, sizeof why);
-    setError(g_error, sizeof g_error, why);
-    return;
-  }
+  if (n < 0) return false;
   Lock l;
   memcpy(g_friends, friends, sizeof friends);
   strlcpy(g_me, me, sizeof g_me);
   g_friendCount = n;
   g_rosterAtMs = now;
   g_rosterOk = true;
-  g_error[0] = '\0';
+  return true;
 }
 
-static void doInbox(char* buf) {
-  const int code = request("GET", "/inbox", "", buf, kReplyCap);
+static bool applyInbox(const char* buf, int code) {
   static bc::Nudge got[bc::kMaxInbox];
   const int n = code == 200 ? bc::parseInbox(buf, strlen(buf), got, bc::kMaxInbox) : -1;
-  if (n < 0) {
-    char why[48];
-    describe(code, buf, why, sizeof why);
-    setError(g_error, sizeof g_error, why);
-    return;
-  }
+  if (n < 0) return false;
   Lock l;
-  g_error[0] = '\0';
   for (int i = 0; i < n; ++i) {
     if (g_inCount == bc::kMaxInbox) {  // full: drop the oldest
       g_inHead = (g_inHead + 1) % bc::kMaxInbox;
@@ -220,49 +207,86 @@ static void doInbox(char* buf) {
     ++g_inCount;
   }
   if (n) Serial.printf("[nudge] %d new\n", n);
+  return true;
 }
 
-static void doSignals(char* buf) {
-  const int code = request("GET", "/signals", "", buf, kReplyCap);
-  const uint32_t now = millis();  // "left" counts down from the reply
+static bool applySignals(const char* buf, int code, uint32_t now) {
   static bc::Signal got[bc::kMaxSignals];
   const int n = code == 200 ? bc::parseSignals(buf, strlen(buf), got, bc::kMaxSignals) : -1;
+  if (n < 0) return false;
   Lock l;
-  g_signalsDue = false;
-  g_signalsTryMs = now;  // paces the next check, after a failure too
-  if (n < 0) {
-    if (code == 404) strlcpy(g_signalsError, "the hub needs updating for signals", sizeof g_signalsError);
-    else describe(code, buf, g_signalsError, sizeof g_signalsError);
-    return;
-  }
   memcpy(g_signals, got, sizeof got);
   g_signalCount = n;
-  g_signalsAtMs = now;
+  g_signalsAtMs = now;  // "left" counts down from the reply
   g_signalsError[0] = '\0';
   ++g_signalsVersion;
+  return true;
+}
+
+static void failed(int code, const char* buf, char* dst, size_t cap) {
+  char why[48];
+  describe(code, buf, why, sizeof why);
+  setError(dst, cap, why);
+}
+
+// A hub from before /poll: the three routes, the roster only hourly.
+static void pollOldHub(char* buf, uint32_t now) {
+  bool rosterDue;
+  {
+    Lock l;
+    rosterDue = !g_rosterOk || now - g_rosterAtMs >= kRosterMs;
+  }
+  if (rosterDue) {
+    const int code = request("GET", "/roster", "", buf, kReplyCap);
+    if (!applyRoster(buf, code, now)) return failed(code, buf, g_error, sizeof g_error);
+  }
+  int code = request("GET", "/inbox", "", buf, kReplyCap);
+  if (!applyInbox(buf, code)) return failed(code, buf, g_error, sizeof g_error);
+  setError(g_error, sizeof g_error, "");
+  code = request("GET", "/signals", "", buf, kReplyCap);
+  if (!applySignals(buf, code, millis())) {
+    if (code == 404) setError(g_signalsError, sizeof g_signalsError, "the hub needs updating for signals");
+    else failed(code, buf, g_signalsError, sizeof g_signalsError);
+  }
+}
+
+static void doPoll(char* buf, uint32_t now) {
+  {
+    Lock l;
+    g_pollDue = false;
+    g_pollTryMs = now;  // paces the next poll, after a failure too
+  }
+  const int code = request("GET", "/poll", "", buf, kReplyCap);
+  if (code == 404) return pollOldHub(buf, now);
+  const uint32_t at = millis();
+  if (applyRoster(buf, code, at) && applyInbox(buf, code) && applySignals(buf, code, at)) {
+    setError(g_error, sizeof g_error, "");
+    return;
+  }
+  failed(code, buf, g_error, sizeof g_error);
+  failed(code, buf, g_signalsError, sizeof g_signalsError);
 }
 
 static void taskMain(void*) {
   static char buf[kReplyCap];
   for (;;) {
-    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPollMs));
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kWakeMs));
     if (!g_wifiUp || !configured()) continue;
     const uint32_t now = millis();
-    datasync::lockTls();
-    bool pending, rosterDue, signalsDue;
+    bool pending, due;
     {
       Lock l;
       pending = g_sendPending;
-      rosterDue = !g_rosterOk || now - g_rosterAtMs >= kRosterMs;
+      due = g_pollDue || now - g_pollTryMs >= kPollMs;
     }
+    if (!pending && !due) continue;
+    datasync::lockTls();
     if (pending) doSend(buf);
-    if (rosterDue) doRoster(buf, now);
-    doInbox(buf);
     {
-      Lock l;  // after doSend, which can make it due
-      signalsDue = g_signalsDue || now - g_signalsTryMs >= kSignalsMs;
+      Lock l;  // a broadcast makes the poll due, to show it straight away
+      due = due || g_pollDue;
     }
-    if (signalsDue) doSignals(buf);
+    if (due) doPoll(buf, now);
     datasync::unlockTls();
   }
 }
@@ -284,8 +308,9 @@ void tick(uint32_t, bool wifiUp, const char* hubUrl) {
       g_rosterOk = false;
       g_friendCount = 0;
       g_signalCount = 0;
-      g_signalsDue = true;
+      g_pollDue = true;
     }
+    if (wifiUp && !wasUp) g_pollDue = true;
   }
   // Check straight away when the hub or the network first appears.
   if ((changed || (wifiUp && !wasUp)) && configured()) xTaskNotifyGive(g_task);

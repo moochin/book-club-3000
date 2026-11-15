@@ -186,7 +186,7 @@ bool quietHours(const bc::LocalNow& n) {
 // or on a restart outside quiet hours (the clock survives a soft restart).
 // Not for an update or crash restart in the night.
 bool bootSoundWanted() {
-  if (!settings::get().sound) return false;
+  if (!settings::get().sound || diag::quietStart()) return false;  // not after a planned restart
   if (esp_reset_reason() == ESP_RST_POWERON) return true;
   return !quietHours(clockmod::localNow());
 }
@@ -400,6 +400,10 @@ void loop() {
     g_dirty = true;
   }
   audio::tick(now);
+  // Self-healing: a quiet restart in the small hours, or if memory stays too
+  // fragmented for TLS. Never mid-update or with the setup portal open.
+  diag::tick(now, now - g_lastInputMs, liveNow,
+             datasync::status() == datasync::Status::Updating || net::portalActive());
 
   const settings::Unit& u = settings::get();
   ui::Model m;

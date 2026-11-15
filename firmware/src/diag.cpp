@@ -7,6 +7,9 @@
 #include <freertos/task.h>
 #include <string.h>
 
+#include "bc_health.h"
+#include "https.h"
+
 namespace diag {
 
 namespace {
@@ -17,9 +20,17 @@ constexpr uint32_t kMagic = 0xB00C3000;
 RTC_NOINIT_ATTR uint32_t r_magic;
 RTC_NOINIT_ATTR char r_task[2][16];  // running on core 0 and core 1 when it fired
 RTC_NOINIT_ATTR uint32_t r_upSecs;
+// A planned restart: why, set just before ESP.restart().
+constexpr uint32_t kPlannedMagic = 0xB00C5AFE;
+RTC_NOINIT_ATTR uint32_t r_planned;
+RTC_NOINIT_ATTR uint8_t r_plannedWhy;  // bc::Restart
 
 char g_started[48] = "UNKNOWN";
 bool g_bad = false;
+bool g_quiet = false;
+uint32_t g_lowSinceMs = 0;  // when TLS last became impossible (0: it isn't)
+uint32_t g_lastCheckMs = 0;
+bool g_hadMemory = false;   // TLS was possible at some point this run
 
 void copyName(char* dst, TaskHandle_t t) {
   const char* n = t ? pcTaskGetName(t) : nullptr;
@@ -48,7 +59,17 @@ namespace diag {
 void begin() {
   const esp_reset_reason_t why = esp_reset_reason();
   const bool recorded = r_magic == kMagic;
+  const bool planned = r_planned == kPlannedMagic && why == ESP_RST_SW;
   r_magic = 0;
+  r_planned = 0;
+  if (planned) {
+    g_quiet = true;
+    strlcpy(g_started,
+            r_plannedWhy == (uint8_t)bc::Restart::LowMemory ? "SELF-HEAL (LOW MEMORY)" : "DAILY RESTART",
+            sizeof g_started);
+    Serial.printf("[diag] started by %s\n", g_started);
+    return;
+  }
   switch (why) {
     case ESP_RST_POWERON: strlcpy(g_started, "POWER ON", sizeof g_started); break;
     case ESP_RST_EXT: strlcpy(g_started, "RESET BUTTON", sizeof g_started); break;
@@ -76,6 +97,32 @@ void begin() {
 const char* startedBy(bool& bad) {
   bad = g_bad;
   return g_started;
+}
+
+bool quietStart() { return g_quiet; }
+
+void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy) {
+  if (nowMs - g_lastCheckMs < 5000) return;  // a few samples a minute is plenty
+  g_lastCheckMs = nowMs;
+  if (https::memoryOk()) {
+    g_lowSinceMs = 0;
+    g_hadMemory = true;
+  }
+  else if (!g_lowSinceMs) g_lowSinceMs = nowMs ? nowMs : 1;
+  bc::HealthInput in;
+  in.uptimeMs = nowMs;
+  in.idleMs = idleMs;
+  in.lowMemoryMs = g_lowSinceMs ? nowMs - g_lowSinceMs : 0;
+  in.hadMemory = g_hadMemory;
+  in.busy = busy;
+  in.now = now;
+  const bc::Restart r = bc::restartDue(in);
+  if (r == bc::Restart::None) return;
+  Serial.printf("[diag] planned restart: %s\n", r == bc::Restart::Daily ? "daily" : "low memory");
+  r_plannedWhy = (uint8_t)r;
+  r_planned = kPlannedMagic;
+  delay(50);  // let the log out
+  ESP.restart();
 }
 
 void memoryText(char* buf, size_t cap) {
