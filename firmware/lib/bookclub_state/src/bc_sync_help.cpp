@@ -31,10 +31,20 @@ const char* syncAdvice(const char* error, bool stale) {
     return "Set the gist's Raw link on the setup page (SETTINGS > WI-FI RESET > OPEN).";
   }
   if (starts(e, "no Wi-Fi")) return "Not connected to Wi-Fi. It retries every minute.";
+  if (starts(e, "out of memory") || strstr(e, "lloc")) {
+    return "The unit ran short of memory for a secure connection. Unplug it and plug it back in, "
+           "and note ABOUT's MEMORY line for whoever looks after the firmware.";
+  }
+  if (strstr(e, "X509") || strstr(e, "ertificate")) {
+    return "Couldn't check GitHub's certificate. If the clock is wrong, wait for it to set; it "
+           "tries again in a few minutes.";
+  }
+  if (strstr(e, "SSL") || strstr(e, "TLS")) {
+    return "The secure connection to GitHub failed. It tries again in a few minutes.";
+  }
   if (starts(e, "HTTP ") || starts(e, "fetch failed") || starts(e, "download cut short")) {
     return "Couldn't fetch the club file from GitHub. It tries again in a few minutes.";
   }
-  if (starts(e, "out of memory")) return "The unit ran short of memory. Unplug it and plug it back in.";
   if (e[0]) return "The last fetch failed. It tries again in a few minutes.";
   if (stale) return "No good sync for over 7 days. Check the Wi-Fi, then REFRESH NOW.";
   return "All good: the club file is up to date.";

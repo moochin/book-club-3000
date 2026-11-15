@@ -33,3 +33,13 @@ void formatAge(uint32_t epoch, char* buf, int len) {
   else snprintf(buf, len, "%u D AGO", a / 86400);
 }
 }  // namespace clockmod
+
+// Diagnostics (src/diag.cpp is ESP-only): fixed text that shows the layout.
+#include "diag.h"
+namespace diag {
+const char* startedBy(bool& bad) {
+  bad = true;
+  return "WATCHDOG: sync (UP 42 MIN)";
+}
+void memoryText(char* buf, size_t cap) { snprintf(buf, cap, "142K FREE, LOW 96K, BLOCK 60K"); }
+}  // namespace diag

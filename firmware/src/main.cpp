@@ -17,6 +17,7 @@
 #include "bringup.h"
 #include "clock.h"
 #include "config.h"
+#include "diag.h"
 #include "display.h"
 #include "input.h"
 #include "net.h"
@@ -226,6 +227,7 @@ ui::SyncInfo syncInfo(datasync::Status s) {
 void setup() {
   Serial.begin(115200);
   Serial.printf("\n[main] Book-Club 3000 firmware %s\n", BC_FW_VERSION);
+  diag::begin();
   ledsOff();
   settings::begin();
   input::begin();

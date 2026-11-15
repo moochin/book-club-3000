@@ -10,6 +10,7 @@
 #include "bc_text.h"
 #include "clock.h"
 #include "config.h"
+#include "diag.h"
 #include "display.h"
 #include "logo_data.h"
 #include "mascot.h"
@@ -780,25 +781,14 @@ void drawAbout(const Model& m) {
     default: break;
   }
   line("SYNC", st, m.sync == SyncInfo::Failed ? kWarn : kText);
-  snprintf(buf, sizeof buf, "%u KB FREE, UP %lu MIN", (unsigned)(ESP.getFreeHeap() / 1024),
-           (unsigned long)(millis() / 60000));
+  diag::memoryText(buf, sizeof buf);
   line("MEMORY", buf);
-  snprintf(buf, sizeof buf, "%d", m.lightRaw);
-  line("LIGHT", buf);
-  // Why the unit last started: a crash or brownout here explains a reboot.
-  const char* why = "UNKNOWN";
+  snprintf(buf, sizeof buf, "%lu MIN   LIGHT %d", (unsigned long)(millis() / 60000), m.lightRaw);
+  line("UP", buf);
+  // Why the unit last started: a crash, watchdog (with the task that held
+  // up the core) or brownout explains a restart nobody asked for.
   bool bad = false;
-  switch (esp_reset_reason()) {
-    case ESP_RST_POWERON: why = "POWER ON"; break;
-    case ESP_RST_EXT: why = "RESET BUTTON"; break;
-    case ESP_RST_SW: why = "RESTART (UPDATE OR SETTINGS)"; break;
-    case ESP_RST_PANIC: why = "CRASH"; bad = true; break;
-    case ESP_RST_INT_WDT:
-    case ESP_RST_TASK_WDT:
-    case ESP_RST_WDT: why = "WATCHDOG (FROZE)"; bad = true; break;
-    case ESP_RST_BROWNOUT: why = "BROWNOUT (POWER DIP)"; bad = true; break;
-    default: break;
-  }
+  const char* why = diag::startedBy(bad);
   line("STARTED BY", why, bad ? kWarn : kText);
   text(8, 222, "TURN, OR TAP THE TITLE, TO GO BACK", kDim);
 }
