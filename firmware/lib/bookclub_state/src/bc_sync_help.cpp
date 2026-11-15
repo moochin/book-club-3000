@@ -42,6 +42,14 @@ const char* syncAdvice(const char* error, bool stale) {
   if (strstr(e, "SSL") || strstr(e, "TLS")) {
     return "The secure connection to GitHub failed. It tries again in a few minutes.";
   }
+  if (strstr(e, "can't look up")) {
+    return "Couldn't look up GitHub's address (DNS). Check the router's internet; it tries again "
+           "in a few minutes.";
+  }
+  if (strstr(e, "can't connect")) {
+    return "Couldn't connect to GitHub. If the nudge hub is OK, memory may be short: check "
+           "ABOUT's MEMORY line. It tries again in a few minutes.";
+  }
   if (starts(e, "HTTP ") || starts(e, "fetch failed") || starts(e, "download cut short")) {
     return "Couldn't fetch the club file from GitHub. It tries again in a few minutes.";
   }

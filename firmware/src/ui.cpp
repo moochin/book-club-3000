@@ -1125,11 +1125,12 @@ void drawSyncStatus(const Model& m) {
   signalTitle("SYNC STATUS", g_syncBack);
   char buf[64], age[20];
   int y = 33;
+  // Labels in kText, not kDim: dim text all but vanishes on the real panel.
   auto line = [&](const char* k, const char* v, uint8_t ink) {
-    text(8, y, k, kDim);
+    text(8, y, k, kText);
     char f[44];
     bc::asciiFold(v, f, sizeof f);
-    text(100, y, f, ink);
+    text(100, y, f, ink == kText ? kHot : ink);
     y += 17;
   };
   const bool failed = m.sync == SyncInfo::Failed;
@@ -1156,13 +1157,13 @@ void drawSyncStatus(const Model& m) {
     y += 18 * textWrapped(8, y, e, 51, 2, kWarn);
   }
   y += 2 + 18 * textWrapped(8, y + 2, bc::syncAdvice(failed ? m.syncError : "", m.syncStale), 51, 4, kText);
-  if ((failed || m.syncStale) && y + 16 <= 190) text(8, y + 2, "Meanwhile it shows its last good copy.", kDim);
+  if ((failed || m.syncStale) && y + 16 <= 190) text(8, y + 2, "Meanwhile it shows its last good copy.", kText);
 
   const bool sel = !g_syncBack;
   frame(60, 192, cfg::kScreenW - 120, 26, sel ? kHot : kMid);
   if (sel) c.fillRect(61, 193, cfg::kScreenW - 122, 24, kFaint);
   textCentered(cfg::kScreenW / 2, 197, "REFRESH NOW", sel ? kHot : kDim);
-  textCentered(cfg::kScreenW / 2, 224, "TURN: BACK / REFRESH   PRESS: GO", kDim, 1, 1);
+  textCentered(cfg::kScreenW / 2, 224, "TURN: BACK / REFRESH   PRESS: GO", kText, 1, 1);
 }
 
 void openSyncStatus() {
