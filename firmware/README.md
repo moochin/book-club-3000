@@ -235,6 +235,56 @@ ILI9341 builds use `url`; ST7789 builds use only `url_st7789` and skip the
 update if it is missing, so a unit is never flashed with the other panel's
 binary. List only the one your fleet uses if they are all the same.
 
+### The safety net (from 1.5.0)
+
+Once units have shipped, an over-the-air update is the only way in, so a bad
+release must never strand them. From 1.5.0:
+
+- **Probation and rollback** (`src/fwguard`). A new image starts on
+  probation. It is confirmed only once GitHub has answered it over HTTPS
+  (proof the update path still works; any HTTP status counts, so a typo in
+  the club file can't roll back a good firmware) and it has run 10 minutes
+  without a
+  restart. Any restart before then (crash, watchdog, freeze, even a power
+  cut) makes the bootloader boot the previous image. An image that runs but
+  can't reach GitHub within 30 minutes of working Wi-Fi rolls itself back.
+  ABOUT shows **ON PROBATION** meanwhile, and **x.y.z ROLLED BACK** after.
+  Arduino normally marks every image good at start-up; overriding
+  `verifyRollbackLater()` hands that decision to fwguard.
+- **No retry loops.** A version rolled back twice is skipped until the club
+  file names another (**ROLLED BACK, SKIPPED** on ABOUT). Release a fixed
+  version with a new number.
+- **Watchdogs.** Core 0's idle task (5 s), the main loop (5 s, from the end
+  of `setup()`; paused during a LAN upload), and the background fetches (a
+  sync or hub exchange running 5 minutes is wedged: a quiet restart).
+- **Self-healing.** A quiet restart between 03:00 and 05:00 daily, and when
+  memory stays too fragmented for TLS (see `bc_health.h`).
+
+**Try a release on one unit first.** Add `"only"` to the firmware block with
+the owner names (as set on each unit's setup page) that should take it:
+
+```json
+"firmware": {
+  "version": "1.6.0",
+  "url": "...", "url_st7789": "...",
+  "only": ["Pete"]
+}
+```
+
+Leave it a day. If that unit is happy (ABOUT: no ROLLED BACK, no amber
+STARTED BY), remove `"only"` and every unit takes it. Firmware before 1.5.0
+ignores `"only"`, so this protects the fleet once it is all on 1.5.0.
+
+**Keep in mind for every release:**
+
+- Never ship a change to `partitions.csv`: an update can't change the
+  partition table, and a mismatched build won't boot.
+- The app slots are 1.9 MB; builds are about 1.47 MB. Keep an eye on the
+  "Flash:" line in the build output.
+- The HTTPS fetches trust the Mozilla CA bundle compiled into the Arduino
+  core. Newer cores bring newer roots, so release now and then even without
+  features, well before any root GitHub uses expires.
+
 The partition table (`partitions.csv`) has two 1.9 MB app slots for OTA and a
 64 KB NVS, which holds settings, saved Wi-Fi and the cached file.
 

@@ -64,9 +64,10 @@ void begin() {
   r_planned = 0;
   if (planned) {
     g_quiet = true;
-    strlcpy(g_started,
-            r_plannedWhy == (uint8_t)bc::Restart::LowMemory ? "SELF-HEAL (LOW MEMORY)" : "DAILY RESTART",
-            sizeof g_started);
+    const char* why = "DAILY RESTART";
+    if (r_plannedWhy == (uint8_t)bc::Restart::LowMemory) why = "SELF-HEAL (LOW MEMORY)";
+    if (r_plannedWhy == (uint8_t)bc::Restart::Stuck) why = "SELF-HEAL (STUCK FETCH)";
+    strlcpy(g_started, why, sizeof g_started);
     Serial.printf("[diag] started by %s\n", g_started);
     return;
   }
@@ -81,7 +82,9 @@ void begin() {
     case ESP_RST_WDT:
       g_bad = true;
       if (recorded) {
-        snprintf(g_started, sizeof g_started, "WATCHDOG: %s (UP %lu MIN)", r_task[0][0] ? r_task[0] : "?",
+        // The core that wasn't idling is the one that was stuck.
+        const char* who = strncmp(r_task[0], "IDLE", 4) == 0 ? r_task[1] : r_task[0];
+        snprintf(g_started, sizeof g_started, "WATCHDOG: %s (UP %lu MIN)", who[0] ? who : "?",
                  (unsigned long)(r_upSecs / 60));
       } else {
         strlcpy(g_started, "WATCHDOG (FROZE)", sizeof g_started);
@@ -101,7 +104,7 @@ const char* startedBy(bool& bad) {
 
 bool quietStart() { return g_quiet; }
 
-void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy) {
+void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, uint32_t stuckMs) {
   if (nowMs - g_lastCheckMs < 5000) return;  // a few samples a minute is plenty
   g_lastCheckMs = nowMs;
   if (https::memoryOk()) {
@@ -114,11 +117,13 @@ void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy) {
   in.idleMs = idleMs;
   in.lowMemoryMs = g_lowSinceMs ? nowMs - g_lowSinceMs : 0;
   in.hadMemory = g_hadMemory;
+  in.stuckMs = stuckMs;
   in.busy = busy;
   in.now = now;
   const bc::Restart r = bc::restartDue(in);
   if (r == bc::Restart::None) return;
-  Serial.printf("[diag] planned restart: %s\n", r == bc::Restart::Daily ? "daily" : "low memory");
+  Serial.printf("[diag] planned restart: %s\n",
+                r == bc::Restart::Daily ? "daily" : r == bc::Restart::Stuck ? "stuck fetch" : "low memory");
   r_plannedWhy = (uint8_t)r;
   r_planned = kPlannedMagic;
   delay(50);  // let the log out

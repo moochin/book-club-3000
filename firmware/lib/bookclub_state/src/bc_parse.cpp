@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "bc_data.h"
+#include "bc_state.h"
 #include "bc_text.h"
 
 namespace bc {
@@ -26,6 +27,14 @@ const char* parseErrorText(ParseError e) {
 const char* FirmwareInfo::urlFor(bool st7789) const {
   const char* u = st7789 ? urlSt7789 : url;
   return present && strncmp(u, "https://", 8) == 0 ? u : nullptr;
+}
+
+bool FirmwareInfo::forUnit(const char* owner) const {
+  if (onlyCount == 0) return true;
+  for (int i = 0; i < onlyCount; ++i) {
+    if (owner && owner[0] && sameName(only[i], owner)) return true;
+  }
+  return false;
 }
 
 static void copyStr(const char* s, char* dst, size_t cap) {
@@ -206,6 +215,13 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
     copyText(fw["version"], d->firmware.version, sizeof d->firmware.version);
     copyText(fw["url"], d->firmware.url, sizeof d->firmware.url);
     copyText(fw["url_st7789"], d->firmware.urlSt7789, sizeof d->firmware.urlSt7789);
+    d->firmware.onlyCount = 0;
+    for (JsonVariantConst n : fw["only"].as<JsonArrayConst>()) {
+      if (d->firmware.onlyCount >= kMaxCapsPeople) break;
+      char name[kNameLen];
+      copyText(n, name, sizeof name);
+      if (name[0]) strcpy(d->firmware.only[d->firmware.onlyCount++], name);
+    }
     d->firmware.present = d->firmware.version[0] != 0;
   }
 

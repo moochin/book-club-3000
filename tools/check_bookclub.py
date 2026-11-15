@@ -157,6 +157,13 @@ def check(raw):
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []
             if not isinstance(fw, dict) or not fw.get("version") or not any(u.startswith("https://") for u in urls):
                 warnings.append('"firmware" needs a "version" and an https:// "url" or "url_st7789"; it will be ignored')
+            elif "only" in fw:
+                only = fw["only"]
+                if not isinstance(only, list) or not all(isinstance(n, str) and n.strip() for n in only):
+                    warnings.append('"firmware.only" should be a list of owner names, e.g. ["Pete"]')
+                elif only:
+                    warnings.append(f'firmware {fw.get("version")} goes only to: {", ".join(only)}; '
+                                    'remove "only" to release it to every unit')
     return errors, warnings
 
 

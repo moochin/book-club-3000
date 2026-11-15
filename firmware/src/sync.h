@@ -24,6 +24,14 @@ bool takeNewData(bc::BookClubData& out);
 // Firmware update progress, 0..100, while status() == Updating.
 int updateProgress();
 
+// How many times GitHub has answered over HTTPS since start-up, with any HTTP
+// status (fwguard's proof that the update path works: a typo in the club
+// file mustn't roll back a good firmware).
+uint32_t reachedCount();
+// How long the current fetch has been running (0 when idle), so a stuck one
+// can be spotted. Excludes a firmware download, which can take minutes.
+uint32_t busyForMs(uint32_t nowMs);
+
 // One HTTPS connection at a time: each TLS session needs ~40 KB of RAM, and
 // this board has no PSRAM. The sync task and the nudge task both take this.
 // begin() creates it, so call datasync::begin() before nudge::begin().

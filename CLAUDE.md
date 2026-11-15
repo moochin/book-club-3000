@@ -9,6 +9,11 @@ phone, with `X.Y.Z` replaced by `BC_FW_VERSION` from
 `firmware/src/config.h`. Spell out the exact version so a typo doesn't tag
 the wrong one.
 
+Since 1.5.0 a unit rolls back an update that doesn't prove itself (see "The
+safety net" in `firmware/README.md`). For anything beyond a small fix,
+suggest trying it on the owner's own unit first: add `"only": ["Pete"]` to the
+block in step 2, check that unit's ABOUT a day later, then remove `"only"`.
+
 1. **Publish the release.** This link pre-fills the form; they tap
    **Publish release**:
 

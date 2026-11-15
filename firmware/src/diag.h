@@ -27,6 +27,7 @@ bool quietStart();
 // Self-healing (see bc_health.h): call every loop. Restarts the unit, quietly,
 // in the small hours once a day, or when memory has been too fragmented for
 // TLS for a while. `busy`: an update or the setup portal is running.
-void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy);
+// `stuckMs`: the longest any background fetch has been running.
+void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, uint32_t stuckMs);
 
 }  // namespace diag

@@ -933,6 +933,38 @@ void test_health_restarts() {
   lm.hadMemory = true;
   lm.uptimeMs = 20 * M;   // only just started
   TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+
+  // A wedged fetch: restart once nobody's using it.
+  HealthInput st;
+  st.uptimeMs = 2 * H;
+  st.idleMs = 5 * M;
+  st.stuckMs = 4 * M;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(st));
+  st.stuckMs = 5 * M;
+  TEST_ASSERT_EQUAL((int)Restart::Stuck, (int)restartDue(st));
+  st.idleMs = 10 * 1000;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(st));
+}
+
+// ---- Trying a release on some units first ---------------------------------------
+
+void test_firmware_only_list() {
+  const char* j = R"J({"last":{"date":"2026-08-15"},
+    "firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":["Pete", "", 3, "Dave"]}})J";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_EQUAL(2, d.firmware.onlyCount);
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Pete"));
+  TEST_ASSERT_TRUE(d.firmware.forUnit("pete"));   // names match as on the owner card
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Dave"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit(""));      // a unit with no owner set waits
+
+  const char* all = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(all, strlen(all), d));
+  TEST_ASSERT_EQUAL(0, d.firmware.onlyCount);
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Sam"));    // no "only": everyone
+  TEST_ASSERT_TRUE(d.firmware.forUnit(""));
 }
 
 void setUp() {}
@@ -1038,5 +1070,6 @@ int main() {
   RUN_TEST(test_signal_time_left);
   RUN_TEST(test_sync_advice);
   RUN_TEST(test_health_restarts);
+  RUN_TEST(test_firmware_only_list);
   return UNITY_END();
 }

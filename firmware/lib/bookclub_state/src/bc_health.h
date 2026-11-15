@@ -9,13 +9,14 @@
 
 namespace bc {
 
-enum class Restart : uint8_t { None, Daily, LowMemory };
+enum class Restart : uint8_t { None, Daily, LowMemory, Stuck };
 
 struct HealthInput {
   uint32_t uptimeMs = 0;
   uint32_t idleMs = 0;          // since the last knob turn, press or tap
   uint32_t lowMemoryMs = 0;     // how long TLS has been impossible (0: it isn't)
   bool hadMemory = false;       // TLS was possible earlier this run: a restart helps
+  uint32_t stuckMs = 0;         // longest a background fetch has been running
   bool busy = false;            // a firmware update or the setup portal
   LocalNow now;
 };
@@ -28,6 +29,9 @@ constexpr uint32_t kNoClockAfterMs = 48UL * 60 * 60 * 1000;   // no clock: every
 constexpr uint32_t kLowMemoryForMs = 10UL * 60 * 1000;
 constexpr uint32_t kLowMemoryIdleMs = 60UL * 1000;
 constexpr uint32_t kLowMemoryMinUpMs = 30UL * 60 * 1000;  // never a restart loop
+// A hub or club-file exchange is bounded (connect, handshake and read
+// timeouts): about a minute at worst. Five means it's wedged.
+constexpr uint32_t kStuckMs = 5UL * 60 * 1000;
 
 Restart restartDue(const HealthInput& in);
 

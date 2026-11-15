@@ -23,6 +23,7 @@ static void start() {
   if (pass[0]) ArduinoOTA.setPassword(pass);
   ArduinoOTA.setMdnsEnabled(true);
   ArduinoOTA.onStart([]() {
+    disableLoopWDT();  // a LAN upload runs inside handle(), blocking the loop for a while
     g_active = true;
     g_pct = 0;
     Serial.println("[ota] start");
@@ -39,6 +40,7 @@ static void start() {
   ArduinoOTA.onError([](ota_error_t e) {
     Serial.printf("[ota] error %u\n", (unsigned)e);
     g_active = false;
+    enableLoopWDT();
   });
   ArduinoOTA.begin();
   g_started = true;

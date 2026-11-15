@@ -50,7 +50,8 @@ static char g_signalsError[48] = "";
 static volatile SendState g_sendState = SendState::Idle;
 static char g_sendError[48] = "";
 static char g_error[48] = "";
-static char g_tlsWhy[48] = "";  // TLS's reason for the last failed connect (task only)
+static char g_tlsWhy[48] = "";
+static volatile uint32_t g_busySinceMs = 0;  // 0: idle  // TLS's reason for the last failed connect (task only)
 
 struct Lock {
   Lock() { xSemaphoreTake(g_mutex, portMAX_DELAY); }
@@ -281,12 +282,14 @@ static void taskMain(void*) {
     }
     if (!pending && !due) continue;
     datasync::lockTls();
+    g_busySinceMs = millis() | 1;
     if (pending) doSend(buf);
     {
       Lock l;  // a broadcast makes the poll due, to show it straight away
       due = due || g_pollDue;
     }
     if (due) doPoll(buf, now);
+    g_busySinceMs = 0;
     datasync::unlockTls();
   }
 }
@@ -418,6 +421,11 @@ const char* signalsError() {
   Lock l;
   strlcpy(e, g_signalsError, sizeof e);
   return e;
+}
+
+uint32_t busyForMs(uint32_t nowMs) {
+  const uint32_t since = g_busySinceMs;
+  return since ? nowMs - since : 0;
 }
 
 }  // namespace nudge

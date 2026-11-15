@@ -19,6 +19,7 @@
 #include "config.h"
 #include "diag.h"
 #include "display.h"
+#include "fwguard.h"
 #include "input.h"
 #include "net.h"
 #include "nudge.h"
@@ -230,6 +231,7 @@ void setup() {
   diag::begin();
   ledsOff();
   settings::begin();
+  fwguard::begin();  // is this a new firmware on probation?
   input::begin();
   input::setReversed(settings::get().knobReversed);
   audio::begin();
@@ -258,6 +260,10 @@ void setup() {
   nudge::begin();  // after datasync: shares its TLS lock
   g_signalSeenAt = settings::signalSeenAt();
   ui::begin();
+  // From here the main loop is watched too: if it ever freezes for 5 s, the
+  // unit restarts (and a new firmware on probation rolls back). Not earlier:
+  // the factory-reset countdown in setup() legitimately takes 10 s.
+  enableLoopWDT();
 }
 
 void loop() {
@@ -402,8 +408,13 @@ void loop() {
   audio::tick(now);
   // Self-healing: a quiet restart in the small hours, or if memory stays too
   // fragmented for TLS. Never mid-update or with the setup portal open.
+  // A wedged background fetch counts too (a stuck task never recovers).
   diag::tick(now, now - g_lastInputMs, liveNow,
-             datasync::status() == datasync::Status::Updating || net::portalActive());
+             datasync::status() == datasync::Status::Updating || net::portalActive(),
+             max(datasync::busyForMs(now), nudge::busyForMs(now)));
+  // A new firmware stays on probation until it has fetched the club file and
+  // run 10 minutes; see fwguard.h.
+  fwguard::tick(now, up, datasync::reachedCount());
 
   const settings::Unit& u = settings::get();
   ui::Model m;

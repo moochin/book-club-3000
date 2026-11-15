@@ -12,6 +12,7 @@
 #include "bc_state.h"
 #include "clock.h"
 #include "config.h"
+#include "fwguard.h"
 #include "https.h"
 #include "settings.h"
 
@@ -35,6 +36,8 @@ static char g_failedFwVersion[bc::kVersionLen] = "";
 // Bumped by the task each time a fetch finishes; the main loop reschedules.
 static volatile uint32_t g_doneCount = 0;
 static volatile bool g_lastOk = false;
+static volatile uint32_t g_reachedCount = 0;  // HTTPS answers from the data host
+static volatile uint32_t g_busySinceMs = 0;  // 0: not fetching
 static volatile bool g_needStamp = false;  // synced before the clock was set
 
 static void setError(const char* fmt, ...) {
@@ -95,6 +98,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   }
   http.addHeader("Cache-Control", "no-cache");
   const int code = http.GET();
+  if (code > 0) g_reachedCount = g_reachedCount + 1;  // TLS to GitHub works
   if (code != HTTP_CODE_OK) {
     // HTTPClient calls any failed connect "connection refused". The secure
     // client knows better: -1 is the network (no socket, refused, timed out,
@@ -208,6 +212,12 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   if (!url) return;
   if (bc::compareVersions(fw.version, BC_FW_VERSION) <= 0) return;
   if (strcmp(fw.version, g_failedFwVersion) == 0) return;  // tried already this boot
+  if (!fw.forUnit(settings::get().owner)) return;           // "only" names other units
+  if (fwguard::onProbation()) return;  // prove this one first: no update mid-probation
+  if (fwguard::skipVersion(fw.version)) {
+    Serial.printf("[sync] skipping %s: it was rolled back twice\n", fw.version);
+    return;
+  }
   Serial.printf("[sync] firmware %s available (running %s)\n", fw.version, BC_FW_VERSION);
   g_status = Status::Updating;
   g_updatePct = 0;
@@ -220,6 +230,7 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   const bool ok = fetchFirmware(url, err, sizeof err);
   enableCore0WDT();
   if (ok) {
+    fwguard::installing(fw.version);  // so a rollback is noticed and counted
     Serial.println("[sync] update installed, restarting");
     delay(200);
     ESP.restart();
@@ -270,7 +281,9 @@ static void taskMain(void*) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (WiFi.isConnected()) {
       lockTls();
+      g_busySinceMs = millis() | 1;
       runFetch();
+      g_busySinceMs = 0;
       unlockTls();
     } else {
       setError("no Wi-Fi");
@@ -361,5 +374,13 @@ bool takeNewData(bc::BookClubData& out) {
 }
 
 int updateProgress() { return g_updatePct; }
+
+uint32_t reachedCount() { return g_reachedCount; }
+
+uint32_t busyForMs(uint32_t nowMs) {
+  const uint32_t since = g_busySinceMs;
+  if (!since || g_status == Status::Updating) return 0;
+  return nowMs - since;
+}
 
 }  // namespace datasync
