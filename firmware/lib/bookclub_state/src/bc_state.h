@@ -49,6 +49,15 @@ enum class Pose : uint8_t {
   NoDate,      // waiting for orders
   Syncing,     // clock not set yet
   Birthday,    // someone in the club has a birthday today
+  // Owner-card stat pages, one per stat in settings::statName() order. Not
+  // chosen by computeState(); without art the page shows a pose by score.
+  StatGaming,
+  StatTrivia,
+  StatBeer,
+  StatSnacks,
+  StatBanter,
+  StatPunctuality,
+  StatStamina,
 };
 
 // Tunable thresholds. Change the defaults here, nowhere else.

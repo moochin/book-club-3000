@@ -149,6 +149,13 @@ const char* poseName(Pose p) {
     case Pose::NoDate: return "WAITING";
     case Pose::Syncing: return "SYNCING";
     case Pose::Birthday: return "BIRTHDAY";
+    case Pose::StatGaming: return "GAMING";
+    case Pose::StatTrivia: return "TRIVIA";
+    case Pose::StatBeer: return "BEER";
+    case Pose::StatSnacks: return "SNACKS";
+    case Pose::StatBanter: return "BANTER";
+    case Pose::StatPunctuality: return "PUNCTUAL";
+    case Pose::StatStamina: return "STAMINA";
   }
   return "?";
 }
