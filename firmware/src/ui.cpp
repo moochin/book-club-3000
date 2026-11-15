@@ -751,13 +751,13 @@ void drawAbout(const Model& m) {
   text(8, 4, "ABOUT", kBright, 2, 2);
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
   char buf[64], age[20];
-  int y = 34;
+  int y = 33;
   auto line = [&](const char* k, const char* v, uint8_t ink = kText) {
     text(8, y, k, kDim);
     char f[44];
     bc::asciiFold(v, f, sizeof f);
     text(92, y, f, ink);
-    y += 18;
+    y += 17;
   };
   line("FIRMWARE", BC_FW_VERSION " (" __DATE__ ")");
   line("UNIT", m.owner[0] ? m.owner : settings::chipId());
@@ -782,6 +782,21 @@ void drawAbout(const Model& m) {
   line("MEMORY", buf);
   snprintf(buf, sizeof buf, "%d", m.lightRaw);
   line("LIGHT", buf);
+  // Why the unit last started: a crash or brownout here explains a reboot.
+  const char* why = "UNKNOWN";
+  bool bad = false;
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: why = "POWER ON"; break;
+    case ESP_RST_EXT: why = "RESET BUTTON"; break;
+    case ESP_RST_SW: why = "RESTART (UPDATE OR SETTINGS)"; break;
+    case ESP_RST_PANIC: why = "CRASH"; bad = true; break;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT: why = "WATCHDOG (FROZE)"; bad = true; break;
+    case ESP_RST_BROWNOUT: why = "BROWNOUT (POWER DIP)"; bad = true; break;
+    default: break;
+  }
+  line("STARTED BY", why, bad ? kWarn : kText);
   text(8, 222, "TURN, OR TAP THE TITLE, TO GO BACK", kDim);
 }
 

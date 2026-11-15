@@ -18,6 +18,9 @@ constexpr uint32_t kPollMs = 60UL * 1000;          // inbox check
 constexpr uint32_t kRosterMs = 60UL * 60 * 1000;   // friends list refresh
 constexpr uint32_t kSignalsMs = 10UL * 60 * 1000;  // signals check
 constexpr size_t kReplyCap = 4096;
+// The TLS handshake takes most of a 10 KB stack; sending a 100-character
+// signal's buffers on top of that overflowed it and restarted the unit.
+constexpr uint32_t kTaskStack = 16384;
 
 static TaskHandle_t g_task;
 static SemaphoreHandle_t g_mutex;
@@ -96,6 +99,8 @@ static int request(const char* method, const char* path, const char* body, char*
     strlcpy(out, reply.c_str(), cap);
   }
   http.end();
+  Serial.printf("[nudge] %s %s -> %d (stack free %u)\n", method, path, code,
+                (unsigned)uxTaskGetStackHighWaterMark(nullptr));
   return code;
 }
 
@@ -118,7 +123,9 @@ static void describe(int code, const char* reply, char* dst, size_t cap) {
 }
 
 static void doSend(char* buf) {
-  char to[bc::kNameLen], msg[bc::kSignalMsgLen];
+  // Static, not on the stack: only the nudge task sends, one at a time, and
+  // the TLS handshake underneath needs the stack.
+  static char to[bc::kNameLen], msg[bc::kSignalMsgLen];
   bool signal;
   {
     Lock l;
@@ -127,7 +134,7 @@ static void doSend(char* buf) {
     signal = g_sendSignal;
     g_sendPending = false;
   }
-  char body[2 * bc::kNameLen + 2 * bc::kSignalMsgLen + 24];
+  static char body[2 * bc::kNameLen + 2 * bc::kSignalMsgLen + 24];
   // Names and messages are plain ASCII without quotes or backslashes in
   // practice, but escape them anyway so the JSON is always valid.
   auto esc = [](const char* s, char* d, size_t cap) {
@@ -138,7 +145,7 @@ static void doSend(char* buf) {
     }
     d[j] = '\0';
   };
-  char eto[2 * bc::kNameLen], emsg[2 * bc::kSignalMsgLen];
+  static char eto[2 * bc::kNameLen], emsg[2 * bc::kSignalMsgLen];
   esc(to, eto, sizeof eto);
   esc(msg, emsg, sizeof emsg);
   int code;
@@ -256,7 +263,7 @@ static void taskMain(void*) {
 
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(taskMain, "nudge", 10240, nullptr, 1, &g_task, 0);
+  xTaskCreatePinnedToCore(taskMain, "nudge", kTaskStack, nullptr, 1, &g_task, 0);
 }
 
 void tick(uint32_t, bool wifiUp, const char* hubUrl) {
