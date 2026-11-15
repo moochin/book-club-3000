@@ -40,6 +40,7 @@ enum MenuItem : uint8_t {
   kMiEffects,
   kMiNight,
   kMiIdle,
+  kMiKnob,
   kMiOwner,
   kMiHelp,
   kMiAbout,
@@ -545,6 +546,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
     case kMiNight: snprintf(buf, len, "SCREEN OFF: %s", bc::nightPreset(m.nightPreset).label); break;
     case kMiIdle: snprintf(buf, len, "DIM WHEN IDLE: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
+    case kMiKnob: snprintf(buf, len, "KNOB: %s", m.knobReversed ? "REVERSED" : "NORMAL"); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
     case kMiHelp: snprintf(buf, len, "HOW TO USE"); break;
     case kMiAbout: snprintf(buf, len, "ABOUT"); break;
@@ -1021,6 +1023,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiNight: r.action = Action::CycleNight; break;
           case kMiIdle: r.action = Action::CycleIdleDim; break;
+          case kMiKnob: r.action = Action::ToggleKnob; break;
           case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; g_cardSel = 0; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;

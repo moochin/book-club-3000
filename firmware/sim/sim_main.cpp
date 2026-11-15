@@ -129,7 +129,8 @@ int main(int argc, char** argv) {
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
   ev(m, +4); shot("menu_quiet", m);                    // menu item 4: QUIET HOURS
-  ev(m, +6); ev(m, 0, true); shot("owner_card", m);  // menu item 10: OWNER CARD
+  ev(m, +6); shot("menu_knob", m);                     // menu item 10: KNOB
+  ev(m, +1); ev(m, 0, true); shot("owner_card", m);  // menu item 11: OWNER CARD
   // Stat pages: press for the first, turn through the rest (stats 8 10 4 2 ...).
   ev(m, 0, true); shot("stat_gaming", m);               // 8: a stock pose
   ev(m, +1); shot("stat_trivia", m);                    // a perfect 10
@@ -186,7 +187,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +10); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +11); ev(cm, 0, true);  // menu > owner card
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;

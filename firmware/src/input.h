@@ -18,6 +18,9 @@ struct Events {
 void begin();
 Events poll(uint32_t nowMs);
 
+// For a knob wired the other way round: report turns reversed.
+void setReversed(bool reversed);
+
 // True while the BOOT button (GPIO 0) is held.
 bool bootHeld();
 
