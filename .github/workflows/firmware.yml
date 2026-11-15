@@ -63,3 +63,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.bin
+      # A release published from the wrong commit (before the version bump was
+      # merged, or with a mistyped tag) gets no binaries. Say so on the release
+      # page itself, where the owner is looking, instead of failing silently.
+      - name: Explain on the release why it has no firmware
+        if: failure() && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(sed -n 's/^#define BC_FW_VERSION "\(.*\)"/\1/p' src/config.h)
+          if [ "v$v" != "${GITHUB_REF_NAME}" ]; then
+            why="This tag (${GITHUB_REF_NAME}) is on a commit whose firmware version is ${v}: it was published before the version bump reached main, or the tag is mistyped."
+          else
+            why="The firmware build or its tests failed: see ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+          fi
+          printf '%s\n\n%s\n\n%s\n' \
+            "**No firmware attached, so don't point the club file at this release.**" \
+            "$why" \
+            "Delete this release. Once the version bump is merged to main, publish a release whose tag is exactly v<BC_FW_VERSION> from main." \
+            > notes.md
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --notes-file notes.md
