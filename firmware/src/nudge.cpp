@@ -95,7 +95,8 @@ static int request(const char* method, const char* path, const char* body, char*
     code = http.GET();
   }
   out[0] = '\0';
-  if (code < 0 && client.lastError(g_tlsWhy, sizeof g_tlsWhy) == 0) g_tlsWhy[0] = '\0';
+  // Below -1 is TLS's own error; -1 is the network (see sync.cpp).
+  if (code < 0 && client.lastError(g_tlsWhy, sizeof g_tlsWhy) >= -1) g_tlsWhy[0] = '\0';
   if (code > 0) {
     // getString() decodes chunked replies; the hub's are a few hundred bytes.
     const String reply = http.getString();

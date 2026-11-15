@@ -274,7 +274,7 @@ int main(int argc, char** argv) {
   {
     ui::Model wm = m;
     wm.sync = ui::SyncInfo::Failed;
-    wm.syncError = "rejected file: not valid JSON";
+    wm.syncError = "fetch failed: can't connect to gist.githubusercontent.com";
     wm.nudgesConfigured = true;
     while (ui::view().tab != 1) ev(wm, +1);                  // to DATA
     shot("data_sync_failed", wm);

@@ -57,10 +57,31 @@ static void secureClient(WiFiClientSecure& c) {
   c.setHandshakeTimeout(cfg::kHttpTimeoutMs / 1000);
 }
 
+// "gist.githubusercontent.com" from "https://gist.githubusercontent.com/...".
+static void hostOf(const char* url, char* host, size_t cap) {
+  const char* p = strstr(url, "://");
+  p = p ? p + 3 : url;
+  size_t n = 0;
+  while (p[n] && p[n] != '/' && p[n] != ':' && n + 1 < cap) {
+    host[n] = p[n];
+    ++n;
+  }
+  host[n] = 0;
+}
+
 // Downloads at most bc::kMaxFileBytes into buf. Returns length or -1.
 static int download(const char* url, const char* token, char* buf, size_t cap) {
   if (!url[0]) {
     setError("no data URL: set it on the setup page");
+    return -1;
+  }
+  // Look the host up first, so a DNS failure says so rather than hiding in
+  // HTTPClient's catch-all "connection refused".
+  char host[64];
+  hostOf(url, host, sizeof host);
+  IPAddress ip;
+  if (host[0] && !WiFi.hostByName(host, ip)) {
+    setError("fetch failed: can't look up %s", host);
     return -1;
   }
   WiFiClientSecure client;
@@ -81,10 +102,13 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   http.addHeader("Cache-Control", "no-cache");
   const int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    // "connection refused" covers any failed connect: ask TLS for the real
-    // reason (out of memory, certificate, timeout...) when it has one.
+    // HTTPClient calls any failed connect "connection refused". The secure
+    // client knows better: -1 is the network (no socket, refused, timed out,
+    // often short of memory too); below that, TLS's own error.
     char tls[48] = "";
-    if (code < 0 && client.lastError(tls, sizeof tls) != 0 && tls[0]) setError("fetch failed: %s", tls);
+    const int le = code < 0 ? client.lastError(tls, sizeof tls) : 0;
+    if (le < -1 && tls[0]) setError("fetch failed: %s", tls);
+    else if (code == HTTPC_ERROR_CONNECTION_REFUSED) setError("fetch failed: can't connect to %s", host);
     else if (code < 0) setError("fetch failed: %s", HTTPClient::errorToString(code).c_str());
     else setError("HTTP %d%s", code, (code == 404 && !(token && token[0])) ? " (check the data URL)" : "");
     http.end();
