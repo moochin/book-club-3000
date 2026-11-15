@@ -11,6 +11,7 @@
 #include "bc_date.h"
 #include "bc_nudge.h"
 #include "bc_signal.h"
+#include "bc_sync_help.h"
 #include "bc_screen.h"
 #include "bc_state.h"
 #include "bc_text.h"
@@ -855,6 +856,25 @@ void test_signal_time_left() {
   TEST_ASSERT_EQUAL_STRING("GONE", b);
 }
 
+// ---- Sync warning help ----------------------------------------------------------
+
+void test_sync_advice() {
+  // Every message the sync module can set gets specific advice.
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: not valid JSON", false), "comma"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: missing or bad last.date", false), "last"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("update 1.4.1 failed: HTTP 404", false), "firmware.bin"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("HTTP 404 (check the data URL)", false), "Raw link"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("no data URL: set it on the setup page", false), "setup page"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("no Wi-Fi", false), "Wi-Fi"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: connection refused", false), "tries again"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("HTTP 503", false), "tries again"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("file too large (20000 bytes)", false), "12 KB"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("something new", false), "failed"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", true), "7 days"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", false), "All good"));
+  TEST_ASSERT_NOT_NULL(syncAdvice(nullptr, false));
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -956,5 +976,6 @@ int main() {
   RUN_TEST(test_signal_parsing);
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);
+  RUN_TEST(test_sync_advice);
   return UNITY_END();
 }

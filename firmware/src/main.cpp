@@ -448,6 +448,7 @@ void loop() {
   m.me = nudge::me();
   m.signalsError = nudge::signalsError();
   m.incomingSignal = g_signalShown ? &g_signal : nullptr;
+  m.hubError = nudge::lastError();
   m.toastWarn = g_toastWarn;
 
   const ui::View viewWas = ui::view();

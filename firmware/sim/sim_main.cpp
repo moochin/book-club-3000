@@ -270,6 +270,26 @@ int main(int argc, char** argv) {
     sm.signalsError = "";
   }
 
+  // The warning triangle: DATA says so, a press explains it.
+  {
+    ui::Model wm = m;
+    wm.sync = ui::SyncInfo::Failed;
+    wm.syncError = "rejected file: not valid JSON";
+    wm.nudgesConfigured = true;
+    while (ui::view().tab != 1) ev(wm, +1);                  // to DATA
+    shot("data_sync_failed", wm);
+    ev(wm, 0, true); shot("sync_status_json", wm);           // press: SYNC STATUS
+    wm.syncError = "update 1.4.1 failed: HTTP 404";
+    wm.hubError = "can't reach the hub";
+    shot("sync_status_update", wm);
+    ev(wm, +1); shot("sync_status_back", wm);                 // turn: BACK
+    ev(wm, 0, true);                                          // back to DATA
+    wm.sync = ui::SyncInfo::Ok; wm.syncError = ""; wm.hubError = "";
+    ev(wm, 0, true); shot("sync_status_ok", wm);
+    ev(wm, 0, false, true);
+    while (ui::view().tab != 0) ev(wm, +1);                  // back to STAT
+  }
+
   // Full-screen states.
   ui::Model portal = m; portal.portal = true; portal.portalCancellable = false;
   shot("portal_first_setup", portal);
