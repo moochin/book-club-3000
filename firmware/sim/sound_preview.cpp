@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
 
   {
     Track t;
-    bootTape(v);
+    bootBeeps(v);
     t.voice(v);
     t.rest(300000);
     t.save(dir + "/boot.wav");

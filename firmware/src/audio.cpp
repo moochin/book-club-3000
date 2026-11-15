@@ -476,9 +476,9 @@ void errorBuzz() { playClip(Clip::Error); }
 void newData() { playClip(Clip::Sync); }
 void settingsClose() { playClip(Clip::SettingsClose); }
 
-void bootTape() {
+void bootBeeps() {
   if (playClip(Clip::Boot)) return;
-  playGen([](gen::Voice& v) { gen::bootTape(v); });
+  playGen([](gen::Voice& v) { gen::bootBeeps(v); });
 }
 
 void tabAdvance(int dir) {

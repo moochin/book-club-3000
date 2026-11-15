@@ -1,6 +1,6 @@
 // Sound on GPIO 26 (through the PAM8002A amp). By default everything is
 // generated in code: Geiger ticks, knob clicks, a short jingle, and the
-// machine noises (cassette-loading boot, microfiche tab advance, valve-radio
+// machine noises (boot-log beeps, microfiche tab advance, valve-radio
 // settings). A recorded clip in art/sounds/ replaces the generated sound for
 // its slot; clips play as 8-bit audio through the pin's DAC (see audio.cpp).
 // Timing runs off esp_timer, so a slow screen push never stretches a 2 ms
@@ -40,10 +40,9 @@ void birthday();    // on this unit owner's birthday (the jingle unless a clip i
 void confirmBeep();
 void nudgeChirp();  // an incoming nudge: a quick "bip-bip-BWEEP"
 
-// Power-on: relay clicks, tape motor spooling up, the squeal of a program
-// loading from cassette, then the motor spooling down. About 3 s; matches
-// the start-up screen.
-void bootTape();
+// Power-on: a soft beep as each line of the boot log prints, then a quiet
+// two-note "ready". About 2.7 s, in step with the start-up screen.
+void bootBeeps();
 
 // Changing tabs: a microfiche reader's film whirs past, then the lens
 // carrier snaps into place. dir < 0 whirs the other way. About 0.25 s.
