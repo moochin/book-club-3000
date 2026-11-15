@@ -25,7 +25,9 @@ namespace {
 enum class Screen : uint8_t {
   Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup
 };
-enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kTabCount = 3 };
+enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kSet = 3, kTabCount = 4 };
+// Tab boxes in the header: x of the first, step, width.
+constexpr int kTabX = 4, kTabStep = 54, kTabW = 50;
 
 enum MenuItem : uint8_t {
   kMiRefresh,
@@ -38,6 +40,7 @@ enum MenuItem : uint8_t {
   kMiEffects,
   kMiNight,
   kMiIdle,
+  kMiKnob,
   kMiOwner,
   kMiHelp,
   kMiAbout,
@@ -58,7 +61,7 @@ int g_msgSel = 0;    // SAY WHAT?
 bool g_confirmYes = false;
 int g_helpPage = 0;
 Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
-int g_cardSel = 0;                   // the stat picked on the owner card
+int g_cardSel = 0;                   // the stat picked on the owner card (-1: BACK)
 uint8_t g_aboutPresses = 0;
 uint32_t g_aboutFirstPressMs = 0;
 
@@ -122,15 +125,15 @@ void quietIcon(int x, int y) {
 
 void header(const Model& m) {
   auto& c = canvas();
-  static const char* const kNames[kTabCount] = {"STAT", "DATA", "LOG"};
+  static const char* const kNames[kTabCount] = {"STAT", "DATA", "LOG", "SET"};
   for (int i = 0; i < kTabCount; ++i) {
-    const int x = 8 + i * 70;
+    const int x = kTabX + i * kTabStep;
     const bool cur = i == g_tab && g_screen == Screen::Tabs;
     if (cur) {
-      c.drawRect(x, 2, 62, 22, kBright);
-      textCentered(x + 31, 5, kNames[i], kHot, 2, 2);
+      c.drawRect(x, 2, kTabW, 22, kBright);
+      textCentered(x + kTabW / 2, 5, kNames[i], kHot, 2, 2);
     } else {
-      textCentered(x + 31, 5, kNames[i], kDim, 2, 2);
+      textCentered(x + kTabW / 2, 5, kNames[i], kDim, 2, 2);
     }
   }
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
@@ -449,6 +452,30 @@ int buildLog(const Model& m, LogEntry* out, int cap) {
   return n;
 }
 
+// The SET tab: a way into settings with the knob alone, and a glance at
+// the sound settings.
+void drawSet(const Model& m) {
+  auto& c = canvas();
+  frame(16, 44, cfg::kScreenW - 32, 48, kBright);
+  textCentered(cfg::kScreenW / 2, 60, "PRESS FOR SETTINGS", kHot, 2, 2);
+  text(16, 104, "(or tap here)", kDim);
+  char buf[48];
+  int y = 128;
+  auto line = [&](const char* k, const char* v, uint8_t ink = kText) {
+    text(16, y, k, kDim);
+    text(130, y, v, ink);
+    y += 18;
+  };
+  snprintf(buf, sizeof buf, "%s", m.sound ? "ON" : "OFF");
+  line("SOUND", buf, m.sound ? kText : kWarn);
+  snprintf(buf, sizeof buf, "%d/4", m.volume + 1);
+  line("VOLUME", buf);
+  snprintf(buf, sizeof buf, "%s%s", bc::quietPreset(m.quietPreset).label, m.quietNow ? " (NOW)" : "");
+  line("QUIET HOURS", buf, m.quietNow ? kWarn : kText);
+  line("WI-FI", m.wifiUp ? "CONNECTED" : "OFFLINE", m.wifiUp ? kText : kWarn);
+  line("FIRMWARE", BC_FW_VERSION);
+}
+
 void drawLog(const Model& m) {
   auto& c = canvas();
   const bc::BookClubData& d = *m.data;
@@ -519,6 +546,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
     case kMiNight: snprintf(buf, len, "SCREEN OFF: %s", bc::nightPreset(m.nightPreset).label); break;
     case kMiIdle: snprintf(buf, len, "DIM WHEN IDLE: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
+    case kMiKnob: snprintf(buf, len, "KNOB: %s", m.knobReversed ? "REVERSED" : "NORMAL"); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
     case kMiHelp: snprintf(buf, len, "HOW TO USE"); break;
     case kMiAbout: snprintf(buf, len, "ABOUT"); break;
@@ -595,6 +623,10 @@ void debugLabel(int i, const Model&, char* buf, int len) {
 void drawOwnerCard(const Model& m) {
   auto& c = canvas();
   text(8, 4, "OWNER CARD", kBright, 2, 2);
+  // BACK sits before the first stat (and after the last): turn onto it.
+  const bool back = g_cardSel < 0;
+  if (back) c.drawRect(cfg::kScreenW - 80, 2, 76, 22, kBright);
+  textCentered(cfg::kScreenW - 42, 5, "< BACK", back ? kHot : kDim, 2, 2);
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
   char name[24];
   bc::asciiFold(m.owner[0] ? m.owner : settings::chipId(), name, sizeof name);
@@ -737,9 +769,9 @@ struct HelpPage {
 
 const HelpPage kHelp[] = {
     {"GETTING AROUND",
-     {"TABS: tap STAT, DATA or LOG, or turn the knob.",
-      "SETTINGS: tap the clock, or hold 2 s anywhere.",
-      "BACK: tap a screen's title, or hold 2 s.",
+     {"TABS: tap STAT, DATA, LOG or SET, or turn the knob.",
+      "SETTINGS: turn to SET and press, tap the clock, or hold 2 s.",
+      "BACK: pick < BACK with the knob, tap a screen's title, or hold 2 s.",
       "LOG: tap the top or bottom half to page.",
       "OWNER CARD: press the knob on STAT, or tap the mascot. Turn or tap for a stat's page."}},
     {"YOUR UNIT",
@@ -816,6 +848,10 @@ void foldTitle(char* s) {
 }
 
 void nudgeToLabel(int i, const Model& m, char* buf, int len) {
+  if (i > m.friendCount) {
+    snprintf(buf, len, "< BACK");
+    return;
+  }
   if (i == 0) {
     snprintf(buf, len, "EVERYONE");
     return;
@@ -827,6 +863,10 @@ void nudgeToLabel(int i, const Model& m, char* buf, int len) {
 }
 
 void nudgeMsgLabel(int i, const Model& m, char* buf, int len) {
+  if (i >= bc::nudgeMessageCount(m.data)) {
+    snprintf(buf, len, "< BACK");
+    return;
+  }
   snprintf(buf, len, "%s", bc::nudgeMessage(m.data, i));
 }
 
@@ -939,6 +979,11 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         g_menuSel = 0;
         break;
       }
+      if (g_tab == kSet && e.shortPress) {
+        g_screen = Screen::Menu;
+        g_menuSel = 0;
+        break;
+      }
       if (g_tab == kStat && e.shortPress) {
         g_screen = Screen::OwnerCard;
         g_cardReturn = Screen::Tabs;
@@ -978,6 +1023,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiNight: r.action = Action::CycleNight; break;
           case kMiIdle: r.action = Action::CycleIdleDim; break;
+          case kMiKnob: r.action = Action::ToggleKnob; break;
           case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; g_cardSel = 0; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
@@ -987,15 +1033,18 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       }
       break;
 
-    case Screen::OwnerCard:
-      // Turn to pick a stat, press for its page, hold to go back.
+    case Screen::OwnerCard: {
+      // Turn to pick a stat or BACK (-1, between the last stat and the
+      // first), press to open it; a hold also goes back.
       if (e.longPress) {
         g_screen = g_cardReturn;
         break;
       }
-      g_cardSel = constrain(g_cardSel + e.turn, 0, settings::kStatCount - 1);
-      if (e.shortPress) g_screen = Screen::StatDetail;
+      constexpr int kSlots = settings::kStatCount + 1;
+      g_cardSel = ((g_cardSel + 1 + e.turn) % kSlots + kSlots) % kSlots - 1;
+      if (e.shortPress) g_screen = g_cardSel < 0 ? g_cardReturn : Screen::StatDetail;
       break;
+    }
 
     case Screen::StatDetail:
       // Turn through the stats; press or hold goes back to the card.
@@ -1039,7 +1088,11 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         g_screen = Screen::Menu;
         break;
       }
-      g_nudgeSel = constrain(g_nudgeSel + e.turn, 0, m.friendCount);
+      g_nudgeSel = constrain(g_nudgeSel + e.turn, 0, m.friendCount + 1);
+      if (e.shortPress && g_nudgeSel > m.friendCount) {
+        g_screen = Screen::Menu;  // BACK
+        break;
+      }
       if (e.shortPress) {
         g_nudgeTo = g_nudgeSel - 1;
         g_msgSel = 0;
@@ -1052,7 +1105,11 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         g_screen = Screen::NudgeTo;
         break;
       }
-      g_msgSel = constrain(g_msgSel + e.turn, 0, bc::nudgeMessageCount(m.data) - 1);
+      g_msgSel = constrain(g_msgSel + e.turn, 0, bc::nudgeMessageCount(m.data));
+      if (e.shortPress && g_msgSel >= bc::nudgeMessageCount(m.data)) {
+        g_screen = Screen::NudgeTo;  // BACK
+        break;
+      }
       if (e.shortPress) {
         r.action = Action::SendNudge;
         r.arg = g_nudgeTo;
@@ -1110,8 +1167,8 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
     case Screen::Tabs:
       if (title) {
         for (int i = 0; i < kTabCount; ++i) {
-          const int tx = 8 + i * 70;  // as drawn by header()
-          if (x >= tx - 4 && x < tx + 66) {
+          const int tx = kTabX + i * kTabStep;  // as drawn by header()
+          if (x >= tx - 2 && x < tx + kTabW + 2) {
             g_tab = (uint8_t)i;
             g_logScroll = false;
             return r;
@@ -1120,6 +1177,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         if (x >= 220) return handle(hold, m, now);  // clock corner: settings
         return r;
       }
+      if (g_tab == kSet) return handle(press, m, now);
       // The mascot (left side of STAT and the full-screen states): owner card.
       if ((g_tab == kStat || !m.data || !m.state.clockValid) && x < 88 && y >= 30 && y < 160) {
         g_screen = Screen::OwnerCard;
@@ -1147,8 +1205,8 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       switch (g_screen) {
         case Screen::Menu: count = kMenuCount; selp = &g_menuSel; break;
         case Screen::Debug: count = scenarios::count() + 1; selp = &g_debugSel; rowH = 18; break;
-        case Screen::NudgeTo: count = m.friendCount + 1; selp = &g_nudgeSel; break;
-        default: count = bc::nudgeMessageCount(m.data); selp = &g_msgSel; break;
+        case Screen::NudgeTo: count = m.friendCount + 2; selp = &g_nudgeSel; break;
+        default: count = bc::nudgeMessageCount(m.data) + 1; selp = &g_msgSel; break;
       }
       int& sel = *selp;
       const ListPage pg = listPage(count, sel, rowH);
@@ -1229,11 +1287,13 @@ void render(const Model& m, uint32_t t) {
     drawPortal(m);
   } else if (g_screen == Screen::Tabs) {
     header(m);
-    if (!m.data) {
+    if (g_tab == kSet) {
+      drawSet(m);
+    } else if (!m.data) {
       drawCentredScreen("NO DATA YET",
                         m.wifiUp ? "Fetching the club file..." : "Waiting for Wi-Fi...",
                         m.syncError[0] ? m.syncError : nullptr,
-                        "Hold 2 s, or tap the clock, for settings.", t);
+                        "Turn to SET and press for settings.", t);
     } else if (!m.state.clockValid) {
       drawCentredScreen("SYNCING CLOCK",
                         m.wifiUp ? "Asking the time servers..." : "Waiting for Wi-Fi to set the time.",
@@ -1243,6 +1303,7 @@ void render(const Model& m, uint32_t t) {
         case kStat: drawStat(m, t); break;
         case kData: drawData(m); break;
         case kLog: drawLog(m); break;
+        default: break;
       }
     }
   } else {
@@ -1257,12 +1318,12 @@ void render(const Model& m, uint32_t t) {
       case Screen::About: drawAbout(m); break;
       case Screen::Debug: drawList("PREVIEW STATES", scenarios::count() + 1, g_debugSel, debugLabel, m, 18); break;
       case Screen::ConfirmPortal: drawConfirmPortal(); break;
-      case Screen::NudgeTo: drawList("NUDGE WHO?", m.friendCount + 1, g_nudgeSel, nudgeToLabel, m); break;
+      case Screen::NudgeTo: drawList("NUDGE WHO?", m.friendCount + 2, g_nudgeSel, nudgeToLabel, m); break;
       case Screen::NudgeMsg: {
         char title[32];
         snprintf(title, sizeof title, "TO %s:", g_nudgeTo < 0 ? "EVERYONE" : m.friends[g_nudgeTo]);
         foldTitle(title);
-        drawList(title, bc::nudgeMessageCount(m.data), g_msgSel, nudgeMsgLabel, m);
+        drawList(title, bc::nudgeMessageCount(m.data) + 1, g_msgSel, nudgeMsgLabel, m);
         break;
       }
       case Screen::NudgeSetup: drawNudgeSetup(); break;

@@ -137,6 +137,10 @@ void doAction(const ui::Result& r) {
       display::setTheme(u.theme);
       break;
     case ui::Action::ToggleEffects: u.effects = !u.effects; break;
+    case ui::Action::ToggleKnob:
+      u.knobReversed = !u.knobReversed;
+      input::setReversed(u.knobReversed);
+      break;
     case ui::Action::CycleNight: u.nightPreset = (uint8_t)((u.nightPreset + 1) % bc::kNightPresets); break;
     case ui::Action::CycleQuiet: u.quietPreset = (uint8_t)((u.quietPreset + 1) % bc::kQuietPresets); break;
     case ui::Action::CycleIdleDim: u.idlePreset = (uint8_t)((u.idlePreset + 1) % bc::kIdlePresets); break;
@@ -212,6 +216,7 @@ void setup() {
   ledsOff();
   settings::begin();
   input::begin();
+  input::setReversed(settings::get().knobReversed);
   audio::begin();
   const settings::Unit& u = settings::get();
   display::begin(u.rotation, u.theme);
@@ -375,6 +380,7 @@ void loop() {
   m.nightPreset = u.nightPreset;
   m.idlePreset = u.idlePreset;
   m.quietPreset = u.quietPreset;
+  m.knobReversed = u.knobReversed;
   m.quietNow = u.sound && quietHours(liveNow);
   m.owner = u.owner;
   m.stats = u.stats;

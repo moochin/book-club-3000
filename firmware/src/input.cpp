@@ -81,6 +81,9 @@ void begin() {
   pinMode(cfg::kPinBoot, INPUT_PULLUP);
 }
 
+static bool g_reversed = false;
+void setReversed(bool reversed) { g_reversed = reversed; }
+
 Events poll(uint32_t now) {
   Events e;
 
@@ -91,7 +94,7 @@ Events poll(uint32_t now) {
     int64_t d = detents - g_lastDetentCount;
     if (d > 100) d = 100;
     if (d < -100) d = -100;
-    e.turn = (int8_t)d;
+    e.turn = (int8_t)(g_reversed ? -d : d);
     g_lastDetentCount = detents;
   }
 

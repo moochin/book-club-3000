@@ -49,6 +49,7 @@ void begin() {
   u.nightPreset = p.getUChar("night", 1);
   u.idlePreset = p.getUChar("idle", 2);
   u.quietPreset = p.getUChar("quiet", 1);
+  u.knobReversed = p.getBool("knobrev", false);
   if (u.quietPreset >= bc::kQuietPresets) u.quietPreset = 1;
   p.end();
   for (auto& s : u.stats) s = constrain(s, 1, 10);
@@ -76,6 +77,7 @@ void save() {
   p.putUChar("night", u.nightPreset);
   p.putUChar("idle", u.idlePreset);
   p.putUChar("quiet", u.quietPreset);
+  p.putBool("knobrev", u.knobReversed);
   p.end();
 }
 
