@@ -36,8 +36,10 @@ static char g_failedFwVersion[bc::kVersionLen] = "";
 // Bumped by the task each time a fetch finishes; the main loop reschedules.
 static volatile uint32_t g_doneCount = 0;
 static volatile bool g_lastOk = false;
-static volatile uint32_t g_reachedCount = 0;  // HTTPS answers from the data host
+static volatile uint32_t g_reachedCount = 0;  // fwguard's proof: see reachedCount()
 static volatile uint32_t g_busySinceMs = 0;  // 0: not fetching
+static volatile bool g_tlsHeld = false;  // a task holds the TLS lock
+static volatile bool g_probeFailed = false;  // the probation check failed this fetch
 static volatile bool g_needStamp = false;  // synced before the clock was set
 
 static void setError(const char* fmt, ...) {
@@ -65,7 +67,8 @@ static void hostOf(const char* url, char* host, size_t cap) {
 }
 
 // Downloads at most bc::kMaxFileBytes into buf. Returns length or -1.
-static int download(const char* url, const char* token, char* buf, size_t cap) {
+// `answered`: set when the host replied with an HTTP status (good or bad).
+static int download(const char* url, const char* token, char* buf, size_t cap, bool* answered) {
   if (!url[0]) {
     setError("no data URL: set it on the setup page");
     return -1;
@@ -98,7 +101,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   }
   http.addHeader("Cache-Control", "no-cache");
   const int code = http.GET();
-  if (code > 0) g_reachedCount = g_reachedCount + 1;  // TLS to GitHub works
+  if (code > 0 && answered) *answered = true;
   if (code != HTTP_CODE_OK) {
     // HTTPClient calls any failed connect "connection refused". The secure
     // client knows better: -1 is the network (no socket, refused, timed out,
@@ -203,12 +206,34 @@ static bool fetchFirmware(const char* url, char* err, size_t errLen) {
   return true;
 }
 
-static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
+static const char* firmwareUrl(const bc::FirmwareInfo& fw) {
 #if defined(BC_PANEL_ST7789)
-  const char* url = fw.urlFor(true);
+  return fw.urlFor(true);
 #else
-  const char* url = fw.urlFor(false);
+  return fw.urlFor(false);
 #endif
+}
+
+// For fwguard: can this firmware still reach a release download? Asks for the
+// first byte of `url` along the same path an update takes (github.com, then a
+// redirect to GitHub's download host). Any HTTP status counts: TLS and the
+// redirect worked, even if the club file names a missing asset.
+static bool probeFirmware(const char* url) {
+  if (!https::memoryOk()) return false;
+  WiFiClientSecure client;
+  HTTPClient http;
+  https::setup(client, http);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  if (!http.begin(client, url)) return false;
+  http.addHeader("Range", "bytes=0-0");
+  const int code = http.GET();
+  http.end();  // not reading the body: closing is enough
+  Serial.printf("[sync] release download check -> %d\n", code);
+  return code > 0;
+}
+
+static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
+  const char* url = firmwareUrl(fw);
   if (!url) return;
   if (bc::compareVersions(fw.version, BC_FW_VERSION) <= 0) return;
   if (strcmp(fw.version, g_failedFwVersion) == 0) return;  // tried already this boot
@@ -241,6 +266,8 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
 
 static void runFetch() {
   g_status = Status::Fetching;
+  g_probeFailed = false;
+  bool answered = false;
   const settings::Unit& u = settings::get();
   std::unique_ptr<char[]> buf(new (std::nothrow) char[bc::kMaxFileBytes + 1]);
   std::unique_ptr<bc::BookClubData> data(new (std::nothrow) bc::BookClubData());
@@ -249,8 +276,9 @@ static void runFetch() {
     g_status = Status::Failed;
     return;
   }
-  const int n = download(u.dataUrl, u.token, buf.get(), bc::kMaxFileBytes + 1);
+  const int n = download(u.dataUrl, u.token, buf.get(), bc::kMaxFileBytes + 1, &answered);
   if (n < 0) {
+    if (answered) g_reachedCount = g_reachedCount + 1;  // see reachedCount()
     g_status = Status::Failed;
     return;
   }
@@ -258,6 +286,7 @@ static void runFetch() {
   if (err != bc::ParseError::None) {
     // Keep the cached copy: a bad edit must never blank the unit.
     setError("rejected file: %s", bc::parseErrorText(err));
+    g_reachedCount = g_reachedCount + 1;  // a typo mustn't roll back a good build
     g_status = Status::Failed;
     return;
   }
@@ -272,6 +301,12 @@ static void runFetch() {
   xSemaphoreGive(g_mutex);
   g_status = Status::Ok;
   Serial.printf("[sync] ok, %d bytes\n", n);
+  buf.reset();  // the club file is saved: free its buffer before more TLS
+  // On probation, prove the update path itself when the club file names a
+  // release; otherwise GitHub's answer for the club file has to do.
+  const char* probeUrl = fwguard::onProbation() ? firmwareUrl(fw) : nullptr;
+  if (!probeUrl || probeFirmware(probeUrl)) g_reachedCount = g_reachedCount + 1;
+  else g_probeFailed = true;  // try again soon, not in a day (see tick())
   maybeUpdateFirmware(fw);
   if (g_status == Status::Updating) g_status = Status::Failed;
 }
@@ -289,13 +324,19 @@ static void taskMain(void*) {
       setError("no Wi-Fi");
       g_status = Status::Failed;
     }
-    g_lastOk = g_status == Status::Ok;
+    g_lastOk = g_status == Status::Ok && !g_probeFailed;
     g_doneCount = g_doneCount + 1;
   }
 }
 
-void lockTls() { xSemaphoreTake(g_tlsMutex, portMAX_DELAY); }
-void unlockTls() { xSemaphoreGive(g_tlsMutex); }
+void lockTls() {
+  xSemaphoreTake(g_tlsMutex, portMAX_DELAY);
+  g_tlsHeld = true;
+}
+void unlockTls() {
+  g_tlsHeld = false;
+  xSemaphoreGive(g_tlsMutex);
+}
 
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
@@ -319,6 +360,10 @@ void tick(uint32_t now, bool wifiUp) {
     if (g_lastOk) {
       g_failCount = 0;
       g_nextFetchMs = now + cfg::kSyncIntervalMs + jitter();
+    } else if (fwguard::onProbation()) {
+      // A new firmware has 30 minutes of Wi-Fi to prove itself (fwguard.cpp):
+      // keep trying every couple of minutes, not on the usual backoff.
+      g_nextFetchMs = now + cfg::kSyncRetryMs[0];
     } else {
       const int n = sizeof cfg::kSyncRetryMs / sizeof cfg::kSyncRetryMs[0];
       g_nextFetchMs = now + cfg::kSyncRetryMs[g_failCount < n ? g_failCount : n - 1];
@@ -380,7 +425,10 @@ uint32_t reachedCount() { return g_reachedCount; }
 uint32_t busyForMs(uint32_t nowMs) {
   const uint32_t since = g_busySinceMs;
   if (!since || g_status == Status::Updating) return 0;
-  return nowMs - since;
+  // The task may have started after the caller read the clock: not negative.
+  return (int32_t)(nowMs - since) > 0 ? nowMs - since : 0;
 }
+
+bool tlsBusy() { return g_tlsHeld; }
 
 }  // namespace datasync

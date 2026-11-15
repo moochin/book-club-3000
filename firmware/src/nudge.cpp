@@ -18,7 +18,10 @@ namespace nudge {
 constexpr uint32_t kPollMs = 5UL * 60 * 1000;
 constexpr uint32_t kWakeMs = 60UL * 1000;          // how often the task looks
 constexpr uint32_t kRosterMs = 60UL * 60 * 1000;   // friends list, on an old hub
-constexpr size_t kReplyCap = 6144;                 // 20 nudges + 8 signals + roster
+// A /poll reply at its largest: 20 nudges (~145 bytes each with JSON escapes),
+// 9 signals (~300 each) and the roster: about 6 KB. A reply that doesn't fit
+// is never applied, and /poll keeps resending unacked nudges, so leave room.
+constexpr size_t kReplyCap = 8192;
 // The TLS handshake takes most of a 10 KB stack; sending a 100-character
 // signal's buffers on top of that overflowed it and restarted the unit.
 constexpr uint32_t kTaskStack = 16384;
@@ -50,8 +53,9 @@ static char g_signalsError[48] = "";
 static volatile SendState g_sendState = SendState::Idle;
 static char g_sendError[48] = "";
 static char g_error[48] = "";
-static char g_tlsWhy[48] = "";
-static volatile uint32_t g_busySinceMs = 0;  // 0: idle  // TLS's reason for the last failed connect (task only)
+static char g_tlsWhy[48] = "";  // TLS's reason for the last failed connect (task only)
+static volatile uint32_t g_busySinceMs = 0;  // 0: idle
+static uint64_t g_ackAt = 0;  // newest nudge taken from /poll, acked on the next (task only)
 
 struct Lock {
   Lock() { xSemaphoreTake(g_mutex, portMAX_DELAY); }
@@ -199,7 +203,12 @@ static bool applyInbox(const char* buf, int code) {
   const int n = code == 200 ? bc::parseInbox(buf, strlen(buf), got, bc::kMaxInbox) : -1;
   if (n < 0) return false;
   Lock l;
+  int fresh = 0;
   for (int i = 0; i < n; ++i) {
+    // /poll resends what it hasn't had an ack for: take each nudge once.
+    if (got[i].at && got[i].at <= g_ackAt) continue;
+    if (got[i].at > g_ackAt) g_ackAt = got[i].at;
+    ++fresh;
     if (g_inCount == bc::kMaxInbox) {  // full: drop the oldest
       g_inHead = (g_inHead + 1) % bc::kMaxInbox;
       --g_inCount;
@@ -207,7 +216,7 @@ static bool applyInbox(const char* buf, int code) {
     g_incoming[(g_inHead + g_inCount) % bc::kMaxInbox] = got[i];
     ++g_inCount;
   }
-  if (n) Serial.printf("[nudge] %d new\n", n);
+  if (fresh) Serial.printf("[nudge] %d new\n", fresh);
   return true;
 }
 
@@ -237,13 +246,22 @@ static void pollOldHub(char* buf, uint32_t now) {
     Lock l;
     rosterDue = !g_rosterOk || now - g_rosterAtMs >= kRosterMs;
   }
+  // Each route on its own: a failed roster mustn't hold up the inbox.
+  bool ok = true;
+  int code;
   if (rosterDue) {
-    const int code = request("GET", "/roster", "", buf, kReplyCap);
-    if (!applyRoster(buf, code, now)) return failed(code, buf, g_error, sizeof g_error);
+    code = request("GET", "/roster", "", buf, kReplyCap);
+    if (!applyRoster(buf, code, now)) {
+      failed(code, buf, g_error, sizeof g_error);
+      ok = false;
+    }
   }
-  int code = request("GET", "/inbox", "", buf, kReplyCap);
-  if (!applyInbox(buf, code)) return failed(code, buf, g_error, sizeof g_error);
-  setError(g_error, sizeof g_error, "");
+  code = request("GET", "/inbox", "", buf, kReplyCap);
+  if (!applyInbox(buf, code)) {
+    failed(code, buf, g_error, sizeof g_error);
+    ok = false;
+  }
+  if (ok) setError(g_error, sizeof g_error, "");
   code = request("GET", "/signals", "", buf, kReplyCap);
   if (!applySignals(buf, code, millis())) {
     if (code == 404) setError(g_signalsError, sizeof g_signalsError, "the hub needs updating for signals");
@@ -257,15 +275,19 @@ static void doPoll(char* buf, uint32_t now) {
     g_pollDue = false;
     g_pollTryMs = now;  // paces the next poll, after a failure too
   }
-  const int code = request("GET", "/poll", "", buf, kReplyCap);
+  // The ack tells the hub which nudges we have, so it can drop them; anything
+  // newer (or a reply we couldn't read) comes again next time.
+  char path[40];
+  snprintf(path, sizeof path, "/poll?ack=%llu", (unsigned long long)g_ackAt);
+  const int code = request("GET", path, "", buf, kReplyCap);
   if (code == 404) return pollOldHub(buf, now);
   const uint32_t at = millis();
-  if (applyRoster(buf, code, at) && applyInbox(buf, code) && applySignals(buf, code, at)) {
-    setError(g_error, sizeof g_error, "");
-    return;
-  }
-  failed(code, buf, g_error, sizeof g_error);
-  failed(code, buf, g_signalsError, sizeof g_signalsError);
+  // Each part on its own, so one bad part doesn't cost the others.
+  const bool roster = applyRoster(buf, code, at);
+  const bool inbox = applyInbox(buf, code);
+  if (roster && inbox) setError(g_error, sizeof g_error, "");
+  else failed(code, buf, g_error, sizeof g_error);
+  if (!applySignals(buf, code, at)) failed(code, buf, g_signalsError, sizeof g_signalsError);
 }
 
 static void taskMain(void*) {
@@ -425,7 +447,8 @@ const char* signalsError() {
 
 uint32_t busyForMs(uint32_t nowMs) {
   const uint32_t since = g_busySinceMs;
-  return since ? nowMs - since : 0;
+  // The task may have started after the caller read the clock: not negative.
+  return since && (int32_t)(nowMs - since) > 0 ? nowMs - since : 0;
 }
 
 }  // namespace nudge

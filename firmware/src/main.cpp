@@ -409,8 +409,11 @@ void loop() {
   // Self-healing: a quiet restart in the small hours, or if memory stays too
   // fragmented for TLS. Never mid-update or with the setup portal open.
   // A wedged background fetch counts too (a stuck task never recovers).
+  // Not on probation: any restart then rolls back to the previous firmware,
+  // and fwguard's own 30-minute limit already deals with a stuck build.
   diag::tick(now, now - g_lastInputMs, liveNow,
-             datasync::status() == datasync::Status::Updating || net::portalActive(),
+             datasync::status() == datasync::Status::Updating || net::portalActive() ||
+                 fwguard::onProbation(),
              max(datasync::busyForMs(now), nudge::busyForMs(now)));
   // A new firmware stays on probation until it has fetched the club file and
   // run 10 minutes; see fwguard.h.

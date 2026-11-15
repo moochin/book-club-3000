@@ -160,7 +160,8 @@ def check(raw):
             elif "only" in fw:
                 only = fw["only"]
                 if not isinstance(only, list) or not all(isinstance(n, str) and n.strip() for n in only):
-                    warnings.append('"firmware.only" should be a list of owner names, e.g. ["Pete"]')
+                    warnings.append('"firmware.only" should be a list of owner names, e.g. ["Pete"]; '
+                                    'until it is, no unit on 1.5.0 or later installs this firmware')
                 elif only:
                     warnings.append(f'firmware {fw.get("version")} goes only to: {", ".join(only)}; '
                                     'remove "only" to release it to every unit')

@@ -5,6 +5,7 @@
 #include <esp_ota_ops.h>
 #include <string.h>
 
+#include "bc_state.h"
 #include "config.h"
 
 // Arduino's start-up asks this (a weak hook in esp32-hal-misc.c): true means
@@ -90,7 +91,9 @@ void tick(uint32_t nowMs, bool wifiUp, uint32_t syncOkCount) {  // = reachedCoun
     esp_ota_mark_app_valid_cancel_rollback();
     g_probation = false;
     saveStr("trial", "");
-    if (strcmp(g_bad, BC_FW_VERSION) == 0) {
+    // A good build at or past the one that failed: that failure is history
+    // (we never install an older version, so its skip no longer matters).
+    if (g_bad[0] && bc::compareVersions(BC_FW_VERSION, g_bad) >= 0) {
       Preferences p;
       if (p.begin(kNs, false)) {
         p.putString("bad", "");

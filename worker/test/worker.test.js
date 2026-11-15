@@ -237,10 +237,24 @@ test("poll returns who I am, friends, my nudges and the signals, in one go", asy
   assert.deepEqual(r.body.friends, ["Pete", "Sam"]);
   assert.deepEqual(r.body.nudges.map((n) => n.msg), ["GET YOUR ASS ONLINE"]);
   assert.deepEqual(r.body.signals.map((s) => s.from), ["Sam"]);
-  // The inbox is emptied, as with /inbox; signals stay on the air.
+  // Until the unit acks them, the nudges stay: a reply it couldn't read
+  // isn't lost. Signals stay on the air either way.
   const again = await req(env, "Dave", "GET", "/poll");
-  assert.deepEqual(again.body.nudges, []);
-  assert.equal(again.body.signals.length, 1);
+  assert.deepEqual(again.body.nudges.map((n) => n.msg), ["GET YOUR ASS ONLINE"]);
+  const acked = await req(env, "Dave", "GET", `/poll?ack=${again.body.nudges[0].at}`);
+  assert.deepEqual(acked.body.nudges, []);
+  assert.equal(acked.body.signals.length, 1);
+});
+
+test("poll's ack drops only what the unit has taken", async () => {
+  const env = setup();
+  await req(env, "Pete", "POST", "/nudge", { to: "Dave", msg: "ONE" });
+  const first = await req(env, "Dave", "GET", "/poll");
+  const at = first.body.nudges[0].at;
+  await req(env, "Sam", "POST", "/nudge", { to: "Dave", msg: "TWO" }, at + 1000);
+  const r = await req(env, "Dave", "GET", `/poll?ack=${at}`, undefined, at + 2000);
+  assert.deepEqual(r.body.nudges.map((n) => n.msg), ["TWO"]);
+  assert.equal((await req(env, "Dave", "GET", "/poll?ack=garbage")).body.nudges.length, 1);
 });
 
 test("an empty poll costs no KV writes", async () => {

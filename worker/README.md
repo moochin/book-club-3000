@@ -89,7 +89,7 @@ unit token" until they're updated.
 | `GET /roster` | Who this unit is, and the friends it can nudge |
 | `GET /inbox` | This unit's waiting nudges, which are then removed |
 | `POST /nudge` `{"to": "Dave" or "*", "msg": "…"}` | Sends a nudge to one friend or everyone |
-| `GET /poll` | All of the above for this unit in one reply: `me`, `friends`, `nudges` (then removed) and `signals`. Units from 1.5 use only this |
+| `GET /poll?ack=AT` | All of the above for this unit in one reply: `me`, `friends`, `nudges` and `signals`. Nudges stay until acked: each poll drops those with `at` up to `ack` (the newest the unit has taken), so a reply the unit couldn't read is sent again. Units from 1.5 use only this |
 | `POST /signal` `{"msg": "…"}` | Puts this unit's signal on the air for 24 hours, replacing its last one |
 | `GET /signals` | Every unit's live signal (this one's too), newest first, each with `left`: seconds until it's gone |
 

@@ -241,19 +241,24 @@ Once units have shipped, an over-the-air update is the only way in, so a bad
 release must never strand them. From 1.5.0:
 
 - **Probation and rollback** (`src/fwguard`). A new image starts on
-  probation. It is confirmed only once GitHub has answered it over HTTPS
-  (proof the update path still works; any HTTP status counts, so a typo in
-  the club file can't roll back a good firmware) and it has run 10 minutes
-  without a
-  restart. Any restart before then (crash, watchdog, freeze, even a power
-  cut) makes the bootloader boot the previous image. An image that runs but
-  can't reach GitHub within 30 minutes of working Wi-Fi rolls itself back.
+  probation. It is confirmed only once it has proved the update path still
+  works and it has run 10 minutes without a restart. The proof is the
+  release download the club file names for this panel answering over HTTPS,
+  through GitHub's redirect (any HTTP status counts). If the club file names
+  no release, or has a typo, GitHub answering for the club file itself is
+  enough, so a typo can't roll back a good firmware. Any restart before then
+  (crash, watchdog, freeze, even a power cut) makes the bootloader boot the
+  previous image, so the self-healing restarts wait until probation is over.
+  While on probation a failed check is retried every 2 minutes. An image
+  that still can't reach GitHub after 30 minutes of working Wi-Fi rolls
+  itself back.
   ABOUT shows **ON PROBATION** meanwhile, and **x.y.z ROLLED BACK** after.
   Arduino normally marks every image good at start-up; overriding
   `verifyRollbackLater()` hands that decision to fwguard.
 - **No retry loops.** A version rolled back twice is skipped until the club
   file names another (**ROLLED BACK, SKIPPED** on ABOUT). Release a fixed
-  version with a new number.
+  version with a new number. The note clears once a later version is
+  confirmed.
 - **Watchdogs.** Core 0's idle task (5 s), the main loop (5 s, from the end
   of `setup()`; paused during a LAN upload), and the background fetches (a
   sync or hub exchange running 5 minutes is wedged: a quiet restart).
@@ -273,7 +278,9 @@ the owner names (as set on each unit's setup page) that should take it:
 
 Leave it a day. If that unit is happy (ABOUT: no ROLLED BACK, no amber
 STARTED BY), remove `"only"` and every unit takes it. Firmware before 1.5.0
-ignores `"only"`, so this protects the fleet once it is all on 1.5.0.
+ignores `"only"`, so this protects the fleet once it is all on 1.5.0. A
+botched `"only"` (not a list, or no names in it) holds the release back from
+every unit rather than sending it to all; `[]` is the same as leaving it out.
 
 **Keep in mind for every release:**
 

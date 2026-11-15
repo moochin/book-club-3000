@@ -43,7 +43,10 @@ struct FirmwareInfo {
   char urlSt7789[kUrlLen] = "";   // ST7789 build
   // Optional "only": the owners whose units should take it (try a release on
   // one unit first). Empty: every unit.
+  // `onlyBad`: "only" was there but named nobody usable (not a list, or no
+  // names in it): no unit takes it, rather than every unit.
   int onlyCount = 0;
+  bool onlyBad = false;
   char only[kMaxCapsPeople][kNameLen] = {};
   // The https URL for this build's panel, or nullptr.
   const char* urlFor(bool st7789) const;

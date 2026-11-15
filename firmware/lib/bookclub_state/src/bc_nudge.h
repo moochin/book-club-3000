@@ -17,9 +17,10 @@ constexpr int kMaxFriends = 8;
 struct Nudge {
   char from[kNameLen] = "";
   char msg[kNudgeMsgLen] = "";
+  uint64_t at = 0;  // when the hub took it (ms since 1970): /poll's ack
 };
 
-// GET /inbox -> {"nudges":[{"from","msg","at"}]}. Returns how many were read
+// GET /inbox or /poll -> {"nudges":[{"from","msg","at"}]}. Returns how many were read
 // into `out` (at most `cap`), or -1 if the reply isn't valid.
 int parseInbox(const char* json, size_t len, Nudge* out, int cap);
 

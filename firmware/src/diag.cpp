@@ -9,6 +9,7 @@
 
 #include "bc_health.h"
 #include "https.h"
+#include "sync.h"
 
 namespace diag {
 
@@ -107,11 +108,14 @@ bool quietStart() { return g_quiet; }
 void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, uint32_t stuckMs) {
   if (nowMs - g_lastCheckMs < 5000) return;  // a few samples a minute is plenty
   g_lastCheckMs = nowMs;
-  if (https::memoryOk()) {
+  // While a session is open it holds the big block itself, so the heap looks
+  // short when it isn't: TLS is plainly possible, so count that as fine.
+  if (datasync::tlsBusy() || https::memoryOk()) {
     g_lowSinceMs = 0;
     g_hadMemory = true;
+  } else if (!g_lowSinceMs) {
+    g_lowSinceMs = nowMs ? nowMs : 1;
   }
-  else if (!g_lowSinceMs) g_lowSinceMs = nowMs ? nowMs : 1;
   bc::HealthInput in;
   in.uptimeMs = nowMs;
   in.idleMs = idleMs;

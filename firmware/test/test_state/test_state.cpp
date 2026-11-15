@@ -760,6 +760,11 @@ void test_nudge_inbox_parsing() {
   TEST_ASSERT_EQUAL_STRING("Pete", n[0].from);
   TEST_ASSERT_EQUAL_STRING("THINKING OF YOU, LOSER", n[1].msg);
   TEST_ASSERT_EQUAL_STRING("I'M ON", n[2].msg);  // folded for the font
+  TEST_ASSERT_TRUE(n[1].at == 2);                 // /poll's ack
+  TEST_ASSERT_TRUE(n[2].at == 0);                 // none given
+  const char* big = R"J({"nudges":[{"from":"Pete","msg":"HI","at":1794779400706}]})J";
+  TEST_ASSERT_EQUAL(1, parseInbox(big, strlen(big), n, kMaxInbox));
+  TEST_ASSERT_TRUE(n[0].at == 1794779400706ULL);  // ms since 1970: past 32 bits
   TEST_ASSERT_EQUAL(1, parseInbox(j, strlen(j), n, 1));  // respects the cap
   const char* empty = "{\"nudges\":[]}";
   TEST_ASSERT_EQUAL(0, parseInbox(empty, strlen(empty), n, kMaxInbox));
@@ -965,6 +970,19 @@ void test_firmware_only_list() {
   TEST_ASSERT_EQUAL(0, d.firmware.onlyCount);
   TEST_ASSERT_TRUE(d.firmware.forUnit("Sam"));    // no "only": everyone
   TEST_ASSERT_TRUE(d.firmware.forUnit(""));
+
+  // A botched "only" holds the release back rather than sending it to all.
+  const char* str = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":"Pete"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(str, strlen(str), d));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Pete"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  const char* blank = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":["", 3]}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(blank, strlen(blank), d));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  // An empty list is the same as leaving "only" out.
+  const char* none = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":[]}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(none, strlen(none), d));
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Sam"));
 }
 
 void setUp() {}
