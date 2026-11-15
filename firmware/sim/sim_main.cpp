@@ -123,7 +123,8 @@ int main(int argc, char** argv) {
   ev(m, +1); shot("data", m);
   ev(m, +1); shot("log", m);
   ev(m, 0, true); ev(m, +2); shot("log_scrolled", m);
-  ev(m, 0, true); ev(m, +1);  // back to STAT
+  ev(m, 0, true); ev(m, +1); shot("set", m);  // SET: the way into settings
+  ev(m, +1);                                     // round to STAT
 
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
@@ -134,6 +135,7 @@ int main(int argc, char** argv) {
   ev(m, +1); shot("stat_trivia", m);                    // a perfect 10
   ev(m, +2); shot("stat_snacks", m);                    // 2: the low band
   ev(m, 0, true); shot("owner_card_sel", m);            // back on the card, SNACK SUPPLY picked
+  ev(m, -4); shot("owner_card_back", m);                // turned onto < BACK
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true);     // hold: menu; HOW TO USE
   for (int i = 0; i < 3; ++i) ev(m, +1);
   shot("help_nudges", m);                                // page 4: NUDGES

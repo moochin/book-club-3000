@@ -132,16 +132,19 @@ The unit joins your network, sets its clock and fetches the file. If your
 Wi-Fi drops it carries on counting from the dates it already has and keeps
 retrying in the background.
 
-**Touch screen:** tap STAT, DATA or LOG to switch tabs, tap the clock for
+**Touch screen:** tap STAT, DATA, LOG or SET to switch tabs, tap the clock (or the SET tab) for
 settings, tap the mascot for your owner card (tap a stat there for its own
 page), and tap a screen's title to go
 back. On LOG, tap the top or bottom half of the list to page through it. A
 stylus works best.
-**Knob:** turn to switch between STAT, DATA and LOG. On STAT, press for your
-owner card: turn to pick a stat, press for its page, hold 2 s to go back. On
-LOG, press to switch between changing tabs and scrolling. Hold 2 s for settings (refresh, send nudge, sound,
-brightness, theme, scanlines, screen off at night, dim when idle, owner card,
-how to use, about, Wi-Fi reset).
+**Knob:** everything works with the knob alone. Turn to switch between STAT,
+DATA, LOG and SET. On SET, press for settings; every list ends in **< BACK**.
+On STAT, press for your owner card: turn to pick a stat and press for its
+page, or turn onto **< BACK** (top right) and press to leave. On LOG, press to
+switch between changing tabs and scrolling. A 2 s hold is a shortcut: it opens
+settings from the tabs and goes back from anywhere else. Settings has refresh,
+send nudge, sound, volume, quiet hours, brightness, theme, scanlines, screen off
+at night, dim when idle, owner card, how to use, about and Wi-Fi reset.
 **The screen** switches itself off at night (23:00–07:00 by default) and after
 10 minutes in a dark room, and dims after 30 minutes untouched; turn the knob
 or tap to wake it. Both times are in the settings menu. It's an LCD, so it
