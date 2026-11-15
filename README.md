@@ -178,8 +178,8 @@ It stays on the air for 24 hours, then it's gone for good.
 **SETTINGS → SIGNALS** shows what's on the air, one quote at a time, with
 who sent it and a signal-strength bar that fades as its 24 hours run out.
 Turn past the last one to **BROADCAST YOURS**, press, turn to pick a quote and
-press to send. Each person has one signal on the air at a time: sending
-another replaces it (three a day at most). When a friend's new signal arrives,
+press to send. Each person gets one signal a day (the day starts at midnight,
+UK time), from their unit or the web page below; the next day's replaces it. When a friend's new signal arrives,
 units tune in with a sweep of the radio dial and show it until someone presses
 or taps. In quiet hours it arrives silently. STAT mentions what's on the air,
 and tapping that line opens the signals.
@@ -193,6 +193,17 @@ each), or in the gist:
 ```json
 "signals": { "quotes": ["Not all who read are lost.", "Bring the good biscuits."] }
 ```
+
+## From a phone
+
+The hub has its own web page, at the address it was deployed to (the one in
+the club file, e.g. `https://bookclub-nudge.<something>.workers.dev`). Sign
+in with your nudge token, then send a nudge or broadcast a signal **in your
+own words**: nudges up to 40 characters, signals up to 100. The same limits
+apply as on the units. It also shows what's on the air. Tick *Remember on
+this phone* to stay signed in; the hub owner can also send someone a link
+that signs them in, `https://…workers.dev/#t=<their token>` (keep it private:
+it's as good as the token).
 
 Signals use the nudge hub, so they need the same setup. A hub set up before
 signals existed needs redeploying once (`npx wrangler deploy` in `worker/`);

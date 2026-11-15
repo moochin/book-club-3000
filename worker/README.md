@@ -85,6 +85,7 @@ unit token" until they're updated.
 
 | Request | What it does |
 | --- | --- |
+| `GET /` | The web page: sign in with a token, send nudges and signals in your own words (no token needed to load it) |
 | `GET /roster` | Who this unit is, and the friends it can nudge |
 | `GET /inbox` | This unit's waiting nudges, which are then removed |
 | `POST /nudge` `{"to": "Dave" or "*", "msg": "…"}` | Sends a nudge to one friend or everyone |
@@ -98,8 +99,15 @@ unit token" until they're updated.
 - **Inboxes:** each keeps the newest 20.
 - **Signals:** plain text, 100 characters at most. Each is stored with a
   24-hour expiry, so Cloudflare deletes it, and `/signals` skips any copy
-  older than that it hasn't deleted yet. A unit can broadcast three a day.
-  Reading signals doesn't use them up.
+  older than that it hasn't deleted yet. A unit can broadcast one a day (the
+  day starts at midnight, UK time), from the unit or the web page. Reading
+  signals doesn't use them up.
+- **The web page** is in `src/page.js`, in the units' setup-page look, and
+  needs nothing but the hub. It never reads an inbox, so it can't take a
+  unit's nudges. A token in the address after `#t=` signs straight in; the
+  page then removes it from the address bar. The mascot at the top is
+  `src/mascot.js`: after redrawing `art/mascot/level0.png`, run
+  `python3 tools/make-mascot.py` here and redeploy.
 - **Rate limit:** a unit can send one nudge every 15 seconds and 12 an hour.
 - **Free-plan limits:** checking an empty inbox doesn't write to storage, so
   it stays well inside the free plan's 1,000 writes a day.
@@ -121,7 +129,7 @@ To try the real Worker runtime locally, put
 npx wrangler dev --local
 ```
 
-Then talk to it with `curl`:
+Open `http://127.0.0.1:8787/` for the web page, or talk to it with `curl`:
 
 ```bash
 curl -X POST -H "Authorization: Bearer tok-pete" -H "content-type: application/json" -d '{"to":"Dave","msg":"GET YOUR ASS ONLINE"}' http://127.0.0.1:8787/nudge

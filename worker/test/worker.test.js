@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, MAX_SIGNAL, MAX_SIGNALS_PER_DAY, SIGNAL_TTL_S, cleanMessage,
+  handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, MAX_SIGNAL, SIGNAL_TTL_S, cleanMessage, clubDay,
 } from "../src/hub.js";
 
 function fakeKv() {
@@ -157,25 +157,37 @@ test("a signal is gone after 24 hours, even before KV sweeps it up", async () =>
   assert.deepEqual(after.body.signals, []);
 });
 
-test("signals come newest first, one per unit, and a new one replaces the old", async () => {
+// UK times, for the one-a-day rule (Date.UTC months are 0-based).
+const T = (y, mo, d, h, mi = 0) => Date.UTC(y, mo - 1, d, h, mi);
+
+test("signals come newest first, one per unit, and the next day's replaces the old", async () => {
   const env = setup();
-  await req(env, "Pete", "POST", "/signal", { msg: "first" }, 1_000_000);
-  await req(env, "Dave", "POST", "/signal", { msg: "second" }, 2_000_000);
-  await req(env, "Pete", "POST", "/signal", { msg: "third" }, 3_000_000);
-  const got = (await req(env, "Sam", "GET", "/signals", undefined, 3_000_000)).body.signals;
+  await req(env, "Pete", "POST", "/signal", { msg: "first" }, T(2026, 11, 14, 20));
+  await req(env, "Dave", "POST", "/signal", { msg: "second" }, T(2026, 11, 15, 8));
+  await req(env, "Pete", "POST", "/signal", { msg: "third" }, T(2026, 11, 15, 9));
+  const got = (await req(env, "Sam", "GET", "/signals", undefined, T(2026, 11, 15, 9))).body.signals;
   assert.deepEqual(got.map((s) => [s.from, s.msg]), [["Pete", "third"], ["Dave", "second"]]);
 });
 
-test("signals are capped per day, and longer than nudges but not unlimited", async () => {
+test("one signal a day each, the day turning at UK midnight", async () => {
   const env = setup();
-  let t = 1_000_000;
-  for (let i = 0; i < MAX_SIGNALS_PER_DAY; i++, t += MIN_GAP_MS) {
-    assert.equal((await req(env, "Pete", "POST", "/signal", { msg: `quote ${i}` }, t)).status, 200);
-  }
-  assert.equal((await req(env, "Pete", "POST", "/signal", { msg: "one more" }, t)).status, 429);
-  assert.equal((await req(env, "Pete", "POST", "/signal", { msg: "tomorrow" }, 1_000_000 + DAY_MS)).status, 200);
+  const send = (who, at, msg = "a quote") => req(env, who, "POST", "/signal", { msg }, at);
+  assert.equal((await send("Pete", T(2026, 11, 15, 9))).status, 200);
+  const again = await send("Pete", T(2026, 11, 15, 23, 59));
+  assert.equal(again.status, 429);
+  assert.match(again.body.error, /one signal a day/);
+  assert.equal((await send("Dave", T(2026, 11, 15, 23, 59))).status, 200);  // others aren't affected
+  assert.equal((await send("Pete", T(2026, 11, 16, 0, 1))).status, 200);    // a new day
+  // In summer the UK is an hour ahead: 23:30 UTC on 1 July is already 2 July there.
+  assert.equal((await send("Sam", T(2026, 7, 1, 22, 30))).status, 200);
+  assert.equal((await send("Sam", T(2026, 7, 1, 23, 30))).status, 200);
+  assert.equal(clubDay(T(2026, 7, 1, 23, 30)), "2026-07-02");
+});
+
+test("signals are longer than nudges but not unlimited", async () => {
+  const env = setup();
   assert.equal((await req(env, "Dave", "POST", "/signal", { msg: "x".repeat(MAX_SIGNAL) })).status, 200);
-  assert.equal((await req(env, "Dave", "POST", "/signal", { msg: "x".repeat(MAX_SIGNAL + 1) }, 2_000_000)).status, 400);
+  assert.equal((await req(env, "Pete", "POST", "/signal", { msg: "x".repeat(MAX_SIGNAL + 1) })).status, 400);
   assert.equal((await req(env, "Sam", "POST", "/signal", { msg: "" })).status, 400);
   assert.equal((await req(env, "Sam", "POST", "/signal", "not json")).status, 400);
   assert.equal((await req(env, null, "GET", "/signals")).status, 401);
@@ -190,4 +202,25 @@ test("signals from a unit taken off the line-up aren't shown", async () => {
 
 test("an ellipsis is spelled out for the units' font", () => {
   assert.equal(cleanMessage("To be continued…", MAX_SIGNAL), "To be continued...");
+});
+
+// ---- The web page ---------------------------------------------------------------
+
+test("the web page is served without a token, locked down", async () => {
+  const r = await handle(new Request("https://hub.example/"), setup(), 1_000_000);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get("content-type"), /text\/html/);
+  const csp = r.headers.get("content-security-policy");
+  assert.match(csp, /default-src 'none'/);
+  assert.match(csp, /connect-src 'self'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  const html = await r.text();
+  assert.match(html, /Book-Club 3000/);
+  assert.match(html, /src="data:image\/png;base64,/);   // the mascot, inline
+  assert.doesNotMatch(html, /\/inbox/);                    // never takes a unit's nudges
+  assert.doesNotMatch(html, /innerHTML/);                  // hub text only via textContent
+});
+
+test("other pages still need a token", async () => {
+  assert.equal((await req(setup(), null, "GET", "/roster")).status, 401);
 });
