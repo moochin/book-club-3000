@@ -20,6 +20,22 @@ do them one at a time.
 | `no_date` | No next date, while still healthy (levels 0–1) | Waiting for orders, a bit lost |
 | `syncing` | Before the clock is set, after power-on | Anything patient: an hourglass is fine |
 
+**Owner-card stat pages.** Each stat on the owner card has its own page
+with a mascot. Until a stat's pose is drawn, its page borrows a pose that
+suits the score: 10 `meeting_day`, 7–9 `level0`, 4–6 `level1`, 2–3
+`level2`, 1 `level3`. The wording for each score band is in
+[`firmware/src/stat_text.cpp`](../firmware/src/stat_text.cpp).
+
+| File name | Stat | Brief |
+| --- | --- | --- |
+| `stat_gaming` | GAMING SKILL | Hunched over a controller, tongue out |
+| `stat_trivia` | MOVIE TRIVIA | Popcorn, or 3D glasses |
+| `stat_beer` | BEER CAPACITY | Raising a pint |
+| `stat_snacks` | SNACK SUPPLY | Arms full of crisps |
+| `stat_banter` | BANTER | Mid-joke, one finger pointing |
+| `stat_punctuality` | PUNCTUALITY | Tapping a watch |
+| `stat_stamina` | STAYING POWER | Wide awake with a mug of coffee |
+
 **The mascot** is a regular guy in a cap, a red zip-up hoodie and jeans,
 drawn by the club. His nine original drawings are in
 [`src/drawings/`](src/drawings/), and [`src/make_sprites.py`](src/make_sprites.py)

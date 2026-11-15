@@ -14,6 +14,7 @@
 #include "mascot.h"
 #include "scenarios.h"
 #include "settings.h"
+#include "stat_text.h"
 
 using namespace display;
 
@@ -22,7 +23,7 @@ namespace ui {
 namespace {
 
 enum class Screen : uint8_t {
-  Tabs, Menu, OwnerCard, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup
+  Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup
 };
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kTabCount = 3 };
 
@@ -57,6 +58,7 @@ int g_msgSel = 0;    // SAY WHAT?
 bool g_confirmYes = false;
 int g_helpPage = 0;
 Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
+int g_cardSel = 0;                   // the stat picked on the owner card
 uint8_t g_aboutPresses = 0;
 uint32_t g_aboutFirstPressMs = 0;
 
@@ -601,7 +603,8 @@ void drawOwnerCard(const Model& m) {
   text(8, 60, "BOOK CLUB OPERATIVE, GRADE III", kDim);
   for (int i = 0; i < settings::kStatCount; ++i) {
     const int y = 80 + i * 18;
-    text(8, y, settings::statName(i), kText);
+    if (i == g_cardSel) c.drawRect(2, y - 2, cfg::kScreenW - 4, 17, kBright);
+    text(8, y, settings::statName(i), i == g_cardSel ? kHot : kText);
     const int v = m.stats ? m.stats[i] : 5;
     for (int b = 0; b < 10; ++b) {
       c.fillRect(140 + b * 14, y + 3, 11, 10, b < v ? kBright : kFaint);
@@ -647,6 +650,43 @@ void drawOwnerCard(const Model& m) {
   }
   small[52] = '\0';
   text(8, 230, small, bal < 0 ? kWarn : kDim, 1, 1);
+}
+
+// The mascot for a stat page: its own drawing if there is one, else a
+// stock pose that suits the score.
+bc::Pose statPose(int stat, int score) {
+  const bc::Pose own = (bc::Pose)((int)bc::Pose::StatGaming + stat);
+  if (mascot::hasArt(own)) return own;
+  if (score >= 10) return bc::Pose::MeetingDay;  // celebrating
+  if (score >= 7) return bc::Pose::Level0;       // thumbs up
+  if (score >= 4) return bc::Pose::Level1;       // idle
+  if (score >= 2) return bc::Pose::Level2;       // queasy
+  return bc::Pose::Level3;                       // slumped
+}
+
+void drawStatDetail(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  const int i = g_cardSel;
+  const int v = m.stats ? m.stats[i] : 5;
+  text(8, 4, settings::statName(i), kBright, 2, 2);
+  char buf[16];
+  snprintf(buf, sizeof buf, "%d/%d", i + 1, settings::kStatCount);
+  textRight(cfg::kScreenW - 6, 8, buf, kDim);
+  c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
+
+  mascot::draw(8, 50, statPose(i, v), t, false);
+
+  // The score, big, with its bar.
+  snprintf(buf, sizeof buf, "%d", v);
+  text(84, 34, buf, kHot, 4, 4);
+  text(84 + (v >= 10 ? 52 : 28), 50, "/10", kDim, 2, 2);
+  for (int b = 0; b < 10; ++b) c.fillRect(84 + b * 22, 72, 19, 8, b < v ? kBright : kFaint);
+
+  text(84, 90, stattext::rank(i, v), kHot, 2, 2);
+  textWrapped(84, 116, stattext::blurb(i, v), 38, 6, kText, 16);
+
+  c.drawFastHLine(0, 220, cfg::kScreenW, kFaint);
+  textCentered(cfg::kScreenW / 2, 226, "TURN: NEXT STAT   PRESS: BACK", kDim);
 }
 
 void drawAbout(const Model& m) {
@@ -701,7 +741,7 @@ const HelpPage kHelp[] = {
       "SETTINGS: tap the clock, or hold 2 s anywhere.",
       "BACK: tap a screen's title, or hold 2 s.",
       "LOG: tap the top or bottom half to page.",
-      "OWNER CARD: tap the mascot."}},
+      "OWNER CARD: press the knob on STAT, or tap the mascot. Turn or tap for a stat's page."}},
     {"YOUR UNIT",
      {"Owner name, card stats, theme, rotation and the data URL are set on the setup page.",
       "To open it: SETTINGS > WI-FI RESET > OPEN, then join the BookClub network on your phone "
@@ -863,8 +903,8 @@ static_assert(kMenuCount == kMenuItems, "ui.h kMenuItems is out of date");
 View view() {
   View v;
   // The owner card opened by tapping the mascot belongs to the tabs.
-  v.settings = g_screen != Screen::Tabs &&
-               !(g_screen == Screen::OwnerCard && g_cardReturn == Screen::Tabs);
+  const bool card = g_screen == Screen::OwnerCard || g_screen == Screen::StatDetail;
+  v.settings = g_screen != Screen::Tabs && !(card && g_cardReturn == Screen::Tabs);
   v.menu = g_screen == Screen::Menu;
   v.menuSel = g_menuSel;
   v.tab = g_tab;
@@ -873,7 +913,7 @@ View view() {
 
 bool animating(const Model& m) {
   if (m.portal || m.updatePct >= 0) return false;
-  return g_screen == Screen::Tabs && g_tab == kStat;
+  return (g_screen == Screen::Tabs && g_tab == kStat) || g_screen == Screen::StatDetail;
 }
 
 Result handle(const input::Events& e, const Model& m, uint32_t now) {
@@ -897,6 +937,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       if (e.longPress) {
         g_screen = Screen::Menu;
         g_menuSel = 0;
+        break;
+      }
+      if (g_tab == kStat && e.shortPress) {
+        g_screen = Screen::OwnerCard;
+        g_cardReturn = Screen::Tabs;
+        g_cardSel = 0;
         break;
       }
       if (g_tab == kLog && e.shortPress) g_logScroll = !g_logScroll;
@@ -932,7 +978,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiNight: r.action = Action::CycleNight; break;
           case kMiIdle: r.action = Action::CycleIdleDim; break;
-          case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; break;
+          case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; g_cardSel = 0; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
           case kMiWifi: g_screen = Screen::ConfirmPortal; g_confirmYes = false; break;
@@ -942,7 +988,22 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       break;
 
     case Screen::OwnerCard:
-      if (e.shortPress || e.longPress) g_screen = g_cardReturn;
+      // Turn to pick a stat, press for its page, hold to go back.
+      if (e.longPress) {
+        g_screen = g_cardReturn;
+        break;
+      }
+      g_cardSel = constrain(g_cardSel + e.turn, 0, settings::kStatCount - 1);
+      if (e.shortPress) g_screen = Screen::StatDetail;
+      break;
+
+    case Screen::StatDetail:
+      // Turn through the stats; press or hold goes back to the card.
+      if (e.shortPress || e.longPress) {
+        g_screen = Screen::OwnerCard;
+        break;
+      }
+      g_cardSel = constrain(g_cardSel + e.turn, 0, settings::kStatCount - 1);
       break;
 
     case Screen::Help:
@@ -1063,6 +1124,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       if ((g_tab == kStat || !m.data || !m.state.clockValid) && x < 88 && y >= 30 && y < 160) {
         g_screen = Screen::OwnerCard;
         g_cardReturn = Screen::Tabs;
+        g_cardSel = 0;
         return r;
       }
       // LOG: tap the top or bottom half of the list to page through it.
@@ -1106,7 +1168,25 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       return handle(press, m, now);
     }
 
-    case Screen::OwnerCard:
+    case Screen::OwnerCard: {
+      // Tap a stat for its page; the title, or anywhere else, goes back.
+      const int row = (y - 78) / 18;
+      if (!title && y >= 78 && row < settings::kStatCount) {
+        g_cardSel = row;
+        g_screen = Screen::StatDetail;
+        return r;
+      }
+      return handle(hold, m, now);
+    }
+
+    case Screen::StatDetail: {
+      // The title goes back; the left or right half steps through the stats.
+      if (title) return handle(hold, m, now);
+      input::Events step;
+      step.turn = x >= cfg::kScreenW / 2 ? 1 : -1;
+      return handle(step, m, now);
+    }
+
     case Screen::NudgeSetup:
       return handle(press, m, now);
 
@@ -1172,6 +1252,7 @@ void render(const Model& m, uint32_t t) {
         break;
       }
       case Screen::OwnerCard: drawOwnerCard(m); break;
+      case Screen::StatDetail: drawStatDetail(m, t); break;
       case Screen::Help: drawHelp(); break;
       case Screen::About: drawAbout(m); break;
       case Screen::Debug: drawList("PREVIEW STATES", scenarios::count() + 1, g_debugSel, debugLabel, m, 18); break;

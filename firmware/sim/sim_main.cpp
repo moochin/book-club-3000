@@ -129,7 +129,12 @@ int main(int argc, char** argv) {
   ev(m, 0, false, true); shot("menu", m);
   ev(m, +4); shot("menu_quiet", m);                    // menu item 4: QUIET HOURS
   ev(m, +6); ev(m, 0, true); shot("owner_card", m);  // menu item 10: OWNER CARD
-  ev(m, 0, true); ev(m, +1); ev(m, 0, true);           // HOW TO USE
+  // Stat pages: press for the first, turn through the rest (stats 8 10 4 2 ...).
+  ev(m, 0, true); shot("stat_gaming", m);               // 8: a stock pose
+  ev(m, +1); shot("stat_trivia", m);                    // a perfect 10
+  ev(m, +2); shot("stat_snacks", m);                    // 2: the low band
+  ev(m, 0, true); shot("owner_card_sel", m);            // back on the card, SNACK SUPPLY picked
+  ev(m, 0, false, true); ev(m, +1); ev(m, 0, true);     // hold: menu; HOW TO USE
   for (int i = 0; i < 3; ++i) ev(m, +1);
   shot("help_nudges", m);                                // page 4: NUDGES
   ev(m, +1);
@@ -140,6 +145,10 @@ int main(int argc, char** argv) {
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("wifi_confirm", m);
   ev(m, +1); shot("wifi_confirm_open", m);
   ev(m, 0, false, true); ev(m, 0, false, true);  // back to tabs
+
+  // A knob press on STAT opens the owner card; a hold goes back.
+  ev(m, 0, true); shot("owner_card_from_stat", m);
+  ev(m, 0, false, true);
 
   // Quiet hours muting the sound: the crossed-out speaker in the header.
   {
@@ -184,7 +193,7 @@ int main(int argc, char** argv) {
     strcpy(cm.caps.note, "Missed the school play for club night");
     cm.caps.balance = -2;
     shot("owner_card_overdrawn", cm);
-    ev(cm, 0, true); ev(cm, 0, false, true);  // back to tabs
+    ev(cm, 0, false, true); ev(cm, 0, false, true);  // back to tabs
   }
 
   // Nudges: who, what, the note after sending, an incoming one, not set up.

@@ -7,7 +7,7 @@ LGFX=.pio/libdeps/cyd/LovyanGFX/src
 AJ=.pio/libdeps/cyd/ArduinoJson/src
 python3 ../tools/build_art.py
 mkdir -p sim/out
-SRCS=(sim/sim_main.cpp sim/stubs.cpp src/ui.cpp src/mascot.cpp src/display.cpp src/scenarios.cpp
+SRCS=(sim/sim_main.cpp sim/stubs.cpp src/ui.cpp src/stat_text.cpp src/mascot.cpp src/display.cpp src/scenarios.cpp
       lib/bookclub_state/src/*.cpp)
 LGFX_SRCS=$(find "$LGFX/lgfx/v1" -maxdepth 1 -name '*.cpp'; find "$LGFX/lgfx/v1/platforms/sdl" -name '*.cpp'; find "$LGFX/lgfx/utility" "$LGFX/lgfx/Fonts" -name '*.c')
 for f in $LGFX_SRCS; do
