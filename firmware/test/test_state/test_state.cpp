@@ -870,6 +870,10 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("HTTP 503", false), "tries again"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("file too large (20000 bytes)", false), "12 KB"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("something new", false), "failed"));
+  // TLS's own reasons, from WiFiClientSecure::lastError().
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - Memory allocation failed", false), "memory"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: X509 - Certificate verification failed, e.g. CRL, CA or signature check failed", false), "certificate"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - The connection indicated an EOF", false), "secure connection"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", true), "7 days"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", false), "All good"));
   TEST_ASSERT_NOT_NULL(syncAdvice(nullptr, false));

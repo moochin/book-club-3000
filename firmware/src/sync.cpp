@@ -81,7 +81,11 @@ static int download(const char* url, const char* token, char* buf, size_t cap) {
   http.addHeader("Cache-Control", "no-cache");
   const int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    if (code < 0) setError("fetch failed: %s", HTTPClient::errorToString(code).c_str());
+    // "connection refused" covers any failed connect: ask TLS for the real
+    // reason (out of memory, certificate, timeout...) when it has one.
+    char tls[48] = "";
+    if (code < 0 && client.lastError(tls, sizeof tls) != 0 && tls[0]) setError("fetch failed: %s", tls);
+    else if (code < 0) setError("fetch failed: %s", HTTPClient::errorToString(code).c_str());
     else setError("HTTP %d%s", code, (code == 404 && !(token && token[0])) ? " (check the data URL)" : "");
     http.end();
     return -1;

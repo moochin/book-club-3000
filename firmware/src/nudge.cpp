@@ -49,6 +49,7 @@ static char g_signalsError[48] = "";
 static volatile SendState g_sendState = SendState::Idle;
 static char g_sendError[48] = "";
 static char g_error[48] = "";
+static char g_tlsWhy[48] = "";  // TLS's reason for the last failed connect (task only)
 
 struct Lock {
   Lock() { xSemaphoreTake(g_mutex, portMAX_DELAY); }
@@ -83,6 +84,7 @@ static int request(const char* method, const char* path, const char* body, char*
   http.setTimeout(cfg::kHttpTimeoutMs);
   http.setConnectTimeout(cfg::kHttpTimeoutMs);
   http.setUserAgent("BookClub3000/" BC_FW_VERSION);
+  g_tlsWhy[0] = '\0';
   if (!http.begin(client, url)) return -100;
   http.addHeader("Authorization", auth);
   int code;
@@ -93,6 +95,7 @@ static int request(const char* method, const char* path, const char* body, char*
     code = http.GET();
   }
   out[0] = '\0';
+  if (code < 0 && client.lastError(g_tlsWhy, sizeof g_tlsWhy) == 0) g_tlsWhy[0] = '\0';
   if (code > 0) {
     // getString() decodes chunked replies; the hub's are a few hundred bytes.
     const String reply = http.getString();
@@ -115,6 +118,8 @@ static void describe(int code, const char* reply, char* dst, size_t cap) {
       ++i;
     }
     dst[i] = '\0';
+  } else if (code < 0 && g_tlsWhy[0]) {
+    snprintf(dst, cap, "hub: %s", g_tlsWhy);
   } else if (code < 0) {
     snprintf(dst, cap, "can't reach the hub");
   } else {
