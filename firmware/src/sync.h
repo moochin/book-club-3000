@@ -24,6 +24,19 @@ bool takeNewData(bc::BookClubData& out);
 // Firmware update progress, 0..100, while status() == Updating.
 int updateProgress();
 
+// fwguard's proof that the update path works, counted per fetch since
+// start-up. On probation, when the club file names a release for this panel,
+// it counts only once that release's download URL has answered (any HTTP
+// status, through GitHub's redirect). Otherwise, any HTTP answer for the club
+// file counts: a typo in it mustn't roll back a good firmware.
+uint32_t reachedCount();
+// How long the current fetch has been running (0 when idle), so a stuck one
+// can be spotted. Excludes a firmware download, which can take minutes.
+uint32_t busyForMs(uint32_t nowMs);
+// A sync or hub exchange holds the TLS lock right now (its session has the
+// heap, so the free-memory check would be misleading).
+bool tlsBusy();
+
 // One HTTPS connection at a time: each TLS session needs ~40 KB of RAM, and
 // this board has no PSRAM. The sync task and the nudge task both take this.
 // begin() creates it, so call datasync::begin() before nudge::begin().

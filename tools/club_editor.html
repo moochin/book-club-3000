@@ -190,6 +190,25 @@ function input(obj, key, label, type = "text", opts = {}) {
   return l;
 }
 
+// The firmware block's "only": owners whose units should take this release
+// (try it on one unit first). Typed as "Pete, Dave"; stored as a list.
+function onlyInput(fw) {
+  const l = document.createElement("label");
+  l.className = "wide";
+  l.textContent = "Only these units (owner names, comma-separated; empty = every unit)";
+  const i = document.createElement("input");
+  i.type = "text";
+  i.placeholder = "Pete";
+  i.value = Array.isArray(fw.only) ? fw.only.join(", ") : "";
+  i.addEventListener("input", () => {
+    const names = i.value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (names.length) fw.only = names; else delete fw.only;
+    changed();
+  });
+  l.appendChild(i);
+  return l;
+}
+
 function removeBtn(onClick) {
   const b = document.createElement("button");
   b.className = "x";
@@ -247,6 +266,7 @@ function render(fromRaw = false) {
     input(fw, "version", "Version", "text", { placeholder: "1.1.0" }),
     input(fw, "url_st7789", "ST7789 build URL", "url", { wide: true }),
     input(fw, "url", "ILI9341 build URL", "url", { wide: true }),
+    onlyInput(fw),
   ];
   // Attach the block only while it has something in it.
   fwInputs.forEach((l) => l.querySelector("input").addEventListener("input", () => {

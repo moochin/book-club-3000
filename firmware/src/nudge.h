@@ -57,4 +57,8 @@ int signals(bc::Signal* out, int cap, uint32_t nowMs);
 uint32_t signalsVersion();
 const char* signalsError();  // why the last check failed ("" if it didn't)
 
+// How long the task has been inside a hub exchange (0 when idle), so a stuck
+// one can be spotted.
+uint32_t busyForMs(uint32_t nowMs);
+
 }  // namespace nudge

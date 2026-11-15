@@ -95,9 +95,14 @@ src/input      EC11 on the hardware pulse counter, debounced push switch
 src/audio      generated Geiger ticks, knob clicks, meeting-day jingle, and
                recorded clips from ../art/sounds via the DAC; src/audio_gen
                has the machine noises (see "Sounds" below)
-src/nudge      nudges and signals: inbox check every minute, signals every
-               10 min, sending, the friends list, via the hub in ../worker
-               (shares sync's TLS lock: one HTTPS connection at a time)
+src/nudge      nudges and signals: one /poll every 5 min (nudges, signals,
+               friends), sending, via the hub in ../worker (shares sync's
+               TLS lock: one HTTPS connection at a time)
+src/https      safe HTTPS for the background tasks: no busy-wait reads on
+               core 0 (they tripped the watchdog), no TLS without the memory
+src/diag       why the unit last started (watchdog culprit, crash, planned
+               restart), memory stats, and self-healing restarts: daily in
+               the small hours, or when memory stays too fragmented
 src/backlight  auto-dimming from the LDR; the screen-power policy
                (lib/bookclub_state/src/bc_screen.h): off at night and after
                10 min in a dark room, dim when idle, 2-min wake at night
@@ -229,6 +234,63 @@ from a GitHub Release, triggered by the shared file.
 ILI9341 builds use `url`; ST7789 builds use only `url_st7789` and skip the
 update if it is missing, so a unit is never flashed with the other panel's
 binary. List only the one your fleet uses if they are all the same.
+
+### The safety net (from 1.5.0)
+
+Once units have shipped, an over-the-air update is the only way in, so a bad
+release must never strand them. From 1.5.0:
+
+- **Probation and rollback** (`src/fwguard`). A new image starts on
+  probation. It is confirmed only once it has proved the update path still
+  works and it has run 10 minutes without a restart. The proof is the
+  release download the club file names for this panel answering over HTTPS,
+  through GitHub's redirect (any HTTP status counts). If the club file names
+  no release, or has a typo, GitHub answering for the club file itself is
+  enough, so a typo can't roll back a good firmware. Any restart before then
+  (crash, watchdog, freeze, even a power cut) makes the bootloader boot the
+  previous image, so the self-healing restarts wait until probation is over.
+  While on probation a failed check is retried every 2 minutes. An image
+  that still can't reach GitHub after 30 minutes of working Wi-Fi rolls
+  itself back.
+  ABOUT shows **ON PROBATION** meanwhile, and **x.y.z ROLLED BACK** after.
+  Arduino normally marks every image good at start-up; overriding
+  `verifyRollbackLater()` hands that decision to fwguard.
+- **No retry loops.** A version rolled back twice is skipped until the club
+  file names another (**ROLLED BACK, SKIPPED** on ABOUT). Release a fixed
+  version with a new number. The note clears once a later version is
+  confirmed.
+- **Watchdogs.** Core 0's idle task (5 s), the main loop (5 s, from the end
+  of `setup()`; paused during a LAN upload), and the background fetches (a
+  sync or hub exchange running 5 minutes is wedged: a quiet restart).
+- **Self-healing.** A quiet restart between 03:00 and 05:00 daily, and when
+  memory stays too fragmented for TLS (see `bc_health.h`).
+
+**Try a release on one unit first.** Add `"only"` to the firmware block with
+the owner names (as set on each unit's setup page) that should take it:
+
+```json
+"firmware": {
+  "version": "1.6.0",
+  "url": "...", "url_st7789": "...",
+  "only": ["Pete"]
+}
+```
+
+Leave it a day. If that unit is happy (ABOUT: no ROLLED BACK, no amber
+STARTED BY), remove `"only"` and every unit takes it. Firmware before 1.5.0
+ignores `"only"`, so this protects the fleet once it is all on 1.5.0. A
+botched `"only"` (not a list, or no names in it) holds the release back from
+every unit rather than sending it to all; `[]` is the same as leaving it out.
+
+**Keep in mind for every release:**
+
+- Never ship a change to `partitions.csv`: an update can't change the
+  partition table, and a mismatched build won't boot.
+- The app slots are 1.9 MB; builds are about 1.47 MB. Keep an eye on the
+  "Flash:" line in the build output.
+- The HTTPS fetches trust the Mozilla CA bundle compiled into the Arduino
+  core. Newer cores bring newer roots, so release now and then even without
+  features, well before any root GitHub uses expires.
 
 The partition table (`partitions.csv`) has two 1.9 MB app slots for OTA and a
 64 KB NVS, which holds settings, saved Wi-Fi and the cached file.

@@ -19,6 +19,7 @@
 #include "config.h"
 #include "diag.h"
 #include "display.h"
+#include "fwguard.h"
 #include "input.h"
 #include "net.h"
 #include "nudge.h"
@@ -186,7 +187,7 @@ bool quietHours(const bc::LocalNow& n) {
 // or on a restart outside quiet hours (the clock survives a soft restart).
 // Not for an update or crash restart in the night.
 bool bootSoundWanted() {
-  if (!settings::get().sound) return false;
+  if (!settings::get().sound || diag::quietStart()) return false;  // not after a planned restart
   if (esp_reset_reason() == ESP_RST_POWERON) return true;
   return !quietHours(clockmod::localNow());
 }
@@ -230,6 +231,7 @@ void setup() {
   diag::begin();
   ledsOff();
   settings::begin();
+  fwguard::begin();  // is this a new firmware on probation?
   input::begin();
   input::setReversed(settings::get().knobReversed);
   audio::begin();
@@ -258,6 +260,10 @@ void setup() {
   nudge::begin();  // after datasync: shares its TLS lock
   g_signalSeenAt = settings::signalSeenAt();
   ui::begin();
+  // From here the main loop is watched too: if it ever freezes for 5 s, the
+  // unit restarts (and a new firmware on probation rolls back). Not earlier:
+  // the factory-reset countdown in setup() legitimately takes 10 s.
+  enableLoopWDT();
 }
 
 void loop() {
@@ -400,6 +406,18 @@ void loop() {
     g_dirty = true;
   }
   audio::tick(now);
+  // Self-healing: a quiet restart in the small hours, or if memory stays too
+  // fragmented for TLS. Never mid-update or with the setup portal open.
+  // A wedged background fetch counts too (a stuck task never recovers).
+  // Not on probation: any restart then rolls back to the previous firmware,
+  // and fwguard's own 30-minute limit already deals with a stuck build.
+  diag::tick(now, now - g_lastInputMs, liveNow,
+             datasync::status() == datasync::Status::Updating || net::portalActive() ||
+                 fwguard::onProbation(),
+             max(datasync::busyForMs(now), nudge::busyForMs(now)));
+  // A new firmware stays on probation until it has fetched the club file and
+  // run 10 minutes; see fwguard.h.
+  fwguard::tick(now, up, datasync::reachedCount());
 
   const settings::Unit& u = settings::get();
   ui::Model m;

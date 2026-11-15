@@ -12,6 +12,7 @@
 #include "config.h"
 #include "diag.h"
 #include "display.h"
+#include "fwguard.h"
 #include "logo_data.h"
 #include "mascot.h"
 #include "scenarios.h"
@@ -763,7 +764,12 @@ void drawAbout(const Model& m) {
     text(92, y, f, ink);
     y += 17;
   };
-  line("FIRMWARE", BC_FW_VERSION " (" __DATE__ ")");
+  {
+    // Probation or a rolled-back update says so; otherwise the build date.
+    const char* fw = fwguard::note(millis());
+    snprintf(buf, sizeof buf, "%s (%s)", BC_FW_VERSION, fw[0] ? fw : __DATE__);
+    line("FIRMWARE", buf, fw[0] ? kWarn : kText);
+  }
   line("UNIT", m.owner[0] ? m.owner : settings::chipId());
   line("WI-FI", m.wifiUp ? "CONNECTED" : (m.portal ? "SETUP PORTAL OPEN" : "OFFLINE"),
        m.wifiUp ? kText : kWarn);

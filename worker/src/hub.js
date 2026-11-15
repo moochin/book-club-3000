@@ -16,6 +16,12 @@
 //                  it signs in with one, then uses the routes below)
 //   POST /signal   {"msg": "..."} -> {"signal": {"from","msg","at","left"}}
 //   GET  /signals  -> {"signals": [{"from","msg","at","left"}]}  (newest first)
+//   GET  /poll?ack=AT -> all three in one reply: {"me","friends","nudges","signals"}.
+//                  Units from 1.5 use this alone, so each check is one TLS
+//                  connection instead of three. Unlike /inbox it doesn't empty
+//                  the inbox: it drops only the nudges at or before `ack`
+//                  (the newest "at" the unit has taken), so a reply the unit
+//                  couldn't read is sent again rather than lost.
 //
 // Signals are quotes broadcast to the whole club, one per unit per day (UK
 // time), and each is gone 24 hours after it was sent: KV
@@ -110,11 +116,40 @@ export async function handle(request, env, now) {
     return json(200, { me, friends: Object.keys(all).filter((n) => n !== me) });
   }
 
-  if (request.method === "GET" && url.pathname === "/inbox") {
+  const takeInbox = async () => {
     const key = `inbox:${me}`;
     const nudges = (await env.NUDGES.get(key, "json")) || [];
     if (nudges.length) await env.NUDGES.delete(key);  // only write when there was mail
-    return json(200, { nudges });
+    return nudges;
+  };
+  const liveSignals = async () => {
+    const signals = [];
+    for (const name of Object.keys(all)) {
+      const sig = liveSignal(await env.NUDGES.get(`signal:${name}`, "json"), now);
+      if (sig) signals.push(sig);
+    }
+    return signals.sort((a, b) => b.at - a.at);
+  };
+
+  if (request.method === "GET" && url.pathname === "/inbox") {
+    return json(200, { nudges: await takeInbox() });
+  }
+
+  if (request.method === "GET" && url.pathname === "/poll") {
+    const key = `inbox:${me}`;
+    const ack = Number(url.searchParams.get("ack")) || 0;
+    const inbox = (await env.NUDGES.get(key, "json")) || [];
+    const nudges = inbox.filter((n) => !(n.at <= ack));
+    if (nudges.length !== inbox.length) {  // only write when the unit took some
+      if (nudges.length) await env.NUDGES.put(key, JSON.stringify(nudges));
+      else await env.NUDGES.delete(key);
+    }
+    return json(200, {
+      me,
+      friends: Object.keys(all).filter((n) => n !== me),
+      nudges,
+      signals: await liveSignals(),
+    });
   }
 
   if (request.method === "POST" && url.pathname === "/nudge") {
@@ -152,13 +187,7 @@ export async function handle(request, env, now) {
   }
 
   if (request.method === "GET" && url.pathname === "/signals") {
-    const signals = [];
-    for (const name of Object.keys(all)) {
-      const sig = liveSignal(await env.NUDGES.get(`signal:${name}`, "json"), now);
-      if (sig) signals.push(sig);
-    }
-    signals.sort((a, b) => b.at - a.at);
-    return json(200, { signals });
+    return json(200, { signals: await liveSignals() });
   }
 
   if (request.method === "POST" && url.pathname === "/signal") {

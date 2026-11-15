@@ -10,6 +10,7 @@
 #include "bc_data.h"
 #include "bc_date.h"
 #include "bc_nudge.h"
+#include "bc_health.h"
 #include "bc_signal.h"
 #include "bc_sync_help.h"
 #include "bc_screen.h"
@@ -759,6 +760,11 @@ void test_nudge_inbox_parsing() {
   TEST_ASSERT_EQUAL_STRING("Pete", n[0].from);
   TEST_ASSERT_EQUAL_STRING("THINKING OF YOU, LOSER", n[1].msg);
   TEST_ASSERT_EQUAL_STRING("I'M ON", n[2].msg);  // folded for the font
+  TEST_ASSERT_TRUE(n[1].at == 2);                 // /poll's ack
+  TEST_ASSERT_TRUE(n[2].at == 0);                 // none given
+  const char* big = R"J({"nudges":[{"from":"Pete","msg":"HI","at":1794779400706}]})J";
+  TEST_ASSERT_EQUAL(1, parseInbox(big, strlen(big), n, kMaxInbox));
+  TEST_ASSERT_TRUE(n[0].at == 1794779400706ULL);  // ms since 1970: past 32 bits
   TEST_ASSERT_EQUAL(1, parseInbox(j, strlen(j), n, 1));  // respects the cap
   const char* empty = "{\"nudges\":[]}";
   TEST_ASSERT_EQUAL(0, parseInbox(empty, strlen(empty), n, kMaxInbox));
@@ -871,6 +877,7 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("file too large (20000 bytes)", false), "12 KB"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("something new", false), "failed"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: can't look up gist.githubusercontent.com", false), "DNS"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: low memory (trying later)", false), "restarts itself"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: can't connect to gist.githubusercontent.com", false), "MEMORY"));
   // TLS's own reasons, from WiFiClientSecure::lastError().
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - Memory allocation failed", false), "memory"));
@@ -879,6 +886,103 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", true), "7 days"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", false), "All good"));
   TEST_ASSERT_NOT_NULL(syncAdvice(nullptr, false));
+}
+
+// ---- Self-healing restarts -----------------------------------------------------------
+
+void test_health_restarts() {
+  constexpr uint32_t H = 60UL * 60 * 1000, M = 60UL * 1000;
+  HealthInput in;
+  in.now.valid = true;
+  in.now.minuteOfDay = 4 * 60;  // 04:00
+  in.uptimeMs = 21 * H;
+  in.idleMs = 30 * M;
+  TEST_ASSERT_EQUAL((int)Restart::Daily, (int)restartDue(in));
+  in.idleMs = 5 * M;  // someone's using it: wait
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.idleMs = 30 * M;
+  in.uptimeMs = 3 * H;  // restarted recently anyway
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.uptimeMs = 21 * H;
+  in.now.minuteOfDay = 14 * 60;  // afternoon: not daily
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.now.minuteOfDay = 5 * 60;   // 05:00 is past the window
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.busy = true;                // never mid-update
+  in.now.minuteOfDay = 4 * 60;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.busy = false;
+
+  // No clock: every two days, when idle.
+  in.now.valid = false;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(in));
+  in.uptimeMs = 49 * H;
+  TEST_ASSERT_EQUAL((int)Restart::Daily, (int)restartDue(in));
+
+  // Low memory: after 10 minutes, at any hour, once untouched for a minute.
+  HealthInput lm;
+  lm.now.valid = true;
+  lm.now.minuteOfDay = 14 * 60;
+  lm.uptimeMs = 2 * H;
+  lm.hadMemory = true;
+  lm.lowMemoryMs = 9 * M;
+  lm.idleMs = 5 * M;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.lowMemoryMs = 10 * M;
+  TEST_ASSERT_EQUAL((int)Restart::LowMemory, (int)restartDue(lm));
+  lm.idleMs = 30 * 1000;  // mid-use: wait
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.idleMs = 5 * M;
+  lm.hadMemory = false;   // never had enough: a restart wouldn't help, so no loop
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+  lm.hadMemory = true;
+  lm.uptimeMs = 20 * M;   // only just started
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(lm));
+
+  // A wedged fetch: restart once nobody's using it.
+  HealthInput st;
+  st.uptimeMs = 2 * H;
+  st.idleMs = 5 * M;
+  st.stuckMs = 4 * M;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(st));
+  st.stuckMs = 5 * M;
+  TEST_ASSERT_EQUAL((int)Restart::Stuck, (int)restartDue(st));
+  st.idleMs = 10 * 1000;
+  TEST_ASSERT_EQUAL((int)Restart::None, (int)restartDue(st));
+}
+
+// ---- Trying a release on some units first ---------------------------------------
+
+void test_firmware_only_list() {
+  const char* j = R"J({"last":{"date":"2026-08-15"},
+    "firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":["Pete", "", 3, "Dave"]}})J";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_EQUAL(2, d.firmware.onlyCount);
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Pete"));
+  TEST_ASSERT_TRUE(d.firmware.forUnit("pete"));   // names match as on the owner card
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Dave"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit(""));      // a unit with no owner set waits
+
+  const char* all = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(all, strlen(all), d));
+  TEST_ASSERT_EQUAL(0, d.firmware.onlyCount);
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Sam"));    // no "only": everyone
+  TEST_ASSERT_TRUE(d.firmware.forUnit(""));
+
+  // A botched "only" holds the release back rather than sending it to all.
+  const char* str = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":"Pete"}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(str, strlen(str), d));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Pete"));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  const char* blank = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":["", 3]}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(blank, strlen(blank), d));
+  TEST_ASSERT_FALSE(d.firmware.forUnit("Sam"));
+  // An empty list is the same as leaving "only" out.
+  const char* none = R"J({"last":{"date":"2026-08-15"},"firmware":{"version":"1.6.0","url":"https://x.example/f.bin","only":[]}})J";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(none, strlen(none), d));
+  TEST_ASSERT_TRUE(d.firmware.forUnit("Sam"));
 }
 
 void setUp() {}
@@ -983,5 +1087,7 @@ int main() {
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);
   RUN_TEST(test_sync_advice);
+  RUN_TEST(test_health_restarts);
+  RUN_TEST(test_firmware_only_list);
   return UNITY_END();
 }

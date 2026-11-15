@@ -43,3 +43,9 @@ const char* startedBy(bool& bad) {
 }
 void memoryText(char* buf, size_t cap) { snprintf(buf, cap, "142K FREE, LOW 96K, BLOCK 60K"); }
 }  // namespace diag
+
+// Firmware probation (src/fwguard.cpp is ESP-only).
+#include "fwguard.h"
+namespace fwguard {
+const char* note(uint32_t) { return ""; }
+}  // namespace fwguard

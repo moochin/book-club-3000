@@ -155,11 +155,16 @@ re-soldering it.
 or tap to wake it. Both times are in the settings menu. It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
+**Staying up:** each unit restarts itself quietly once a day between 03:00
+and 05:00 when nobody's using it, and sooner if its memory gets too
+fragmented for secure connections. Both are silent and normal. **SETTINGS →
+ABOUT** shows why it last started; WATCHDOG, CRASH or BROWNOUT there (in
+amber) is a real problem worth reporting, along with the MEMORY line.
 
 ## Nudges
 
 Poke a friend from your desk: **SETTINGS → SEND NUDGE**, pick a friend (or
-EVERYONE), then a message. It lands on their unit within a minute, with a
+EVERYONE), then a message. It lands on their unit within 5 minutes, with a
 chirp, a flashing blue light and the message in big letters until they press
 or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → QUIET HOURS**) it arrives silently and waits on screen.
 

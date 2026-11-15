@@ -43,6 +43,7 @@ int parseInbox(const char* json, size_t len, Nudge* out, int cap) {
     out[n] = Nudge();
     copyFolded(from, out[n].from, sizeof out[n].from);
     copyFolded(msg, out[n].msg, sizeof out[n].msg);
+    out[n].at = e["at"] | (uint64_t)0;
     ++n;
   }
   return n;

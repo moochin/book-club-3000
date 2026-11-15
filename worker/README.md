@@ -3,13 +3,13 @@
 A tiny [Cloudflare Worker](https://developers.cloudflare.com/workers/) that
 passes nudges ("GET YOUR ASS ONLINE") between the club's units, and keeps the
 club's signals: quotes broadcast to everyone that vanish after 24 hours. Each
-unit checks its inbox once a minute and the signals every 10 minutes; sending
-goes through the knob menu (**SETTINGS → SEND NUDGE** and **SETTINGS → SIGNALS**).
+unit checks in every 5 minutes with one `/poll` (nudges, signals and the
+friends list together); sending goes through the knob menu (**SETTINGS → SEND
+NUDGE** and **SETTINGS → SIGNALS**) or the hub's web page.
 
 One person sets it up once, on their own free Cloudflare account. It needs no
-server and costs nothing at this size. Four units checking every minute is
-about 5,800 requests a day (plus about 600 for signals), against the free
-plan's 100,000.
+server and costs nothing at this size. Four units checking every 5 minutes
+is about 1,200 requests a day, against the free plan's 100,000.
 
 ## Set it up
 
@@ -89,6 +89,7 @@ unit token" until they're updated.
 | `GET /roster` | Who this unit is, and the friends it can nudge |
 | `GET /inbox` | This unit's waiting nudges, which are then removed |
 | `POST /nudge` `{"to": "Dave" or "*", "msg": "…"}` | Sends a nudge to one friend or everyone |
+| `GET /poll?ack=AT` | All of the above for this unit in one reply: `me`, `friends`, `nudges` and `signals`. Nudges stay until acked: each poll drops those with `at` up to `ack` (the newest the unit has taken), so a reply the unit couldn't read is sent again. Units from 1.5 use only this |
 | `POST /signal` `{"msg": "…"}` | Puts this unit's signal on the air for 24 hours, replacing its last one |
 | `GET /signals` | Every unit's live signal (this one's too), newest first, each with `left`: seconds until it's gone |
 
