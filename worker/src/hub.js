@@ -12,11 +12,13 @@
 //   GET  /roster   -> {"me": "Pete", "friends": ["Dave", "Sam"]}
 //   GET  /inbox    -> {"nudges": [{"from","msg","at"}]}  (and empties it)
 //   POST /nudge    {"to": "Dave" | "*", "msg": "..."} -> {"sent": ["Dave"]}
+//   GET  /         the web page for sending from a phone (no token needed;
+//                  it signs in with one, then uses the routes below)
 //   POST /signal   {"msg": "..."} -> {"signal": {"from","msg","at","left"}}
 //   GET  /signals  -> {"signals": [{"from","msg","at","left"}]}  (newest first)
 //
-// Signals are quotes broadcast to the whole club. Each unit has one at a time
-// (a new one replaces it), and it is gone 24 hours after it was sent: KV
+// Signals are quotes broadcast to the whole club, one per unit per day (UK
+// time), and each is gone 24 hours after it was sent: KV
 // deletes it, and /signals ignores any copy KV hasn't swept up yet. "left" is
 // seconds until it goes, so the units don't need their own clocks to agree.
 
@@ -26,7 +28,9 @@ export const MIN_GAP_MS = 15_000;    // between one unit's nudges
 export const MAX_PER_HOUR = 12;      // per sending unit
 export const MAX_SIGNAL = 100;       // characters per signal
 export const SIGNAL_TTL_S = 86_400;  // a signal lasts 24 hours
-export const MAX_SIGNALS_PER_DAY = 3;  // per sending unit, so "daily" stays daily
+export const TIME_ZONE = "Europe/London";  // where the club's "day" starts
+
+import { PAGE } from "./page.js";
 
 function json(status, body) {
   return new Response(JSON.stringify(body), {
@@ -76,8 +80,28 @@ function liveSignal(sig, now) {
   return left > 0 ? { from: sig.from, msg: sig.msg, at: sig.at, left } : null;
 }
 
+// The club's date ("2026-11-15") at `now`, for the one-signal-a-day rule.
+export function clubDay(now) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date(now));
+}
+
+function page() {
+  return new Response(PAGE, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-cache",
+      "content-security-policy":
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; " +
+        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
+
 export async function handle(request, env, now) {
   const url = new URL(request.url);
+  if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return page();
   const me = caller(request, env);
   if (!me) return json(401, { error: "unknown or missing unit token" });
   const all = units(env);
@@ -147,21 +171,16 @@ export async function handle(request, env, now) {
     const msg = cleanMessage(body && body.msg, MAX_SIGNAL);
     if (!msg) return json(400, { error: `msg must be 1-${MAX_SIGNAL} plain characters` });
 
+    // One a day: the club's date of this unit's last signal.
     const rateKey = `signaled:${me}`;
-    const sent = ((await env.NUDGES.get(rateKey, "json")) || []).filter(
-      (t) => now - t < SIGNAL_TTL_S * 1000,
-    );
-    if (sent.length && now - sent[sent.length - 1] < MIN_GAP_MS) {
-      return json(429, { error: "easy, tiger: wait a few seconds" });
-    }
-    if (sent.length >= MAX_SIGNALS_PER_DAY) {
-      return json(429, { error: "the airwaves need a rest: try tomorrow" });
+    const today = clubDay(now);
+    if ((await env.NUDGES.get(rateKey)) === today) {
+      return json(429, { error: "one signal a day: back tomorrow" });
     }
 
     const sig = { from: me, msg, at: now };
     await env.NUDGES.put(`signal:${me}`, JSON.stringify(sig), { expirationTtl: SIGNAL_TTL_S });
-    sent.push(now);
-    await env.NUDGES.put(rateKey, JSON.stringify(sent), { expirationTtl: SIGNAL_TTL_S });
+    await env.NUDGES.put(rateKey, today, { expirationTtl: 2 * SIGNAL_TTL_S });
     return json(200, { signal: liveSignal(sig, now) });
   }
 
