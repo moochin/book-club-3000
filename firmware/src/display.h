@@ -65,7 +65,10 @@ void textCentered(int cx, int y, const char* s, uint8_t ink = kText, int sx = 1,
 void textRight(int rx, int y, const char* s, uint8_t ink = kText, int sx = 1, int sy = 2);
 int textWidth(const char* s, int sx = 1);
 // Writes `s` wrapped to `maxChars` per line; returns the number of lines.
+// `sx` widens the letters (maxChars counts the wide ones).
 int textWrapped(int x, int y, const char* s, int maxChars, int maxLines, uint8_t ink = kText,
-                int lineH = 18);
+                int lineH = 18, int sx = 1);
+// How many lines textWrapped() would need for all of `s`, without drawing.
+int wrappedLines(const char* s, int maxChars);
 
 }  // namespace display

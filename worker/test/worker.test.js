@@ -3,7 +3,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, cleanMessage } from "../src/hub.js";
+import {
+  handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, MAX_SIGNAL, MAX_SIGNALS_PER_DAY, SIGNAL_TTL_S, cleanMessage,
+} from "../src/hub.js";
 
 function fakeKv() {
   const data = new Map();
@@ -14,7 +16,8 @@ function fakeKv() {
       const v = data.get(key);
       return v === undefined ? null : type === "json" ? JSON.parse(v) : v;
     },
-    async put(key, value) { this.writes++; data.set(key, value); },
+    ttls: new Map(),
+    async put(key, value, opts) { this.writes++; data.set(key, value); this.ttls.set(key, opts && opts.expirationTtl); },
     async delete(key) { this.writes++; data.delete(key); },
   };
 }
@@ -123,4 +126,68 @@ test("a broken UNITS secret locks everyone out rather than crashing", async () =
 
 test("unknown routes are 404", async () => {
   assert.equal((await req(setup(), "Pete", "GET", "/nope")).status, 404);
+});
+
+// ---- Signals ------------------------------------------------------------------
+
+const DAY_MS = SIGNAL_TTL_S * 1000;
+
+test("a signal reaches everyone, the sender included, with the time it has left", async () => {
+  const env = setup();
+  const quote = "Look on my works, ye Mighty, and despair!";
+  const r = await req(env, "Pete", "POST", "/signal", { msg: quote });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.signal, { from: "Pete", msg: quote, at: 1_000_000, left: SIGNAL_TTL_S });
+  for (const who of ["Pete", "Dave", "Sam"]) {
+    const got = await req(env, who, "GET", "/signals", undefined, 1_000_000 + 3_600_000);
+    assert.deepEqual(got.body.signals, [{ from: "Pete", msg: quote, at: 1_000_000, left: SIGNAL_TTL_S - 3600 }]);
+  }
+  // Reading doesn't use a signal up, and KV is told to delete it after 24 hours.
+  assert.equal((await req(env, "Dave", "GET", "/signals")).body.signals.length, 1);
+  assert.equal(env.NUDGES.ttls.get("signal:Pete"), SIGNAL_TTL_S);
+});
+
+test("a signal is gone after 24 hours, even before KV sweeps it up", async () => {
+  const env = setup();
+  await req(env, "Sam", "POST", "/signal", { msg: "Hope is the thing with feathers" });
+  const before = await req(env, "Dave", "GET", "/signals", undefined, 1_000_000 + DAY_MS - 1000);
+  assert.equal(before.body.signals.length, 1);
+  assert.equal(before.body.signals[0].left, 1);
+  const after = await req(env, "Dave", "GET", "/signals", undefined, 1_000_000 + DAY_MS);
+  assert.deepEqual(after.body.signals, []);
+});
+
+test("signals come newest first, one per unit, and a new one replaces the old", async () => {
+  const env = setup();
+  await req(env, "Pete", "POST", "/signal", { msg: "first" }, 1_000_000);
+  await req(env, "Dave", "POST", "/signal", { msg: "second" }, 2_000_000);
+  await req(env, "Pete", "POST", "/signal", { msg: "third" }, 3_000_000);
+  const got = (await req(env, "Sam", "GET", "/signals", undefined, 3_000_000)).body.signals;
+  assert.deepEqual(got.map((s) => [s.from, s.msg]), [["Pete", "third"], ["Dave", "second"]]);
+});
+
+test("signals are capped per day, and longer than nudges but not unlimited", async () => {
+  const env = setup();
+  let t = 1_000_000;
+  for (let i = 0; i < MAX_SIGNALS_PER_DAY; i++, t += MIN_GAP_MS) {
+    assert.equal((await req(env, "Pete", "POST", "/signal", { msg: `quote ${i}` }, t)).status, 200);
+  }
+  assert.equal((await req(env, "Pete", "POST", "/signal", { msg: "one more" }, t)).status, 429);
+  assert.equal((await req(env, "Pete", "POST", "/signal", { msg: "tomorrow" }, 1_000_000 + DAY_MS)).status, 200);
+  assert.equal((await req(env, "Dave", "POST", "/signal", { msg: "x".repeat(MAX_SIGNAL) })).status, 200);
+  assert.equal((await req(env, "Dave", "POST", "/signal", { msg: "x".repeat(MAX_SIGNAL + 1) }, 2_000_000)).status, 400);
+  assert.equal((await req(env, "Sam", "POST", "/signal", { msg: "" })).status, 400);
+  assert.equal((await req(env, "Sam", "POST", "/signal", "not json")).status, 400);
+  assert.equal((await req(env, null, "GET", "/signals")).status, 401);
+});
+
+test("signals from a unit taken off the line-up aren't shown", async () => {
+  const env = setup();
+  await req(env, "Sam", "POST", "/signal", { msg: "still here" });
+  env.UNITS = JSON.stringify({ Pete: TOKENS.Pete, Dave: TOKENS.Dave });
+  assert.deepEqual((await req(env, "Pete", "GET", "/signals")).body.signals, []);
+});
+
+test("an ellipsis is spelled out for the units' font", () => {
+  assert.equal(cleanMessage("To be continued…", MAX_SIGNAL), "To be continued...");
 });

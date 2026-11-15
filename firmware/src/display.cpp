@@ -216,12 +216,15 @@ void textRight(int rx, int y, const char* s, uint8_t ink, int sx, int sy) {
   text(rx - textWidth(s, sx), y, s, ink, sx, sy);
 }
 
-int textWrapped(int x, int y, const char* s, int maxChars, int maxLines, uint8_t ink, int lineH) {
+// textWrapped() and wrappedLines(): draws only when `draw` is set.
+static int wrap(int x, int y, const char* s, int maxChars, int maxLines, uint8_t ink, int lineH,
+                int sx, bool draw) {
   char line[64];
   if (maxChars > (int)sizeof line - 1) maxChars = sizeof line - 1;
   int lines = 0;
   while (*s && lines < maxLines) {
     while (*s == ' ') ++s;
+    if (!*s) break;
     int n = (int)strlen(s);
     if (n > maxChars) {
       n = maxChars;
@@ -233,17 +236,24 @@ int textWrapped(int x, int y, const char* s, int maxChars, int maxLines, uint8_t
         memcpy(line, s, (size_t)n);
         line[n] = '~';
         line[n + 1] = 0;
-        text(x, y + lines * lineH, line, ink);
+        if (draw) text(x, y + lines * lineH, line, ink, sx);
         return lines + 1;
       }
     }
     memcpy(line, s, (size_t)n);
     line[n] = 0;
-    text(x, y + lines * lineH, line, ink);
+    if (draw) text(x, y + lines * lineH, line, ink, sx);
     s += n;
     ++lines;
   }
   return lines;
 }
+
+int textWrapped(int x, int y, const char* s, int maxChars, int maxLines, uint8_t ink, int lineH,
+                int sx) {
+  return wrap(x, y, s, maxChars, maxLines, ink, lineH, sx, true);
+}
+
+int wrappedLines(const char* s, int maxChars) { return wrap(0, 0, s, maxChars, 1000, 0, 0, 1, false); }
 
 }  // namespace display

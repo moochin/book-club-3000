@@ -143,7 +143,7 @@ On STAT, press for your owner card: turn to pick a stat and press for its
 page, or turn onto **< BACK** (top right) and press to leave. On LOG, press to
 switch between changing tabs and scrolling. A 2 s hold is a shortcut: it opens
 settings from the tabs and goes back from anywhere else. Settings has refresh,
-send nudge, sound, volume, quiet hours, brightness, theme, scanlines, screen off
+send nudge, signals, sound, volume, quiet hours, brightness, theme, scanlines, screen off
 at night, dim when idle, knob direction, owner card, how to use, about and
 Wi-Fi reset. If a knob turns the wrong way, set **KNOB: REVERSED** rather than
 re-soldering it.
@@ -169,6 +169,34 @@ Nudges go through a small hub that one person sets up once on a free
 Cloudflare account: see [`worker/README.md`](worker/README.md). They then put
 the hub's address in the club file and give each friend their own token for
 the setup page.
+
+## Signals
+
+A signal from the wasteland: a quote you broadcast to every unit in the club.
+It stays on the air for 24 hours, then it's gone for good.
+
+**SETTINGS → SIGNALS** shows what's on the air, one quote at a time, with
+who sent it and a signal-strength bar that fades as its 24 hours run out.
+Turn past the last one to **BROADCAST YOURS**, press, turn to pick a quote and
+press to send. Each person has one signal on the air at a time: sending
+another replaces it (three a day at most). When a friend's new signal arrives,
+units tune in with a sweep of the radio dial and show it until someone presses
+or taps. In quiet hours it arrives silently. STAT mentions what's on the air,
+and tapping that line opens the signals.
+
+The built-in quotes come from books old enough to belong to everyone
+(Shelley's *Ozymandias*, Coleridge, Dickinson, Shakespeare...), plus a few
+dispatches like *STILL ALIVE OUT HERE. BARELY. SEND SNACKS.* To use the club's
+own, add them under **SIGNALS** in the club editor (up to 16, 100 characters
+each), or in the gist:
+
+```json
+"signals": { "quotes": ["Not all who read are lost.", "Bring the good biscuits."] }
+```
+
+Signals use the nudge hub, so they need the same setup. A hub set up before
+signals existed needs redeploying once (`npx wrangler deploy` in `worker/`);
+until then units show **NO SIGNAL: the hub needs updating for signals**.
 
 Firmware details, the bring-up checklist and the release process are in
 [`firmware/README.md`](firmware/README.md).

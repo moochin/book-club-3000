@@ -7,6 +7,7 @@
 
 #include "bc_data.h"
 #include "bc_nudge.h"
+#include "bc_signal.h"
 #include "bc_state.h"
 #include "input.h"
 
@@ -55,6 +56,12 @@ struct Model {
   const bc::Nudge* incoming = nullptr;     // a received nudge waiting to be seen
   const char* toast = nullptr;             // a short note at the bottom ("NUDGE SENT")
   bool toastWarn = false;
+  // Signals: quotes on the air for 24 hours.
+  int signalCount = 0;
+  const bc::Signal* signals = nullptr;     // live ones, newest first
+  const char* me = "";                     // this unit's name on the hub
+  const char* signalsError = "";           // why the last check failed
+  const bc::Signal* incomingSignal = nullptr;  // a new one waiting to be seen
 };
 
 enum class Action : uint8_t {
@@ -75,6 +82,8 @@ enum class Action : uint8_t {
   ExitPreview,
   SendNudge,    // arg = friend index (-1 = everyone), arg2 = message index
   DismissNudge,
+  BroadcastSignal,  // arg = quote index
+  DismissSignal,
 };
 
 struct Result {
@@ -98,7 +107,7 @@ struct View {
   uint8_t tab = 0;
 };
 View view();
-constexpr int kMenuItems = 16;  // rows in the settings list
+constexpr int kMenuItems = 17;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);

@@ -5,9 +5,12 @@
 #include <time.h>
 #include <unity.h>
 
+#include <string>
+
 #include "bc_data.h"
 #include "bc_date.h"
 #include "bc_nudge.h"
+#include "bc_signal.h"
 #include "bc_screen.h"
 #include "bc_state.h"
 #include "bc_text.h"
@@ -795,6 +798,63 @@ void test_nudge_messages_from_club_file() {
   TEST_ASSERT_EQUAL_STRING("", d.nudges.url);  // https only
 }
 
+// ---- Signals -----------------------------------------------------------------------
+
+void test_signal_parsing() {
+  const char* j = R"J({"signals":[
+    {"from":"Dave","msg":"Look on my works, ye Mighty, and despair!","at":1795000000123,"left":86000},
+    {"from":"Sam","msg":"gone already","at":1794900000000,"left":0},
+    {"from":"","msg":"no sender","at":1,"left":5},
+    {"from":"Jonno","msg":"Hope is the thing with feathers\u2026","at":1794990000000,"left":999999}]})J";
+  Signal s[kMaxSignals];
+  TEST_ASSERT_EQUAL(2, parseSignals(j, strlen(j), s, kMaxSignals));
+  TEST_ASSERT_EQUAL_STRING("Dave", s[0].from);
+  TEST_ASSERT_EQUAL_STRING("Look on my works, ye Mighty, and despair!", s[0].msg);
+  TEST_ASSERT_EQUAL_UINT32(1795000000u, s[0].at);  // ms -> s, past 32 bits of ms
+  TEST_ASSERT_EQUAL_UINT32(86000u, s[0].left);
+  TEST_ASSERT_EQUAL_STRING("Jonno", s[1].from);
+  TEST_ASSERT_EQUAL_UINT32(kSignalLifeSecs, s[1].left);  // never more than a day
+  TEST_ASSERT_EQUAL(1, parseSignals(j, strlen(j), s, 1));
+  const char* empty = "{\"signals\":[]}";
+  TEST_ASSERT_EQUAL(0, parseSignals(empty, strlen(empty), s, kMaxSignals));
+  const char* old = "{\"error\":\"not found\"}";  // a hub from before signals
+  TEST_ASSERT_EQUAL(-1, parseSignals(old, strlen(old), s, kMaxSignals));
+  TEST_ASSERT_EQUAL(-1, parseSignals("garbage", 7, s, kMaxSignals));
+}
+
+void test_signal_quotes_from_club_file() {
+  BookClubData none;
+  TEST_ASSERT_TRUE(signalQuoteCount(&none) >= 10);  // built-in set
+  TEST_ASSERT_TRUE(strlen(signalQuote(nullptr, 0)) > 0);
+  TEST_ASSERT_EQUAL_STRING("", signalQuote(&none, 999));
+  for (int i = 0; i < signalQuoteCount(nullptr); ++i) {
+    TEST_ASSERT_TRUE(strlen(signalQuote(nullptr, i)) <= (size_t)kSignalTextLen - 1);
+  }
+
+  std::string longQuote(101, 'x');
+  std::string j = R"J({"last":{"date":"2026-08-15"},"signals":{"quotes":[
+    "Not all who read are lost.", "", 7, ")J" + longQuote + R"J(", "Caf\u00e9 at the end of the world"]}})J";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j.c_str(), j.size(), d));
+  TEST_ASSERT_EQUAL(2, signalQuoteCount(&d));  // empty, non-text and too-long skipped
+  TEST_ASSERT_EQUAL_STRING("Not all who read are lost.", signalQuote(&d, 0));
+  TEST_ASSERT_EQUAL_STRING("Cafe at the end of the world", signalQuote(&d, 1));
+}
+
+void test_signal_time_left() {
+  char b[16];
+  signalLeftText(kSignalLifeSecs, b, sizeof b);
+  TEST_ASSERT_EQUAL_STRING("24H LEFT", b);
+  signalLeftText(3600, b, sizeof b);
+  TEST_ASSERT_EQUAL_STRING("1H LEFT", b);
+  signalLeftText(3599, b, sizeof b);
+  TEST_ASSERT_EQUAL_STRING("60M LEFT", b);
+  signalLeftText(1, b, sizeof b);
+  TEST_ASSERT_EQUAL_STRING("1M LEFT", b);
+  signalLeftText(0, b, sizeof b);
+  TEST_ASSERT_EQUAL_STRING("GONE", b);
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -893,5 +953,8 @@ int main() {
   RUN_TEST(test_nudge_inbox_parsing);
   RUN_TEST(test_nudge_roster_parsing);
   RUN_TEST(test_nudge_messages_from_club_file);
+  RUN_TEST(test_signal_parsing);
+  RUN_TEST(test_signal_quotes_from_club_file);
+  RUN_TEST(test_signal_time_left);
   return UNITY_END();
 }

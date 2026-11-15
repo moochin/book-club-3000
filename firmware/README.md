@@ -95,9 +95,9 @@ src/input      EC11 on the hardware pulse counter, debounced push switch
 src/audio      generated Geiger ticks, knob clicks, meeting-day jingle, and
                recorded clips from ../art/sounds via the DAC; src/audio_gen
                has the machine noises (see "Sounds" below)
-src/nudge      nudges: inbox check every minute, sending, the friends list,
-               via the hub in ../worker (shares sync's TLS lock: one HTTPS
-               connection at a time)
+src/nudge      nudges and signals: inbox check every minute, signals every
+               10 min, sending, the friends list, via the hub in ../worker
+               (shares sync's TLS lock: one HTTPS connection at a time)
 src/backlight  auto-dimming from the LDR; the screen-power policy
                (lib/bookclub_state/src/bc_screen.h): off at night and after
                10 min in a dark room, dim when idle, 2-min wake at night

@@ -186,6 +186,21 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
     }
   }
 
+  // Signals: the club's own quotes (ASCII, 100 characters).
+  JsonVariantConst sg = root["signals"];
+  if (sg.is<JsonObjectConst>()) {
+    d->signals.quoteCount = 0;
+    for (JsonVariantConst q : sg["quotes"].as<JsonArrayConst>()) {
+      if (d->signals.quoteCount >= kMaxSignalQuotes) break;
+      const char* s = q.is<const char*>() ? q.as<const char*>() : nullptr;
+      if (!s) continue;
+      char folded[kSignalTextLen + 8];
+      asciiFold(s, folded, sizeof folded);
+      if (!folded[0] || strlen(folded) > kSignalTextLen - 1) continue;  // the hub would refuse it
+      strcpy(d->signals.quotes[d->signals.quoteCount++], folded);
+    }
+  }
+
   JsonVariantConst fw = root["firmware"];
   if (fw.is<JsonObjectConst>()) {
     copyText(fw["version"], d->firmware.version, sizeof d->firmware.version);
