@@ -19,7 +19,9 @@ block in step 2, check that unit's ABOUT a day later, then remove `"only"`.
 
        https://github.com/moochin/book-club-3000/releases/new?tag=vX.Y.Z&target=main&title=vX.Y.Z
 
-   Publishing creates the tag. The Firmware workflow checks that the tag
+   **Only once the version bump is merged to `main`**: publishing tags
+   whatever `main` is at that moment, and a release published early (as
+   v1.3.15 and v1.5.0 were) gets no binaries. Publishing creates the tag. The Firmware workflow checks that the tag
    matches `BC_FW_VERSION`, builds the firmware and attaches `firmware.bin`
    and `firmware-st7789.bin`. A tag that doesn't match fails that check and
    publishes no binaries. Before step 2, wait for the build to finish
