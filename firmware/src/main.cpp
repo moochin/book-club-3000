@@ -51,6 +51,13 @@ uint32_t g_toastSinceMs = 0;
 char g_toast[56] = "";
 bool g_toastWarn = false;
 
+// Signals: the live list, and a friend's new one waiting on screen.
+bc::Signal g_signals[bc::kMaxSignals];
+bc::Signal g_signal;
+bool g_signalShown = false;
+uint32_t g_signalsSeenVersion = 0;
+uint32_t g_signalSeenAt = 0;  // newest signal already announced (its send time)
+
 void ledsOff() {
   for (int pin : {cfg::kPinLedR, cfg::kPinLedG, cfg::kPinLedB}) {
     pinMode(pin, OUTPUT);
@@ -157,6 +164,12 @@ void doAction(const ui::Result& r) {
       return;
     }
     case ui::Action::DismissNudge: g_nudgeShown = false; return;
+    case ui::Action::BroadcastSignal: {
+      const char* msg = bc::signalQuote(g_hasData ? &g_data : nullptr, r.arg);
+      if (msg[0]) nudge::broadcast(msg);
+      return;
+    }
+    case ui::Action::DismissSignal: g_signalShown = false; return;
   }
   settings::save();
 }
@@ -241,6 +254,7 @@ void setup() {
   net::begin();
   datasync::begin();
   nudge::begin();  // after datasync: shares its TLS lock
+  g_signalSeenAt = settings::signalSeenAt();
   ui::begin();
 }
 
@@ -324,7 +338,39 @@ void loop() {
       g_nudgeWake = true;
     }
   }
-  // The RGB LED (active low): blue blinks while a new nudge is fresh.
+  // A friend's new signal: after each check, the newest one we haven't
+  // announced tunes in on screen (silently in quiet hours). Older new ones
+  // are marked seen too; they're all in SETTINGS > SIGNALS.
+  const int signalCount = nudge::signals(g_signals, bc::kMaxSignals, now);
+  const uint32_t sv = nudge::signalsVersion();
+  if (sv != g_signalsSeenVersion && !g_nudgeShown && !g_signalShown) {
+    g_signalsSeenVersion = sv;
+    const char* me = nudge::me();
+    int newest = -1;
+    uint32_t seen = g_signalSeenAt;
+    for (int i = 0; me[0] && i < signalCount; ++i) {
+      if (strcmp(g_signals[i].from, me) == 0 || g_signals[i].at <= g_signalSeenAt) continue;
+      if (newest < 0 || g_signals[i].at > g_signals[newest].at) newest = i;
+      if (g_signals[i].at > seen) seen = g_signals[i].at;
+    }
+    if (newest >= 0) {
+      g_signal = g_signals[newest];
+      g_signalShown = true;
+      g_signalSeenAt = seen;
+      settings::setSignalSeenAt(seen);
+      g_dirty = true;
+      if (!quietHours(liveNow)) {
+        audio::tunerScan(0, ui::kMenuItems - 1, ui::kMenuItems);  // tuning in to a station
+        g_ledUntilMs = now + 8000;
+        g_nudgeWake = true;
+      }
+    }
+  }
+  static int lastSignalCount = 0;
+  if (signalCount != lastSignalCount) g_dirty = true;  // one went off the air
+  lastSignalCount = signalCount;
+
+  // The RGB LED (active low): blue blinks while a new nudge or signal is fresh.
   digitalWrite(cfg::kPinLedB, (now < g_ledUntilMs && (now / 200) % 2) ? LOW : HIGH);
 
   // After sending: a short note at the bottom of the screen.
@@ -338,7 +384,9 @@ void loop() {
     g_toastWarn = ss == nudge::SendState::Failed;
     if (ss == nudge::SendState::Sent) audio::nudgeSent();
     else if (ss == nudge::SendState::Failed) audio::errorBuzz();
-    if (ss == nudge::SendState::Sending) snprintf(g_toast, sizeof g_toast, "SENDING NUDGE...");
+    const bool signal = nudge::sendWasSignal();
+    if (ss == nudge::SendState::Sending) snprintf(g_toast, sizeof g_toast, signal ? "BROADCASTING..." : "SENDING NUDGE...");
+    else if (ss == nudge::SendState::Sent && signal) snprintf(g_toast, sizeof g_toast, "SIGNAL ON THE AIR FOR 24 HOURS");
     else if (ss == nudge::SendState::Sent) snprintf(g_toast, sizeof g_toast, "NUDGE SENT TO %s", who);
     else if (ss == nudge::SendState::Failed) snprintf(g_toast, sizeof g_toast, "NOT SENT: %s", nudge::sendError());
     else g_toast[0] = '\0';
@@ -395,6 +443,11 @@ void loop() {
   }
   m.incoming = g_nudgeShown ? &g_nudge : nullptr;
   m.toast = g_toast[0] ? g_toast : nullptr;
+  m.signalCount = signalCount;
+  m.signals = g_signals;
+  m.me = nudge::me();
+  m.signalsError = nudge::signalsError();
+  m.incomingSignal = g_signalShown ? &g_signal : nullptr;
   m.toastWarn = g_toastWarn;
 
   const ui::View viewWas = ui::view();

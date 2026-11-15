@@ -123,6 +123,21 @@ void setLastSyncEpoch(uint32_t epoch) {
   p.end();
 }
 
+uint32_t signalSeenAt() {
+  Preferences p;
+  p.begin(kCacheNs, true);
+  const uint32_t v = p.getULong("sigseen", 0);
+  p.end();
+  return v;
+}
+
+void setSignalSeenAt(uint32_t at) {
+  Preferences p;
+  if (!p.begin(kCacheNs, false)) return;
+  p.putULong("sigseen", at);
+  p.end();
+}
+
 void factoryReset() {
   Serial.println("[settings] factory reset");
   WiFi.disconnect(true, true);  // forget saved network

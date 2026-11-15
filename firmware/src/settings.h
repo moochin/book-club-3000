@@ -44,6 +44,10 @@ void saveCachedFile(const char* data, size_t len);
 // UTC epoch of the last successful sync (0 = never).
 uint32_t lastSyncEpoch();
 void setLastSyncEpoch(uint32_t epoch);
+// The newest signal already shown (its send time, seconds since 1970), so a
+// restart doesn't announce it again. 0 = none yet.
+uint32_t signalSeenAt();
+void setSignalSeenAt(uint32_t at);
 
 // Clears settings, cache and saved Wi-Fi, then restarts.
 [[noreturn]] void factoryReset();

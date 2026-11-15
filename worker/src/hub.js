@@ -12,11 +12,21 @@
 //   GET  /roster   -> {"me": "Pete", "friends": ["Dave", "Sam"]}
 //   GET  /inbox    -> {"nudges": [{"from","msg","at"}]}  (and empties it)
 //   POST /nudge    {"to": "Dave" | "*", "msg": "..."} -> {"sent": ["Dave"]}
+//   POST /signal   {"msg": "..."} -> {"signal": {"from","msg","at","left"}}
+//   GET  /signals  -> {"signals": [{"from","msg","at","left"}]}  (newest first)
+//
+// Signals are quotes broadcast to the whole club. Each unit has one at a time
+// (a new one replaces it), and it is gone 24 hours after it was sent: KV
+// deletes it, and /signals ignores any copy KV hasn't swept up yet. "left" is
+// seconds until it goes, so the units don't need their own clocks to agree.
 
 export const MAX_MSG = 40;           // characters per nudge
 export const MAX_INBOX = 20;         // oldest dropped beyond this
 export const MIN_GAP_MS = 15_000;    // between one unit's nudges
 export const MAX_PER_HOUR = 12;      // per sending unit
+export const MAX_SIGNAL = 100;       // characters per signal
+export const SIGNAL_TTL_S = 86_400;  // a signal lasts 24 hours
+export const MAX_SIGNALS_PER_DAY = 3;  // per sending unit, so "daily" stays daily
 
 function json(status, body) {
   return new Response(JSON.stringify(body), {
@@ -52,11 +62,18 @@ function caller(request, env) {
 }
 
 // Plain printable text only: the units' bitmap font is ASCII.
-export function cleanMessage(msg) {
+export function cleanMessage(msg, max = MAX_MSG) {
   if (typeof msg !== "string") return null;
-  const s = msg.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').trim();
-  if (!s || s.length > MAX_MSG || !/^[\x20-\x7E]+$/.test(s)) return null;
+  const s = msg.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, "...").trim();
+  if (!s || s.length > max || !/^[\x20-\x7E]+$/.test(s)) return null;
   return s;
+}
+
+// A stored signal as the units see it, or null once it has expired.
+function liveSignal(sig, now) {
+  if (!sig || typeof sig.at !== "number") return null;
+  const left = Math.floor((sig.at + SIGNAL_TTL_S * 1000 - now) / 1000);
+  return left > 0 ? { from: sig.from, msg: sig.msg, at: sig.at, left } : null;
 }
 
 export async function handle(request, env, now) {
@@ -108,6 +125,44 @@ export async function handle(request, env, now) {
     sent.push(now);
     await env.NUDGES.put(rateKey, JSON.stringify(sent), { expirationTtl: 3600 });
     return json(200, { sent: to });
+  }
+
+  if (request.method === "GET" && url.pathname === "/signals") {
+    const signals = [];
+    for (const name of Object.keys(all)) {
+      const sig = liveSignal(await env.NUDGES.get(`signal:${name}`, "json"), now);
+      if (sig) signals.push(sig);
+    }
+    signals.sort((a, b) => b.at - a.at);
+    return json(200, { signals });
+  }
+
+  if (request.method === "POST" && url.pathname === "/signal") {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json(400, { error: "body must be JSON" });
+    }
+    const msg = cleanMessage(body && body.msg, MAX_SIGNAL);
+    if (!msg) return json(400, { error: `msg must be 1-${MAX_SIGNAL} plain characters` });
+
+    const rateKey = `signaled:${me}`;
+    const sent = ((await env.NUDGES.get(rateKey, "json")) || []).filter(
+      (t) => now - t < SIGNAL_TTL_S * 1000,
+    );
+    if (sent.length && now - sent[sent.length - 1] < MIN_GAP_MS) {
+      return json(429, { error: "easy, tiger: wait a few seconds" });
+    }
+    if (sent.length >= MAX_SIGNALS_PER_DAY) {
+      return json(429, { error: "the airwaves need a rest: try tomorrow" });
+    }
+
+    const sig = { from: me, msg, at: now };
+    await env.NUDGES.put(`signal:${me}`, JSON.stringify(sig), { expirationTtl: SIGNAL_TTL_S });
+    sent.push(now);
+    await env.NUDGES.put(rateKey, JSON.stringify(sent), { expirationTtl: SIGNAL_TTL_S });
+    return json(200, { signal: liveSignal(sig, now) });
   }
 
   return json(404, { error: "not found" });

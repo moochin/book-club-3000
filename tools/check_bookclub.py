@@ -135,6 +135,23 @@ def check(raw):
                 if len(msgs) > 16:
                     warnings.append("units show at most 16 nudge messages; the rest will be ignored")
 
+        sg = doc.get("signals")
+        if sg is not None:
+            if not isinstance(sg, dict):
+                warnings.append('"signals" should be an object with "quotes"; it will be ignored')
+            else:
+                quotes = sg.get("quotes", [])
+                if not isinstance(quotes, list):
+                    warnings.append('"signals.quotes" should be a [ ... ] list; units will use their built-in ones')
+                    quotes = []
+                for i, q in enumerate(quotes):
+                    if not isinstance(q, str) or not q.strip():
+                        warnings.append(f"signal quote {i + 1} is empty or not text; it will be skipped")
+                    elif len(q) > 100:
+                        warnings.append(f'signal quote {i + 1} ("{q[:20]}...") is over 100 characters; it will be skipped')
+                if len(quotes) > 16:
+                    warnings.append("units offer at most 16 signal quotes; the rest will be ignored")
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []

@@ -16,6 +16,7 @@ namespace nudge {
 
 constexpr uint32_t kPollMs = 60UL * 1000;          // inbox check
 constexpr uint32_t kRosterMs = 60UL * 60 * 1000;   // friends list refresh
+constexpr uint32_t kSignalsMs = 10UL * 60 * 1000;  // signals check
 constexpr size_t kReplyCap = 4096;
 
 static TaskHandle_t g_task;
@@ -32,7 +33,16 @@ static bc::Nudge g_incoming[bc::kMaxInbox];
 static int g_inHead = 0, g_inCount = 0;
 static bool g_sendPending = false;
 static char g_sendTo[bc::kNameLen] = "";
-static char g_sendMsg[bc::kNudgeMsgLen] = "";
+static char g_sendMsg[bc::kSignalMsgLen] = "";  // a nudge or a signal
+static bool g_sendSignal = false;
+static char g_me[bc::kNameLen] = "";
+static bc::Signal g_signals[bc::kMaxSignals];
+static int g_signalCount = 0;
+static uint32_t g_signalsAtMs = 0;     // when g_signals was fetched
+static uint32_t g_signalsTryMs = 0;    // the last check, good or bad
+static bool g_signalsDue = true;
+static volatile uint32_t g_signalsVersion = 0;
+static char g_signalsError[48] = "";
 static volatile SendState g_sendState = SendState::Idle;
 static char g_sendError[48] = "";
 static char g_error[48] = "";
@@ -108,14 +118,16 @@ static void describe(int code, const char* reply, char* dst, size_t cap) {
 }
 
 static void doSend(char* buf) {
-  char to[bc::kNameLen], msg[bc::kNudgeMsgLen];
+  char to[bc::kNameLen], msg[bc::kSignalMsgLen];
+  bool signal;
   {
     Lock l;
     strlcpy(to, g_sendTo, sizeof to);
     strlcpy(msg, g_sendMsg, sizeof msg);
+    signal = g_sendSignal;
     g_sendPending = false;
   }
-  char body[160];
+  char body[2 * bc::kNameLen + 2 * bc::kSignalMsgLen + 24];
   // Names and messages are plain ASCII without quotes or backslashes in
   // practice, but escape them anyway so the JSON is always valid.
   auto esc = [](const char* s, char* d, size_t cap) {
@@ -126,14 +138,25 @@ static void doSend(char* buf) {
     }
     d[j] = '\0';
   };
-  char eto[2 * bc::kNameLen], emsg[2 * bc::kNudgeMsgLen];
+  char eto[2 * bc::kNameLen], emsg[2 * bc::kSignalMsgLen];
   esc(to, eto, sizeof eto);
   esc(msg, emsg, sizeof emsg);
-  snprintf(body, sizeof body, "{\"to\":\"%s\",\"msg\":\"%s\"}", eto, emsg);
-  const int code = request("POST", "/nudge", body, buf, kReplyCap);
+  int code;
+  if (signal) {
+    snprintf(body, sizeof body, "{\"msg\":\"%s\"}", emsg);
+    code = request("POST", "/signal", body, buf, kReplyCap);
+    if (code == 404) strlcpy(buf, "{\"error\":\"the hub needs updating for signals\"}", kReplyCap);
+  } else {
+    snprintf(body, sizeof body, "{\"to\":\"%s\",\"msg\":\"%s\"}", eto, emsg);
+    code = request("POST", "/nudge", body, buf, kReplyCap);
+  }
   if (code == 200) {
     g_sendState = SendState::Sent;
-    Serial.printf("[nudge] sent to %s\n", to);
+    if (signal) {
+      Lock l;
+      g_signalsDue = true;  // show our own straight away
+    }
+    Serial.printf("[nudge] %s\n", signal ? "signal broadcast" : "sent");
   } else {
     char why[48];
     describe(code, buf, why, sizeof why);
@@ -156,6 +179,7 @@ static void doRoster(char* buf, uint32_t now) {
   }
   Lock l;
   memcpy(g_friends, friends, sizeof friends);
+  strlcpy(g_me, me, sizeof g_me);
   g_friendCount = n;
   g_rosterAtMs = now;
   g_rosterOk = true;
@@ -185,6 +209,26 @@ static void doInbox(char* buf) {
   if (n) Serial.printf("[nudge] %d new\n", n);
 }
 
+static void doSignals(char* buf) {
+  const int code = request("GET", "/signals", "", buf, kReplyCap);
+  const uint32_t now = millis();  // "left" counts down from the reply
+  static bc::Signal got[bc::kMaxSignals];
+  const int n = code == 200 ? bc::parseSignals(buf, strlen(buf), got, bc::kMaxSignals) : -1;
+  Lock l;
+  g_signalsDue = false;
+  g_signalsTryMs = now;  // paces the next check, after a failure too
+  if (n < 0) {
+    if (code == 404) strlcpy(g_signalsError, "the hub needs updating for signals", sizeof g_signalsError);
+    else describe(code, buf, g_signalsError, sizeof g_signalsError);
+    return;
+  }
+  memcpy(g_signals, got, sizeof got);
+  g_signalCount = n;
+  g_signalsAtMs = now;
+  g_signalsError[0] = '\0';
+  ++g_signalsVersion;
+}
+
 static void taskMain(void*) {
   static char buf[kReplyCap];
   for (;;) {
@@ -192,7 +236,7 @@ static void taskMain(void*) {
     if (!g_wifiUp || !configured()) continue;
     const uint32_t now = millis();
     datasync::lockTls();
-    bool pending, rosterDue;
+    bool pending, rosterDue, signalsDue;
     {
       Lock l;
       pending = g_sendPending;
@@ -201,6 +245,11 @@ static void taskMain(void*) {
     if (pending) doSend(buf);
     if (rosterDue) doRoster(buf, now);
     doInbox(buf);
+    {
+      Lock l;  // after doSend, which can make it due
+      signalsDue = g_signalsDue || now - g_signalsTryMs >= kSignalsMs;
+    }
+    if (signalsDue) doSignals(buf);
     datasync::unlockTls();
   }
 }
@@ -221,6 +270,8 @@ void tick(uint32_t, bool wifiUp, const char* hubUrl) {
       strlcpy(g_url, hubUrl ? hubUrl : "", sizeof g_url);
       g_rosterOk = false;
       g_friendCount = 0;
+      g_signalCount = 0;
+      g_signalsDue = true;
     }
   }
   // Check straight away when the hub or the network first appears.
@@ -244,11 +295,12 @@ const char* friendName(int i) {
   return name;
 }
 
-void send(const char* to, const char* msg) {
+static void queue(const char* to, const char* msg, bool signal) {
   {
     Lock l;
     strlcpy(g_sendTo, to, sizeof g_sendTo);
-    strlcpy(g_sendMsg, msg, sizeof g_sendMsg);
+    strlcpy(g_sendMsg, msg, signal ? sizeof g_sendMsg : bc::kNudgeMsgLen);
+    g_sendSignal = signal;
     g_sendPending = true;
     g_sendError[0] = '\0';
   }
@@ -256,7 +308,16 @@ void send(const char* to, const char* msg) {
   xTaskNotifyGive(g_task);
 }
 
+void send(const char* to, const char* msg) { queue(to, msg, false); }
+
+void broadcast(const char* msg) { queue("*", msg, true); }
+
 SendState sendState() { return g_sendState; }
+
+bool sendWasSignal() {
+  Lock l;
+  return g_sendSignal;
+}
 
 const char* sendTo() {
   static char to[bc::kNameLen];
@@ -289,6 +350,35 @@ const char* lastError() {
   static char e[sizeof g_error];
   Lock l;
   strlcpy(e, g_error, sizeof e);
+  return e;
+}
+
+const char* me() {
+  static char name[bc::kNameLen];
+  Lock l;
+  strlcpy(name, g_me, sizeof name);
+  return name;
+}
+
+int signals(bc::Signal* out, int cap, uint32_t nowMs) {
+  Lock l;
+  const uint32_t gone = (nowMs - g_signalsAtMs) / 1000;  // seconds since the check
+  int n = 0;
+  for (int i = 0; i < g_signalCount && n < cap; ++i) {
+    if (g_signals[i].left <= gone) continue;  // its 24 hours are up
+    out[n] = g_signals[i];
+    out[n].left -= gone;
+    ++n;
+  }
+  return n;
+}
+
+uint32_t signalsVersion() { return g_signalsVersion; }
+
+const char* signalsError() {
+  static char e[sizeof g_signalsError];
+  Lock l;
+  strlcpy(e, g_signalsError, sizeof e);
   return e;
 }
 

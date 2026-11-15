@@ -1,13 +1,15 @@
 # Nudge hub
 
 A tiny [Cloudflare Worker](https://developers.cloudflare.com/workers/) that
-passes nudges ("GET YOUR ASS ONLINE") between the club's units. Each unit
-checks its inbox once a minute; sending goes through the knob menu
-(**SETTINGS → SEND NUDGE**).
+passes nudges ("GET YOUR ASS ONLINE") between the club's units, and keeps the
+club's signals: quotes broadcast to everyone that vanish after 24 hours. Each
+unit checks its inbox once a minute and the signals every 10 minutes; sending
+goes through the knob menu (**SETTINGS → SEND NUDGE** and **SETTINGS → SIGNALS**).
 
 One person sets it up once, on their own free Cloudflare account. It needs no
 server and costs nothing at this size. Four units checking every minute is
-about 5,800 requests a day, against the free plan's 100,000.
+about 5,800 requests a day (plus about 600 for signals), against the free
+plan's 100,000.
 
 ## Set it up
 
@@ -66,6 +68,12 @@ You need Node.js 18 or later and a free Cloudflare account.
    - Send each friend **their own** token, privately. They enter it on their
      unit's setup page (**SETTINGS → WI-FI RESET → OPEN**, then *Nudge token*).
 
+## Updating the hub
+
+When `src/hub.js` changes (signals were added after the first version), run
+`npx wrangler deploy` from this folder again. The storage and the `UNITS`
+secret are kept.
+
 ## Changing the line-up
 
 To add or remove someone, or replace a leaked token, run `npm run tokens`
@@ -80,12 +88,18 @@ unit token" until they're updated.
 | `GET /roster` | Who this unit is, and the friends it can nudge |
 | `GET /inbox` | This unit's waiting nudges, which are then removed |
 | `POST /nudge` `{"to": "Dave" or "*", "msg": "…"}` | Sends a nudge to one friend or everyone |
+| `POST /signal` `{"msg": "…"}` | Puts this unit's signal on the air for 24 hours, replacing its last one |
+| `GET /signals` | Every unit's live signal (this one's too), newest first, each with `left`: seconds until it's gone |
 
 - **Authentication:** every request carries `Authorization: Bearer <token>`,
   and the token says which unit is calling.
 - **Messages:** plain text, 40 characters at most. Curly quotes are
   straightened for the units' font.
 - **Inboxes:** each keeps the newest 20.
+- **Signals:** plain text, 100 characters at most. Each is stored with a
+  24-hour expiry, so Cloudflare deletes it, and `/signals` skips any copy
+  older than that it hasn't deleted yet. A unit can broadcast three a day.
+  Reading signals doesn't use them up.
 - **Rate limit:** a unit can send one nudge every 15 seconds and 12 an hour.
 - **Free-plan limits:** checking an empty inbox doesn't write to storage, so
   it stays well inside the free plan's 1,000 writes a day.
@@ -115,6 +129,14 @@ curl -X POST -H "Authorization: Bearer tok-pete" -H "content-type: application/j
 
 ```bash
 curl -H "Authorization: Bearer tok-dave" http://127.0.0.1:8787/inbox
+```
+
+```bash
+curl -X POST -H "Authorization: Bearer tok-pete" -H "content-type: application/json" -d '{"msg":"Look on my works, ye Mighty, and despair!"}' http://127.0.0.1:8787/signal
+```
+
+```bash
+curl -H "Authorization: Bearer tok-dave" http://127.0.0.1:8787/signals
 ```
 
 The code is in `src/hub.js`. `src/index.js` is only the entry point, because

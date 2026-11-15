@@ -128,9 +128,9 @@ int main(int argc, char** argv) {
 
   // Settings menu and its screens.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +4); shot("menu_quiet", m);                    // menu item 4: QUIET HOURS
-  ev(m, +6); shot("menu_knob", m);                     // menu item 10: KNOB
-  ev(m, +1); ev(m, 0, true); shot("owner_card", m);  // menu item 11: OWNER CARD
+  ev(m, +5); shot("menu_quiet", m);                    // menu item 5: QUIET HOURS
+  ev(m, +6); shot("menu_knob", m);                     // menu item 11: KNOB
+  ev(m, +1); ev(m, 0, true); shot("owner_card", m);  // menu item 12: OWNER CARD
   // Stat pages: press for the first, turn through the rest (stats 8 10 4 2 ...).
   ev(m, 0, true); shot("stat_gaming", m);               // 8: a stock pose
   ev(m, +1); shot("stat_trivia", m);                    // a perfect 10
@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +11); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +12); ev(cm, 0, true);  // menu > owner card
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;
@@ -226,6 +226,48 @@ int main(int argc, char** argv) {
     ev(nm, 0, false, true); ev(nm, +1); ev(nm, 0, true);
     shot("nudge_setup", nm);
     ev(nm, 0, true); ev(nm, 0, false, true);                // back to the tabs
+  }
+
+  // Signals: the arrival screen, the viewer, BROADCAST, the quote picker.
+  {
+    static bc::Signal sigs[3];
+    strcpy(sigs[0].from, "Dave");
+    strcpy(sigs[0].msg, "Look on my works, ye Mighty, and despair! - Shelley");
+    sigs[0].at = 1795000000; sigs[0].left = 20 * 3600;
+    strcpy(sigs[1].from, "Pete");
+    strcpy(sigs[1].msg, "STILL ALIVE OUT HERE. BARELY. SEND SNACKS.");
+    sigs[1].at = 1794990000; sigs[1].left = 9 * 3600;
+    strcpy(sigs[2].from, "Sam");
+    strcpy(sigs[2].msg, "I am not afraid of storms, for I am learning how to sail my ship. - Alcott");
+    sigs[2].at = 1794950000; sigs[2].left = 40 * 60;
+    ui::Model sm = m;
+    sm.nudgesConfigured = true;
+    sm.me = "Pete";
+    sm.signals = sigs;
+    sm.signalCount = 3;
+    g_simMillis = 3000;                                      // the teaser's turn (after the side quest)
+    shot("signal_teaser", sm);                               // STAT, the teaser line
+    sm.incomingSignal = &sigs[0];
+    g_simMillis = 400;
+    shot("signal_incoming", sm);
+    sm.incomingSignal = &sigs[2];
+    shot("signal_incoming_long", sm);
+    sm.incomingSignal = nullptr;
+    ev(sm, 0, false, true); ev(sm, +2); shot("signal_menu", sm);  // SETTINGS > SIGNALS
+    ev(sm, 0, true); shot("signal_view", sm);                // Dave's
+    ev(sm, +2); shot("signal_view_long", sm);                 // Sam's, fading
+    ev(sm, +1); shot("signal_broadcast", sm);                // BROADCAST (yours is on)
+    ev(sm, 0, true); ev(sm, +1); shot("signal_quote", sm);   // the quote picker, 2nd quote
+    sm.toast = "SIGNAL ON THE AIR FOR 24 HOURS";
+    ev(sm, 0, true); shot("signal_sent", sm);                // broadcast, back to the tabs
+    sm.toast = nullptr;
+    sm.signalCount = 0;
+    sm.signalsError = "the hub needs updating for signals";
+    ev(sm, 0, false, true); ev(sm, +2); ev(sm, 0, true);
+    g_simMillis = 5000;
+    shot("signal_silent", sm);                               // nothing on the air
+    ev(sm, 0, false, true); ev(sm, 0, false, true);          // back to the tabs
+    sm.signalsError = "";
   }
 
   // Full-screen states.

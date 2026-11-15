@@ -23,7 +23,8 @@ namespace ui {
 namespace {
 
 enum class Screen : uint8_t {
-  Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup
+  Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup,
+  Signals, SignalQuote
 };
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kSet = 3, kTabCount = 4 };
 // Tab boxes in the header: x of the first, step, width.
@@ -32,6 +33,7 @@ constexpr int kTabX = 4, kTabStep = 54, kTabW = 50;
 enum MenuItem : uint8_t {
   kMiRefresh,
   kMiNudge,
+  kMiSignals,
   kMiSound,
   kMiVolume,
   kMiQuiet,
@@ -58,6 +60,11 @@ int g_debugSel = 0;
 int g_nudgeSel = 0;  // NUDGE WHO?: 0 = everyone, 1.. = friends
 int g_nudgeTo = -1;  // the chosen friend (-1 = everyone)
 int g_msgSel = 0;    // SAY WHAT?
+int g_sigSel = 0;    // SIGNALS: -1 = BACK, 0.. = signals, then BROADCAST
+int g_quoteSel = 0;  // BROADCAST: -1 = BACK, 0.. = quotes
+Screen g_sigReturn = Screen::Menu;  // where SIGNALS goes back to
+Screen g_setupReturn = Screen::Menu;  // where "not set up" goes back to
+bool g_setupSignals = false;          // it was opened from SIGNALS
 bool g_confirmYes = false;
 int g_helpPage = 0;
 Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
@@ -263,8 +270,8 @@ void drawStat(const Model& m, uint32_t t) {
   // Teaser line: birthdays and side quests take turns every 3 s. Neither
   // changes the exposure above.
   {
-    char lines[3][48];
-    uint8_t inks[3];
+    char lines[4][48];
+    uint8_t inks[4];
     int n = 0;
     if (m.data && s.birthdayIndex >= 0 && s.birthdayIndex < m.data->birthdayCount) {
       const bc::Birthday& b = m.data->birthdays[s.birthdayIndex];
@@ -287,6 +294,19 @@ void drawStat(const Model& m, uint32_t t) {
         snprintf(lines[n], sizeof lines[n], "NO FUN CAPS SPENT");
         inks[n++] = kHot;
       }
+    }
+    if (m.signalCount > 0) {
+      if (m.signalCount == 1) {
+        char from[bc::kNameLen];
+        bc::asciiFold(m.signals[0].from, from, sizeof from);
+        bc::upperAscii(from);
+        from[14] = '\0';
+        snprintf(lines[n], sizeof lines[n], "SIGNAL ON THE AIR FROM %s",
+                 strcmp(m.signals[0].from, m.me) == 0 ? "YOU" : from);
+      } else {
+        snprintf(lines[n], sizeof lines[n], "%d SIGNALS ON THE AIR", m.signalCount);
+      }
+      inks[n++] = kBright;
     }
     if (n) {
       const int i = (int)((t / 3000) % (uint32_t)n);
@@ -535,6 +555,11 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
   switch (i) {
     case kMiRefresh: snprintf(buf, len, "REFRESH NOW"); break;
     case kMiNudge: snprintf(buf, len, m.nudgesConfigured ? "SEND NUDGE" : "SEND NUDGE (NOT SET UP)"); break;
+    case kMiSignals:
+      if (!m.nudgesConfigured) snprintf(buf, len, "SIGNALS (NOT SET UP)");
+      else if (m.signalCount) snprintf(buf, len, "SIGNALS (%d ON THE AIR)", m.signalCount);
+      else snprintf(buf, len, "SIGNALS");
+      break;
     case kMiSound: snprintf(buf, len, "SOUND: %s", m.sound ? "ON" : "OFF"); break;
     case kMiVolume: snprintf(buf, len, "VOLUME: %d/4", m.volume + 1); break;
     case kMiQuiet: snprintf(buf, len, "QUIET HOURS: %s", bc::quietPreset(m.quietPreset).label); break;
@@ -790,6 +815,12 @@ const HelpPage kHelp[] = {
       "In quiet hours it just waits.",
       "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
       nullptr}},
+    {"SIGNALS",
+     {"A quote for the whole club, on the air for 24 hours and then gone.",
+      "SETTINGS > SIGNALS: turn through what's on the air. The last page broadcasts yours: "
+      "turn to pick a quote, press to send. A new one replaces your old one.",
+      "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
+      "Your own quotes: \"signals\" in the club file.", nullptr}},
     {"THE SCREEN",
      {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room. "
       "Turn the knob or tap to wake it.",
@@ -872,9 +903,9 @@ void nudgeMsgLabel(int i, const Model& m, char* buf, int len) {
 
 void drawNudgeSetup() {
   auto& c = canvas();
-  text(8, 4, "SEND NUDGE", kBright, 2, 2);
+  text(8, 4, g_setupSignals ? "SIGNALS" : "SEND NUDGE", kBright, 2, 2);
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
-  text(8, 40, "NUDGES AREN'T SET UP YET", kWarn);
+  text(8, 40, "THE NUDGE HUB ISN'T SET UP YET", kWarn);
   textWrapped(8, 68,
               "The club file needs the nudge hub's address, and this unit needs its token: ask "
               "whoever runs the hub.",
@@ -934,6 +965,159 @@ void drawIncoming(const Model& m, uint32_t t) {
   textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
 }
 
+// ---- Signals ------------------------------------------------------------------
+
+// A quote, as large as fits the box: wide letters for a short one.
+void quoteText(int x, int y, int w, int h, const char* q, uint8_t ink) {
+  char f[bc::kSignalMsgLen];
+  bc::asciiFold(q, f, sizeof f);
+  const int bigChars = w / 12, smallChars = w / 6;
+  if (wrappedLines(f, bigChars) * 20 <= h) {
+    textWrapped(x, y, f, bigChars, h / 20, ink, 20, 2);
+  } else {
+    textWrapped(x, y, f, smallChars, h / 18, ink, 18);
+  }
+}
+
+// The title row of the signal screens: a title and a "< BACK" box.
+void signalTitle(const char* title, bool backSel) {
+  auto& c = canvas();
+  text(8, 4, title, kBright, 2, 2);
+  if (backSel) c.drawRect(cfg::kScreenW - 80, 2, 76, 22, kBright);
+  textCentered(cfg::kScreenW - 42, 5, "< BACK", backSel ? kHot : kDim, 2, 2);
+  c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
+}
+
+// Radio static: a band of noise that changes every frame.
+void radioStatic(int x, int y, int w, int h, uint32_t t) {
+  auto& c = canvas();
+  uint32_t v = 0x9E3779B9u ^ (t / 66) * 2654435761u;
+  for (int yy = y; yy < y + h; yy += 2) {
+    for (int xx = x; xx < x + w; xx += 2) {
+      v ^= v << 13; v ^= v >> 17; v ^= v << 5;
+      const uint8_t r = v & 15;
+      if (r > 9) c.fillRect(xx, yy, 2, 2, r > 13 ? kBright : (r > 11 ? kDim : kFaint));
+    }
+  }
+}
+
+void senderName(const bc::Signal& s, const Model& m, char* buf, size_t cap) {
+  if (m.me[0] && strcmp(s.from, m.me) == 0) {
+    snprintf(buf, cap, "YOU");
+    return;
+  }
+  bc::asciiFold(s.from, buf, cap);
+  bc::upperAscii(buf);
+}
+
+void drawSignals(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  const int n = m.signalCount;
+  if (g_sigSel > n) g_sigSel = n;  // a signal went off the air
+  signalTitle("SIGNALS", g_sigSel < 0);
+  char buf[64], who[bc::kNameLen], left[16];
+
+  if (g_sigSel >= 0 && g_sigSel < n) {
+    const bc::Signal& s = m.signals[g_sigSel];
+    senderName(s, m, who, sizeof who);
+    snprintf(buf, sizeof buf, "FROM %s", who);
+    text(8, 34, buf, kHot);
+    snprintf(buf, sizeof buf, "%d/%d", g_sigSel + 1, n);
+    textRight(cfg::kScreenW - 8, 34, buf, kDim);
+    frame(8, 54, cfg::kScreenW - 16, 124, kBright);
+    quoteText(18, 64, cfg::kScreenW - 36, 108, s.msg, kText);
+    // Signal strength: fades as the 24 hours run out.
+    text(8, 186, "SIGNAL", kDim);
+    bar(56, 186, 180, 14, (int)((uint64_t)s.left * 1000 / bc::kSignalLifeSecs), kBright);
+    bc::signalLeftText(s.left, left, sizeof left);
+    textRight(cfg::kScreenW - 8, 186, left, kText);
+    c.drawFastHLine(0, 214, cfg::kScreenW, kFaint);
+    textCentered(cfg::kScreenW / 2, 220, "TURN: MORE  -  LAST PAGE: BROADCAST", kDim);
+    return;
+  }
+
+  // The BROADCAST page (also shown behind BACK).
+  int y = 34;
+  if (!n) {
+    radioStatic(8, 34, cfg::kScreenW - 16, 40, t);
+    c.fillRect(56, 44, cfg::kScreenW - 112, 20, kBg);
+    textCentered(cfg::kScreenW / 2, 46, "THE AIRWAVES ARE SILENT", kHot);
+    y = 84;
+  } else {
+    snprintf(buf, sizeof buf, "%d SIGNAL%s ON THE AIR: TURN BACK TO READ", n, n == 1 ? "" : "S");
+    text(8, y, buf, kDim);
+    y = 58;
+  }
+  y += 18 * textWrapped(8, y, "Send the club a quote. It reaches every deck and fades out after 24 hours.",
+                        51, 3, kText);
+  const bc::Signal* mine = nullptr;
+  for (int i = 0; i < n; ++i) {
+    if (m.me[0] && strcmp(m.signals[i].from, m.me) == 0) mine = &m.signals[i];
+  }
+  if (mine) {
+    bc::signalLeftText(mine->left, left, sizeof left);
+    snprintf(buf, sizeof buf, "YOURS: ON THE AIR, %s. SENDING REPLACES IT", left);
+    textWrapped(8, y + 4, buf, 51, 2, kBright);
+  }
+  const bool sel = g_sigSel == n;
+  frame(40, 156, cfg::kScreenW - 80, 34, sel ? kHot : kMid);
+  if (sel) c.fillRect(41, 157, cfg::kScreenW - 82, 32, kFaint);
+  textCentered(cfg::kScreenW / 2, 160, "BROADCAST YOURS", sel ? kHot : kDim, 2, 2);
+  if (m.signalsError[0]) {
+    snprintf(buf, sizeof buf, "NO SIGNAL: %s", m.signalsError);
+    buf[52] = '\0';
+    text(8, 202, buf, kWarn);
+  }
+  textCentered(cfg::kScreenW / 2, 222, sel ? "PRESS OR TAP TO PICK A QUOTE" : "TURN TO CHOOSE", kDim);
+}
+
+void drawSignalQuote(const Model& m) {
+  auto& c = canvas();
+  const int n = bc::signalQuoteCount(m.data);
+  if (g_quoteSel >= n) g_quoteSel = n - 1;
+  signalTitle("BROADCAST", g_quoteSel < 0);
+  char buf[32];
+  text(8, 34, "PICK A QUOTE FOR EVERYONE", kHot);
+  snprintf(buf, sizeof buf, "%d/%d", g_quoteSel < 0 ? 0 : g_quoteSel + 1, n);
+  textRight(cfg::kScreenW - 8, 34, buf, kDim);
+  frame(8, 54, cfg::kScreenW - 16, 124, g_quoteSel < 0 ? kMid : kBright);
+  if (g_quoteSel >= 0) quoteText(18, 64, cfg::kScreenW - 36, 108, bc::signalQuote(m.data, g_quoteSel), kText);
+  else textCentered(cfg::kScreenW / 2, 108, "TURN TO PICK A QUOTE", kDim);
+  c.drawFastHLine(0, 190, cfg::kScreenW, kFaint);
+  textCentered(cfg::kScreenW / 2, 198, "PRESS (OR TAP HERE) TO BROADCAST", g_quoteSel < 0 ? kDim : kBright);
+  textCentered(cfg::kScreenW / 2, 218, "ON THE AIR 24 HOURS, THEN GONE", kDim);
+}
+
+// A friend's new signal, over whatever is on screen until someone dismisses it.
+void drawIncomingSignal(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  const bc::Signal& s = *m.incomingSignal;
+  const int x = 6, y = 34, w = cfg::kScreenW - 12, h = 196;
+  c.fillRect(0, 28, cfg::kScreenW, cfg::kScreenH - 28, kBg);
+  const bool flash = (t / 400) % 2;
+  c.drawRect(x, y, w, h, flash ? kHot : kBright);
+  c.drawRect(x + 2, y + 2, w - 4, h - 4, kMid);
+  textCentered(cfg::kScreenW / 2, y + 8, "INCOMING SIGNAL", kHot, 2, 2);
+  textCentered(cfg::kScreenW / 2, y + 28, "- A SIGNAL FROM THE WASTELAND -", kBright);
+  c.drawFastHLine(x + 10, y + 48, w - 20, kMid);
+  quoteText(x + 14, y + 56, w - 28, 96, s.msg, kText);
+  char who[bc::kNameLen], left[16], buf[48];
+  senderName(s, m, who, sizeof who);
+  snprintf(buf, sizeof buf, "- %s", who);
+  textRight(x + w - 14, y + h - 42, buf, kHot);
+  bc::signalLeftText(s.left, left, sizeof left);
+  text(x + 14, y + h - 42, left, kDim);
+  textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
+}
+
+void openSignals(const Model& m, Screen from) {
+  g_setupReturn = from;
+  g_setupSignals = true;
+  g_sigReturn = from;
+  g_sigSel = 0;
+  g_screen = m.nudgesConfigured ? Screen::Signals : Screen::NudgeSetup;
+}
+
 }  // namespace
 
 void begin() {}
@@ -953,6 +1137,8 @@ View view() {
 
 bool animating(const Model& m) {
   if (m.portal || m.updatePct >= 0) return false;
+  if (m.incoming || m.incomingSignal) return false;
+  if (g_screen == Screen::Signals && m.signalCount == 0) return true;  // the static
   return (g_screen == Screen::Tabs && g_tab == kStat) || g_screen == Screen::StatDetail;
 }
 
@@ -968,6 +1154,10 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
   // A nudge on screen: any knob or touch event just dismisses it.
   if (m.incoming) {
     r.action = Action::DismissNudge;
+    return r;
+  }
+  if (m.incomingSignal) {
+    r.action = Action::DismissSignal;
     return r;
   }
   if (e.tap) return handleTap(e.x, e.y, m, now);
@@ -1012,9 +1202,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         switch (g_menuSel) {
           case kMiRefresh: r.action = Action::RefreshNow; g_screen = Screen::Tabs; g_tab = kData; break;
           case kMiNudge:
+            g_setupReturn = Screen::Menu;
+            g_setupSignals = false;
             g_screen = m.nudgesConfigured ? Screen::NudgeTo : Screen::NudgeSetup;
             g_nudgeSel = 0;
             break;
+          case kMiSignals: openSignals(m, Screen::Menu); break;
           case kMiSound: r.action = Action::ToggleSound; break;
           case kMiVolume: r.action = Action::CycleVolume; break;
           case kMiQuiet: r.action = Action::CycleQuiet; break;
@@ -1119,8 +1312,49 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       break;
 
     case Screen::NudgeSetup:
-      if (e.shortPress || e.longPress) g_screen = Screen::Menu;
+      if (e.shortPress || e.longPress) g_screen = g_setupReturn;
       break;
+
+    case Screen::Signals: {
+      // Turn through BACK (-1), the signals, and BROADCAST; a hold goes back.
+      if (e.longPress) {
+        g_screen = g_sigReturn;
+        break;
+      }
+      const int slots = m.signalCount + 2;
+      if (g_sigSel > m.signalCount) g_sigSel = m.signalCount;
+      g_sigSel = ((g_sigSel + 1 + e.turn) % slots + slots) % slots - 1;
+      if (e.shortPress) {
+        if (g_sigSel < 0) {
+          g_screen = g_sigReturn;
+        } else if (g_sigSel >= m.signalCount) {
+          g_screen = Screen::SignalQuote;
+          g_quoteSel = 0;
+        } else {
+          ++g_sigSel;  // on to the next, and finally BROADCAST
+        }
+      }
+      break;
+    }
+
+    case Screen::SignalQuote: {
+      if (e.longPress) {
+        g_screen = Screen::Signals;
+        break;
+      }
+      const int slots = bc::signalQuoteCount(m.data) + 1;
+      g_quoteSel = ((g_quoteSel + 1 + e.turn) % slots + slots) % slots - 1;
+      if (e.shortPress) {
+        if (g_quoteSel < 0) {
+          g_screen = Screen::Signals;
+        } else {
+          r.action = Action::BroadcastSignal;
+          r.arg = g_quoteSel;
+          g_screen = Screen::Tabs;
+        }
+      }
+      break;
+    }
 
     case Screen::Debug:
       if (e.longPress) {
@@ -1185,6 +1419,12 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         g_cardSel = 0;
         return r;
       }
+      // STAT: the signal teaser line opens SIGNALS.
+      if (g_tab == kStat && m.data && m.state.clockValid && m.signalCount > 0 && x >= 88 && y >= 132 &&
+          y < 150) {
+        openSignals(m, Screen::Tabs);
+        return r;
+      }
       // LOG: tap the top or bottom half of the list to page through it.
       if (g_tab == kLog && m.data && m.state.clockValid) {
         const int top = 52, bottom = 52 + kLogRows * kLogRowH;
@@ -1247,6 +1487,28 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
 
     case Screen::NudgeSetup:
       return handle(press, m, now);
+
+    case Screen::Signals: {
+      if (title) return handle(hold, m, now);
+      if (g_sigSel >= m.signalCount) {  // the BROADCAST page: its button
+        if (y >= 150 && y < 196) {
+          g_sigSel = m.signalCount;
+          return handle(press, m, now);
+        }
+        if (m.signalCount == 0) return r;
+      }
+      input::Events step;  // the left or right half steps through
+      step.turn = x >= cfg::kScreenW / 2 ? 1 : -1;
+      return handle(step, m, now);
+    }
+
+    case Screen::SignalQuote: {
+      if (title) return handle(hold, m, now);
+      if (y >= 190 && g_quoteSel >= 0) return handle(press, m, now);
+      input::Events step;
+      step.turn = x >= cfg::kScreenW / 2 ? 1 : -1;
+      return handle(step, m, now);
+    }
 
     case Screen::Help: {
       if (title) return handle(hold, m, now);
@@ -1327,11 +1589,14 @@ void render(const Model& m, uint32_t t) {
         break;
       }
       case Screen::NudgeSetup: drawNudgeSetup(); break;
+      case Screen::Signals: drawSignals(m, t); break;
+      case Screen::SignalQuote: drawSignalQuote(m); break;
       default: break;
     }
   }
   if (!m.portal && m.toast && g_screen == Screen::Tabs) drawToast(m);
   if (!m.portal && m.incoming) drawIncoming(m, t);
+  else if (!m.portal && m.incomingSignal) drawIncomingSignal(m, t);
   previewBanner(m);
   present(m.effects, t);
 }

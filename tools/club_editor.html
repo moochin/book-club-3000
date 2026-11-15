@@ -125,6 +125,13 @@
   </section>
 
   <section>
+    <h2>SIGNALS <small>quotes to broadcast, on the air for 24 hours (100 characters each)</small></h2>
+    <div id="signalQuotes"></div>
+    <button id="addSignalQuote">+ Quote</button>
+    <p class="hint">Signals go through the nudge hub above. No quotes here means the units use their built-in ones (Shelley, Dickinson, Shakespeare, …).</p>
+  </section>
+
+  <section>
     <h2>BIRTHDAYS <small>the mascot dresses up on the day</small></h2>
     <div id="bdays"></div>
     <button id="addBday">+ Birthday</button>
@@ -233,6 +240,7 @@ function render(fromRaw = false) {
   renderCaps();
   renderBirthdays();
   renderNudges();
+  renderSignals();
 
   const fw = doc.firmware && typeof doc.firmware === "object" ? doc.firmware : {};
   const fwInputs = [
@@ -321,6 +329,29 @@ function renderNudges() {
   }));
   draw();
   $("addNudgeMsg").onclick = () => { msgs.push({ text: "" }); draw(); };
+}
+
+function renderSignals() {
+  // Kept out of the file entirely until a quote is filled in.
+  const sg = doc.signals && typeof doc.signals === "object" && !Array.isArray(doc.signals) ? doc.signals : {};
+  const quotes = Array.isArray(sg.quotes) ? sg.quotes.map((q) => ({ text: String(q) })) : [];
+  const write = () => {
+    const kept = quotes.map((q) => (q.text || "").trim()).filter(Boolean);
+    if (kept.length) doc.signals = { ...sg, quotes: kept }; else delete doc.signals;
+    changed();
+  };
+  const draw = () => fill($("signalQuotes"), quotes.map((q, i) => {
+    const row = document.createElement("div");
+    row.className = "row nmsg";
+    const f = input(q, "text", "Quote", "text",
+                    { keepEmpty: true, placeholder: "Look on my works, ye Mighty, and despair! - Shelley" });
+    f.querySelector("input").maxLength = 100;
+    f.querySelector("input").addEventListener("input", write);
+    row.append(f, removeBtn(() => { quotes.splice(i, 1); write(); draw(); }));
+    return row;
+  }));
+  draw();
+  $("addSignalQuote").onclick = () => { quotes.push({ text: "" }); draw(); };
 }
 
 function renderBirthdays() {
