@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "bc_screen.h"
+#include "bc_sync_help.h"
 #include "bc_text.h"
 #include "clock.h"
 #include "config.h"
@@ -24,7 +25,7 @@ namespace {
 
 enum class Screen : uint8_t {
   Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup,
-  Signals, SignalQuote
+  Signals, SignalQuote, SyncStatus
 };
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kSet = 3, kTabCount = 4 };
 // Tab boxes in the header: x of the first, step, width.
@@ -64,6 +65,7 @@ int g_sigSel = 0;    // SIGNALS: -1 = BACK, 0.. = signals, then BROADCAST
 int g_quoteSel = 0;  // BROADCAST: -1 = BACK, 0.. = quotes
 Screen g_sigReturn = Screen::Menu;  // where SIGNALS goes back to
 Screen g_setupReturn = Screen::Menu;  // where "not set up" goes back to
+bool g_syncBack = false;              // SYNC STATUS: BACK picked (else REFRESH NOW)
 bool g_setupSignals = false;          // it was opened from SIGNALS
 bool g_confirmYes = false;
 int g_helpPage = 0;
@@ -438,9 +440,10 @@ void drawData(const Model& m) {
   clockmod::formatAge(m.lastSyncEpoch, age, sizeof age);
   snprintf(buf, sizeof buf, "SYNCED %s", age);
   text(8, 214, buf, m.syncStale ? kWarn : kDim);
-  if (m.syncStale) {
-    warnIcon(cfg::kScreenW - 20, 214);
-    text(cfg::kScreenW - 104, 214, "NO SYNC 7D+", kWarn);
+  if (m.syncStale || m.sync == SyncInfo::Failed) {
+    // What the triangle is about: one press away.
+    warnIcon(cfg::kScreenW - 20, 213);
+    textRight(cfg::kScreenW - 26, 214, m.sync == SyncInfo::Failed ? "FAILED: PRESS" : "7D+: PRESS", kWarn);
   } else if (!m.wifiUp && m.offlineLong) {
     textRight(cfg::kScreenW - 8, 214, "OFFLINE", kWarn);
   }
@@ -822,7 +825,8 @@ const HelpPage kHelp[] = {
     {"THE CLUB FILE",
      {"Dates come from the club's bookclub.json (the data URL), checked once a day. REFRESH NOW "
       "fetches it straight away.",
-      "A warning triangle by the clock means the last fetch failed: ABOUT shows why.",
+      "A warning triangle by the clock means the last fetch failed. Press the knob on DATA, or "
+      "tap the triangle, to see why and what to do.",
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
     {"NUDGES",
      {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
@@ -1125,6 +1129,57 @@ void drawIncomingSignal(const Model& m, uint32_t t) {
   textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
 }
 
+// What the warning triangle is about, in plain words, with a REFRESH NOW.
+void drawSyncStatus(const Model& m) {
+  auto& c = canvas();
+  signalTitle("SYNC STATUS", g_syncBack);
+  char buf[64], age[20];
+  int y = 33;
+  auto line = [&](const char* k, const char* v, uint8_t ink) {
+    text(8, y, k, kDim);
+    char f[44];
+    bc::asciiFold(v, f, sizeof f);
+    text(100, y, f, ink);
+    y += 17;
+  };
+  const bool failed = m.sync == SyncInfo::Failed;
+  const char* st = "OK";
+  switch (m.sync) {
+    case SyncInfo::Fetching: st = "FETCHING..."; break;
+    case SyncInfo::Failed: st = "FAILED"; break;
+    case SyncInfo::Updating: st = "UPDATING FIRMWARE"; break;
+    case SyncInfo::Idle: st = m.lastSyncEpoch ? "OK" : "NOT YET"; break;
+    default: break;
+  }
+  line("CLUB FILE", st, failed ? kWarn : kText);
+  clockmod::formatAge(m.lastSyncEpoch, age, sizeof age);
+  snprintf(buf, sizeof buf, "%s%s", m.lastSyncEpoch ? age : "NEVER", m.syncStale ? " (7D+)" : "");
+  line("LAST GOOD", buf, m.syncStale ? kWarn : kText);
+  const char* hub = !m.nudgesConfigured ? "NOT SET UP" : (m.hubError[0] ? m.hubError : "OK");
+  line("NUDGE HUB", hub, m.nudgesConfigured && m.hubError[0] ? kWarn : kText);
+
+  c.drawFastHLine(0, y + 2, cfg::kScreenW, kFaint);
+  y += 8;
+  if (failed && m.syncError[0]) {
+    char e[72];
+    bc::asciiFold(m.syncError, e, sizeof e);
+    y += 18 * textWrapped(8, y, e, 51, 2, kWarn);
+  }
+  y += 2 + 18 * textWrapped(8, y + 2, bc::syncAdvice(failed ? m.syncError : "", m.syncStale), 51, 4, kText);
+  if ((failed || m.syncStale) && y + 16 <= 190) text(8, y + 2, "Meanwhile it shows its last good copy.", kDim);
+
+  const bool sel = !g_syncBack;
+  frame(60, 192, cfg::kScreenW - 120, 26, sel ? kHot : kMid);
+  if (sel) c.fillRect(61, 193, cfg::kScreenW - 122, 24, kFaint);
+  textCentered(cfg::kScreenW / 2, 197, "REFRESH NOW", sel ? kHot : kDim);
+  textCentered(cfg::kScreenW / 2, 224, "TURN: BACK / REFRESH   PRESS: GO", kDim, 1, 1);
+}
+
+void openSyncStatus() {
+  g_screen = Screen::SyncStatus;
+  g_syncBack = false;
+}
+
 void openSignals(const Model& m, Screen from) {
   g_setupReturn = from;
   g_setupSignals = true;
@@ -1143,7 +1198,9 @@ View view() {
   View v;
   // The owner card opened by tapping the mascot belongs to the tabs.
   const bool card = g_screen == Screen::OwnerCard || g_screen == Screen::StatDetail;
-  v.settings = g_screen != Screen::Tabs && !(card && g_cardReturn == Screen::Tabs);
+  // So does SYNC STATUS, opened from DATA or the warning triangle.
+  v.settings = g_screen != Screen::Tabs && g_screen != Screen::SyncStatus &&
+               !(card && g_cardReturn == Screen::Tabs);
   v.menu = g_screen == Screen::Menu;
   v.menuSel = g_menuSel;
   v.tab = g_tab;
@@ -1196,6 +1253,10 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
         break;
       }
       if (g_tab == kLog && e.shortPress) g_logScroll = !g_logScroll;
+      if (g_tab == kData && e.shortPress) {
+        openSyncStatus();
+        break;
+      }
       if (e.turn) {
         if (g_tab == kLog && g_logScroll) {
           g_logTop += e.turn;
@@ -1352,6 +1413,22 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       break;
     }
 
+    case Screen::SyncStatus:
+      // Turn between REFRESH NOW and BACK; a hold goes back.
+      if (e.longPress) {
+        g_screen = Screen::Tabs;
+        break;
+      }
+      if (e.turn % 2) g_syncBack = !g_syncBack;
+      if (e.shortPress) {
+        g_screen = Screen::Tabs;
+        if (!g_syncBack) {
+          r.action = Action::RefreshNow;
+          g_tab = kData;
+        }
+      }
+      break;
+
     case Screen::SignalQuote: {
       if (e.longPress) {
         g_screen = Screen::Signals;
@@ -1423,10 +1500,20 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
             return r;
           }
         }
+        // The warning triangle: what it's about.
+        if ((m.syncStale || m.sync == SyncInfo::Failed) && x >= cfg::kScreenW - 82 && x < cfg::kScreenW - 56) {
+          openSyncStatus();
+          return r;
+        }
         if (x >= 220) return handle(hold, m, now);  // clock corner: settings
         return r;
       }
       if (g_tab == kSet) return handle(press, m, now);
+      // DATA: the sync line at the bottom opens SYNC STATUS.
+      if (g_tab == kData && m.data && m.state.clockValid && y >= 206) {
+        openSyncStatus();
+        return r;
+      }
       // The mascot (left side of STAT and the full-screen states): owner card.
       if ((g_tab == kStat || !m.data || !m.state.clockValid) && x < 88 && y >= 30 && y < 160) {
         g_screen = Screen::OwnerCard;
@@ -1517,6 +1604,14 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       return handle(step, m, now);
     }
 
+    case Screen::SyncStatus:
+      if (title) return handle(hold, m, now);
+      if (y >= 186 && y < 222) {
+        g_syncBack = false;
+        return handle(press, m, now);
+      }
+      return r;
+
     case Screen::SignalQuote: {
       if (title) return handle(hold, m, now);
       if (y >= 190 && g_quoteSel >= 0) return handle(press, m, now);
@@ -1606,6 +1701,7 @@ void render(const Model& m, uint32_t t) {
       case Screen::NudgeSetup: drawNudgeSetup(); break;
       case Screen::Signals: drawSignals(m, t); break;
       case Screen::SignalQuote: drawSignalQuote(m); break;
+      case Screen::SyncStatus: drawSyncStatus(m); break;
       default: break;
     }
   }

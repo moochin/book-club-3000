@@ -62,6 +62,7 @@ struct Model {
   const char* me = "";                     // this unit's name on the hub
   const char* signalsError = "";           // why the last check failed
   const bc::Signal* incomingSignal = nullptr;  // a new one waiting to be seen
+  const char* hubError = "";               // the nudge hub's last problem ("" if none)
 };
 
 enum class Action : uint8_t {

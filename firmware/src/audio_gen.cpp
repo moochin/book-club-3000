@@ -40,70 +40,38 @@ uint32_t poissonGapUs(float meanUs) {
   return (uint32_t)(-logf(u) * meanUs);
 }
 
-// A relay pulling in: the armature's clack, a scrape of noise, and one small
-// bounce a moment later. 30 ms in all, starting at `at`.
-bool relay(uint32_t t, uint32_t at, float loud, Out& o) {
-  if (t < at || t >= at + ms(30)) return false;
-  const uint32_t u = t - at;
-  if (u < 2500) set(o, 150, loud, 2500 - u);
-  else if (u < 5000) hiss(o, 1800, 6500, loud / 2), clampTo(o, u, 5000);
-  else if (u < 22000) silence(o, 22000 - u);
-  else if (u < 23500) set(o, 420, loud / 3, 23500 - u);
-  else silence(o, ms(30) - u);
-  return true;
-}
+// Start-up: a soft beep as each line of the boot log prints, a lower one for
+// the low snack reserves, then a quiet two-note "ready". Deliberately gentle:
+// the old cassette-loading screech was too much first thing. drawBoot (ui.cpp)
+// shows message 0 at once and message i at i * 236.5 - 118 ms (12 messages,
+// hex dumps between, over 85% of the 3.2 s splash); the beeps follow that.
+constexpr uint32_t kBeepGapUs = 236500;
+constexpr uint32_t kBeepUs = ms(14);
+constexpr int kLastMsg = 11;  // ALL SYSTEMS NOMINAL: the "ready" notes
+constexpr int kLowMsg = 6;    // CHECKING SNACK RESERVES ... LOW
+constexpr uint32_t kReadyNoteUs = ms(70);
 
-// Data off the tape: each pulse is one of three lengths, so the pitch jumps
-// between three tones every millisecond or so. That is the screech.
-void tapeData(Out& o, bool glints) {
-  const uint32_t r = rnd() % 100;
-  float f = r < 45 ? 3150 : r < 80 ? 2250 : 1550;
-  if (glints && rnd() % 40 == 0) f = 4800;
-  set(o, f, 36, 900 + rnd() % 900);
-}
-
-void tapeLeader(Out& o, uint32_t t) {
-  set(o, 3150 * (1 + 0.012f * sinf(kTau * 4 * secs(t))), 36, 3000);
-}
-
-// The motor at `speed` (0..1 of full): a low growl with wow and
-// flutter, and grit from the tape guides.
-void tapeMotor(Out& o, uint32_t t, float speed, float duty) {
-  const float flutter = 1 + 0.07f * sinf(kTau * 11 * secs(t));
-  if (rnd() % 10 == 0) hiss(o, 800, 3000, duty * 0.65f);
-  else set(o, (55 + 155 * speed) * flutter, duty, 4000);
-}
+uint32_t msgAtUs(int i) { return i == 0 ? 0 : i * kBeepGapUs - kBeepGapUs / 2; }
 
 bool bootStep(Voice&, uint32_t t, Out& o) {
-  if (relay(t, 0, 200, o)) return true;
-  if (t < ms(60)) return silence(o, ms(60) - t), true;
-  if (t < ms(170)) {  // the power-on squeal, falling away
-    const float p = (t - ms(60)) / (float)ms(110);
-    set(o, 5200 - 1800 * p, 18, 1500);
-    clampTo(o, t, ms(170));
+  const uint32_t readyAt = msgAtUs(kLastMsg);
+  if (t < readyAt) {
+    int i = 0;  // the message whose line printed last
+    while (i + 1 < kLastMsg && msgAtUs(i + 1) <= t) ++i;
+    const uint32_t u = t - msgAtUs(i);
+    if (u < kBeepUs) return set(o, i == kLowMsg ? 880 : 1760, 10, kBeepUs - u), true;
+    const uint32_t next = msgAtUs(i + 1);
+    return silence(o, next - t), true;
+  }
+  const uint32_t u = t - readyAt;
+  if (u < kReadyNoteUs) return set(o, 1320, 14, kReadyNoteUs - u), true;
+  if (u < 2 * kReadyNoteUs) {  // the second note, fading out
+    const float p = (u - kReadyNoteUs) / (float)kReadyNoteUs;
+    set(o, 1760, 14 * (1 - p), 2000);
+    clampTo(o, u, 2 * kReadyNoteUs);
     return true;
   }
-  if (t < ms(700)) {  // motor spooling up
-    const float p = (t - ms(170)) / (float)ms(530);
-    tapeMotor(o, t, p * p, 34);
-    clampTo(o, t, ms(700));
-    return true;
-  }
-  if (t < ms(1150)) return tapeLeader(o, t), clampTo(o, t, ms(1150)), true;
-  if (t < ms(1680)) return tapeData(o, false), clampTo(o, t, ms(1680)), true;
-  // Header found: the motor relay drops out, then pulls in again.
-  if (relay(t, ms(1680), 150, o)) return true;
-  if (t < ms(1860)) return silence(o, ms(1860) - t), true;
-  if (relay(t, ms(1860), 150, o)) return true;
-  if (t < ms(2000)) return tapeLeader(o, t), clampTo(o, t, ms(2000)), true;
-  if (t < ms(2620)) return tapeData(o, true), clampTo(o, t, ms(2620)), true;
-  if (t < ms(2940)) {  // motor spooling down
-    const float p = (t - ms(2620)) / (float)ms(320);
-    tapeMotor(o, t, 1 - p, 34 - 24 * p);
-    clampTo(o, t, ms(2940));
-    return true;
-  }
-  return relay(t, ms(2940), 190, o);
+  return false;
 }
 
 constexpr uint32_t kWhirUs = ms(150);
@@ -257,7 +225,7 @@ uint32_t rnd() {
   return g_rng;
 }
 
-void bootTape(Voice& v) {
+void bootBeeps(Voice& v) {
   v = Voice();
   v.step = bootStep;
 }

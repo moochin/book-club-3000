@@ -141,7 +141,10 @@ stylus works best.
 DATA, LOG and SET. On SET, press for settings; every list ends in **< BACK**.
 On STAT, press for your owner card: turn to pick a stat and press for its
 page, or turn onto **< BACK** (top right) and press to leave. On LOG, press to
-switch between changing tabs and scrolling. A 2 s hold is a shortcut: it opens
+switch between changing tabs and scrolling. On DATA, press for **SYNC STATUS**:
+if a ⚠ shows by the clock, it says what went wrong fetching the club file (a
+typo in the gist, a firmware update that couldn't install, no Wi-Fi...) and
+what to do, with a REFRESH NOW button. Tapping the ⚠ opens it too. A 2 s hold is a shortcut: it opens
 settings from the tabs and goes back from anywhere else. Settings has refresh,
 send nudge, signals, sound, volume, quiet hours, brightness, theme, scanlines, screen off
 at night, dim when idle, knob direction, owner card, how to use, about and

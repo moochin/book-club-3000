@@ -9,7 +9,7 @@ a file.
 
 | File name | Plays when | Length | Without a file |
 | --- | --- | --- | --- |
-| `boot` | the unit starts, under the boot screen | up to ~3 s | cassette-loading noises |
+| `boot` | the unit starts, under the boot screen | up to ~3 s | soft beeps as the boot log prints |
 | `tab_next` | you change tab (turn right, or tap a tab) | 0.1–0.4 s | microfiche whir and snap |
 | `tab_prev` | you change tab backwards | 0.1–0.4 s | `tab_next`, else the whir |
 | `settings_open` | settings open | 0.5–2 s | valves warming, dial tuning in |

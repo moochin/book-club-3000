@@ -113,7 +113,7 @@ crackle and relay clatter. There are no samples.
 
 | When | What you hear |
 | --- | --- |
-| Start-up (~3 s) | Relay clicks, a falling power-on squeal, the tape motor spooling up, a leader tone, the screech of data loading from cassette, the relay dropping out and back in, more data, then the motor spooling down. It plays on power-on, or on a restart outside quiet hours. |
+| Start-up (~3 s) | A soft beep as each line of the boot log prints (a lower one for the low snack reserves), then a quiet two-note "ready" on ALL SYSTEMS NOMINAL. It plays on power-on, or on a restart outside quiet hours. |
 | Changing tabs | A microfiche reader: film whirs past with a tick per frame, then the lens carrier snaps into place. Going backwards, the whir falls instead of rising. |
 | Opening settings | The power switch, then valves warming into a hum with crackle, and the tuning dial sweeping down the band onto a station. |
 | In settings | A low valve hum with the odd crackle. Moving through the list scans the dial to the next "station", whistling through static. The hum fades out when you close settings, or after 30 s with no input. |

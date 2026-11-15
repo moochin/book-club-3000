@@ -31,7 +31,7 @@ struct Voice {
   uint32_t lastT = 0;
 };
 
-void bootTape(Voice& v);
+void bootBeeps(Voice& v);
 void tabAdvance(Voice& v, int dir);
 void settingsWarmUp(Voice& v);
 void tunerScan(Voice& v, int fromPos, int toPos, int count);

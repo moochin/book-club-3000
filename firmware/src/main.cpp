@@ -181,7 +181,7 @@ bool quietHours(const bc::LocalNow& n) {
   return bc::inMinuteWindow(n.minuteOfDay, w.from, w.to);
 }
 
-// The cassette-loading boot noise: when someone has just plugged the unit in,
+// The boot-log beeps: when someone has just plugged the unit in,
 // or on a restart outside quiet hours (the clock survives a soft restart).
 // Not for an update or crash restart in the night.
 bool bootSoundWanted() {
@@ -240,7 +240,7 @@ void setup() {
   checkFactoryReset();
 #if !BC_BRINGUP
   // Start-up screen. Blocking is fine here: nothing else is running yet.
-  if (bootSoundWanted()) audio::bootTape();
+  if (bootSoundWanted()) audio::bootBeeps();
   for (uint32_t start = millis(), t = 0; t < cfg::kBootSplashMs; t = millis() - start) {
     ui::drawBoot(t);
     delay(33);
@@ -448,6 +448,7 @@ void loop() {
   m.me = nudge::me();
   m.signalsError = nudge::signalsError();
   m.incomingSignal = g_signalShown ? &g_signal : nullptr;
+  m.hubError = nudge::lastError();
   m.toastWarn = g_toastWarn;
 
   const ui::View viewWas = ui::view();
