@@ -37,7 +37,7 @@ suits the score: 10 `meeting_day`, 7–9 `level0`, 4–6 `level1`, 2–3
 | `stat_stamina` | STAYING POWER | Wide awake with a mug of coffee |
 
 **The mascot** is a regular guy in a cap, a red zip-up hoodie and jeans,
-drawn by the club. His nine original drawings are in
+drawn by the club. His original drawings are in
 [`src/drawings/`](src/drawings/), and [`src/make_sprites.py`](src/make_sprites.py)
 (needs Pillow) turns them into the sprites in `mascot/`. It removes the
 white background, keeps the black ink as outlines, maps colours to shades,

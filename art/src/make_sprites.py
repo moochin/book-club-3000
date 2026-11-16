@@ -355,6 +355,15 @@ def build():
         f = convert(d("banter.webp"))
         laughter(f, bob)
         out[f"stat_banter_{i}@300.png"] = f
+
+    out["stat_beer.png"] = convert(d("beer.webp"), beer=True)
+    out["stat_snacks.png"] = convert(d("snacks.webp"))
+    out["stat_stamina.png"] = convert(d("coffee.webp"))
+
+    for i, hand in ((1, (0, -1)), (2, (1, 0))):
+        f = convert(d("punctual.webp"))
+        watch(f, 31, 38, hand)
+        out[f"stat_punctuality_{i}@600.png"] = f
     return out
 
 
