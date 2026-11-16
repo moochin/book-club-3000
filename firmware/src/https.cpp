@@ -2,6 +2,10 @@
 
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#include <mbedtls/bignum.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/x509.h>
 
 #include "config.h"
 
@@ -11,6 +15,49 @@ extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start"
 namespace https {
 
 bool memoryOk() { return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= kMinBlockBytes; }
+
+namespace {
+// Per channel: when memory failures began (0: not failing). Written by the
+// sync and nudge tasks, read by the main loop; 32-bit stores are atomic.
+volatile uint32_t g_memFailSince[2] = {0, 0};
+volatile bool g_everWorked = false;
+
+void noteMemoryFailure(Channel ch) {
+  volatile uint32_t& since = g_memFailSince[(int)ch];
+  if (!since) since = millis() | 1;
+}
+
+bool isAllocError(int e) {
+  return e == MBEDTLS_ERR_SSL_ALLOC_FAILED || e == MBEDTLS_ERR_X509_ALLOC_FAILED ||
+         e == MBEDTLS_ERR_PK_ALLOC_FAILED || e == MBEDTLS_ERR_MPI_ALLOC_FAILED;
+}
+}  // namespace
+
+bool canStart(Channel ch) {
+  if (memoryOk()) return true;
+  noteMemoryFailure(ch);
+  return false;
+}
+
+void finished(Channel ch, int code, WiFiClientSecure& client) {
+  if (code > 0) {
+    g_memFailSince[(int)ch] = 0;
+    g_everWorked = true;
+    return;
+  }
+  char ignored[8];
+  if (isAllocError(client.lastError(ignored, sizeof ignored))) noteMemoryFailure(ch);
+}
+
+uint32_t memoryFailingMs(uint32_t nowMs) {
+  uint32_t longest = 0;
+  for (const uint32_t since : g_memFailSince) {
+    if (since && (int32_t)(nowMs - since) > 0 && nowMs - since > longest) longest = nowMs - since;
+  }
+  return longest;
+}
+
+bool everWorked() { return g_everWorked; }
 
 void setup(WiFiClientSecure& client, HTTPClient& http) {
   client.setCACertBundle(x509_crt_bundle_start);

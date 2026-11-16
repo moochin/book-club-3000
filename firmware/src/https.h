@@ -28,6 +28,26 @@ constexpr uint16_t kStreamTimeoutMs = 3000;
 // Enough contiguous heap for a TLS session right now.
 bool memoryOk();
 
+// What the self-healing restart watches: whether secure connections are
+// actually failing for memory, rather than a guess from the heap. A free
+// 20 KB block doesn't mean a handshake will fit (it needs ~40 KB in several
+// pieces), so a unit could fail every handshake for hours while memoryOk()
+// said yes. Each kind of connection is tracked on its own, because GitHub's
+// handshake needs more than the hub's: one can fail while the other works.
+enum class Channel : uint8_t { Sync, Hub };
+
+// memoryOk(), and if not, notes a memory failure for `ch`. Call before
+// starting a connection.
+bool canStart(Channel ch);
+// After a request: an HTTP answer (code > 0) proves TLS works for `ch`; a
+// failure that was TLS running out of memory notes a memory failure.
+void finished(Channel ch, int code, WiFiClientSecure& client);
+// How long some channel has been failing for memory with no success since
+// (0: none is).
+uint32_t memoryFailingMs(uint32_t nowMs);
+// A secure connection has worked at some point since start-up.
+bool everWorked();
+
 // CA bundle, connect/handshake timeouts, the short stream timeout, HTTP/1.0.
 void setup(WiFiClientSecure& client, HTTPClient& http);
 

@@ -36,8 +36,9 @@ const char* syncAdvice(const char* error, bool stale) {
            "restarts itself quietly if memory stays low.";
   }
   if (starts(e, "out of memory") || strstr(e, "lloc")) {
-    return "The unit ran short of memory for a secure connection. Unplug it and plug it back in, "
-           "and note ABOUT's MEMORY line for whoever looks after the firmware.";
+    return "The unit ran short of memory for a secure connection. It restarts itself quietly "
+           "if this goes on for 10 minutes while nobody is using it. If it keeps happening, "
+           "note ABOUT's MEMORY line for whoever looks after the firmware.";
   }
   if (strstr(e, "X509") || strstr(e, "ertificate")) {
     return "Couldn't check GitHub's certificate. If the clock is wrong, wait for it to set; it "

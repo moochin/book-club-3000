@@ -87,7 +87,7 @@ static int request(const char* method, const char* path, const char* body, char*
   out[0] = '\0';
   g_tlsWhy[0] = '\0';
   // Rather than fail partway through a handshake, don't start one.
-  if (!https::memoryOk()) return kLowMemory;
+  if (!https::canStart(https::Channel::Hub)) return kLowMemory;
   WiFiClientSecure client;
   HTTPClient http;
   https::setup(client, http);
@@ -100,6 +100,7 @@ static int request(const char* method, const char* path, const char* body, char*
   } else {
     code = http.GET();
   }
+  https::finished(https::Channel::Hub, code, client);
   if (code < 0) https::tlsReason(client, g_tlsWhy, sizeof g_tlsWhy);
   // Not getString(): its reads can spin on core 0 (see https.h).
   if (code > 0 && https::readBody(http, out, cap, cfg::kHttpTimeoutMs) < 0) out[0] = '\0';
