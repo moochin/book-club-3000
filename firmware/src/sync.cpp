@@ -206,18 +206,26 @@ static Part fetchFirmwarePart(const char* url, size_t& done, int& total, uint32_
   // After the handshake, like the club file's buffer, and freed before the
   // next one: a resume's handshake with this 4 KB still held (on top of
   // Update's own buffer) ran out of memory ("PK verify failed", 1.5.8).
-  std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[4096]);
+  // With a TLS session and Update's buffer live, even 4 KB isn't always
+  // there (1.5.7 failed "out of memory" on two of three bench units), so
+  // settle for less: 512-byte reads are still bulk reads.
+  size_t bufLen = 4096;
+  std::unique_ptr<uint8_t[]> buf;
+  for (; bufLen >= 512 && !buf; bufLen /= 2) buf.reset(new (std::nothrow) uint8_t[bufLen]);
   if (!buf) {
-    snprintf(err, errLen, "out of memory");
+    snprintf(err, errLen, "out of memory (block %u)",
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     http.end();
     return Part::Retry;
   }
+  bufLen *= 2;  // the loop halved it once past the size that worked
+  if (bufLen < 4096) Serial.printf("[sync] update reading %u bytes at a time\n", (unsigned)bufLen);
   WiFiClient* in = http.getStreamPtr();
   uint32_t lastData = millis(), lastLog = lastData;
   while (done < (size_t)total) {
     const int avail = in->available();
     if (avail > 0) {
-      size_t n = (size_t)avail < 4096 ? (size_t)avail : 4096;
+      size_t n = (size_t)avail < bufLen ? (size_t)avail : bufLen;
       if (n > (size_t)total - done) n = (size_t)total - done;
       const int got = in->read(buf.get(), n);
       if (got > 0) {
