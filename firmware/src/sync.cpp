@@ -150,7 +150,20 @@ static int download(const char* url, const char* token, std::unique_ptr<char[]>&
 // feeds Update.writeStream(), which pulls TLS data one byte at a time through
 // Stream::readBytes(): about 2.5 KB/s, so a 1.4 MB update took ~10 minutes.
 // Bulk reads into a 4 KB buffer instead. Writes a reason into `err` on failure.
-static bool fetchFirmware(const char* url, char* err, size_t errLen) {
+//
+// On a slow or patchy network a connection can stall or drop part-way
+// (seen at 1-2 KB/s on 2026-11-16). Rather than start again from zero, it
+// reconnects and asks for the rest with a Range header, up to
+// kFwConnects times, as long as each connection brings some new data.
+static constexpr int kFwConnects = 6;
+static constexpr uint32_t kFwStallMs = 30000;  // no data this long: reconnect
+
+// One connection: from byte `done` on (all of it when `done` is 0). Sets
+// `total` from the first answer. Returns false with `err` set if it can't
+// go on; `done` is how far it got either way.
+static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
+                              std::unique_ptr<uint8_t[]>& buf, uint32_t startMs, char* err,
+                              size_t errLen) {
   if (!https::canStart(https::Channel::Sync)) {
     snprintf(err, errLen, "low memory (trying later)");
     return false;
@@ -163,45 +176,58 @@ static bool fetchFirmware(const char* url, char* err, size_t errLen) {
     snprintf(err, errLen, "bad URL");
     return false;
   }
+  char range[32];
+  if (done > 0) {
+    snprintf(range, sizeof range, "bytes=%u-", (unsigned)done);
+    http.addHeader("Range", range);
+  }
   const int code = http.GET();
   https::finished(https::Channel::Sync, code, client);
-  const int total = http.getSize();
-  if (code != HTTP_CODE_OK || total <= 0) {
-    if (code != HTTP_CODE_OK) snprintf(err, errLen, "HTTP %d", code);
-    else snprintf(err, errLen, "no length");
+  const int size = http.getSize();
+  const int want = done > 0 ? HTTP_CODE_PARTIAL_CONTENT : HTTP_CODE_OK;
+  if (code != want || size <= 0 || (total > 0 && (size_t)size != (size_t)total - done)) {
+    if (code != want) snprintf(err, errLen, "HTTP %d", code);
+    else snprintf(err, errLen, "unexpected length %d", size);
     http.end();
     return false;
   }
-  std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[4096]);
-  if (!buf || !Update.begin((size_t)total, U_FLASH)) {
-    snprintf(err, errLen, "%s", buf ? Update.errorString() : "out of memory");
+  if (total == 0) {  // the first answer: open the spare slot
+    if (!Update.begin((size_t)size, U_FLASH)) {
+      snprintf(err, errLen, "%s", Update.errorString());
+      http.end();
+      return false;
+    }
+    total = size;
+  }
+  // After the handshake, like the club file's buffer: 4 KB taken first can
+  // leave the handshake short.
+  if (!buf) buf.reset(new (std::nothrow) uint8_t[4096]);
+  if (!buf) {
+    snprintf(err, errLen, "out of memory");
     http.end();
     return false;
   }
   WiFiClient* in = http.getStreamPtr();
-  size_t done = 0;
-  const uint32_t startMs = millis();
-  uint32_t lastData = startMs, lastLog = startMs;
+  uint32_t lastData = millis(), lastLog = lastData;
   while (done < (size_t)total) {
     const int avail = in->available();
     if (avail > 0) {
-      size_t want = (size_t)avail < 4096 ? (size_t)avail : 4096;
-      if (want > (size_t)total - done) want = (size_t)total - done;
-      const int n = in->read(buf.get(), want);
-      if (n > 0) {
-        if (Update.write(buf.get(), (size_t)n) != (size_t)n) {
+      size_t n = (size_t)avail < 4096 ? (size_t)avail : 4096;
+      if (n > (size_t)total - done) n = (size_t)total - done;
+      const int got = in->read(buf.get(), n);
+      if (got > 0) {
+        if (Update.write(buf.get(), (size_t)got) != (size_t)got) {
           snprintf(err, errLen, "flash write: %s", Update.errorString());
-          Update.abort();
           http.end();
           return false;
         }
-        done += (size_t)n;
+        done += (size_t)got;
         g_updatePct = (int)(done * 100 / (size_t)total);
         lastData = millis();
       }
       vTaskDelay(1);  // let core 0's idle task in now and then
     } else {
-      if (!in->connected() || millis() - lastData > 30000) break;
+      if (!in->connected() || millis() - lastData > kFwStallMs) break;
       vTaskDelay(pdMS_TO_TICKS(2));
     }
     if (millis() - lastLog >= 5000) {
@@ -211,9 +237,31 @@ static bool fetchFirmware(const char* url, char* err, size_t errLen) {
     }
   }
   http.end();
-  if (done != (size_t)total) {
-    snprintf(err, errLen, "cut short (%u of %d bytes)", (unsigned)done, total);
-    Update.abort();
+  if (done < (size_t)total) snprintf(err, errLen, "cut short (%u of %d bytes)", (unsigned)done, total);
+  return true;
+}
+
+static bool fetchFirmware(const char* url, char* err, size_t errLen) {
+  std::unique_ptr<uint8_t[]> buf;
+  size_t done = 0;
+  int total = 0;
+  const uint32_t startMs = millis();
+  for (int i = 0; i < kFwConnects; ++i) {
+    const size_t before = done;
+    if (i > 0) {
+      Serial.printf("[sync] update %s; resuming at %u\n", err, (unsigned)done);
+      vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+    err[0] = '\0';
+    const bool goOn = fetchFirmwarePart(url, done, total, buf, startMs, err, errLen);
+    if (total > 0 && done == (size_t)total) break;
+    // A connection that can't go on, or brings nothing new, ends the try
+    // (the first one may fail before anything comes; one more chance then).
+    if (!goOn || (done == before && i > 0)) break;
+  }
+  if (total <= 0 || done != (size_t)total) {
+    if (total > 0) Update.abort();
+    if (!err[0]) snprintf(err, errLen, "cut short (%u of %d bytes)", (unsigned)done, total);
     return false;
   }
   if (!Update.end(true)) {

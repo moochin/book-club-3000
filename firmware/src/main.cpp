@@ -193,21 +193,15 @@ bool bootSoundWanted() {
 }
 
 // Sounds for what the knob or a tap just did: the microfiche whir between
-// tabs, the valve radio warming up and tuning in settings, else a click.
+// tabs, else a click. Settings is silent (bar the SOUND and VOLUME confirm
+// beeps): once 1.5.5 freed the speaker pin, its valve-radio hum and tuning
+// sounds came through as a constant buzz.
 void inputSound(const input::Events& ev, const ui::View& was, const ui::View& is, uint32_t now) {
   if (ev.any()) g_lastInputMs = now;
-  // The settings hum, until settings close or sit untouched for a while.
-  audio::setAmbient(is.settings && now - g_lastInputMs < cfg::kSettingsHumMs);
-  if (!ev.any()) return;
-  if (!was.settings && !is.settings && is.tab != was.tab) {
+  if (!ev.any() || is.settings || was.settings) return;
+  if (is.tab != was.tab) {
     const int dir = ev.turn ? ev.turn : (is.tab > was.tab ? 1 : -1);
     audio::tabAdvance(dir);
-  } else if (is.settings && !was.settings) {
-    audio::settingsWarmUp();
-  } else if (was.settings && !is.settings) {
-    audio::settingsClose();
-  } else if (is.menu && was.menu && is.menuSel != was.menuSel) {
-    audio::tunerScan(was.menuSel, is.menuSel, ui::kMenuItems);
   } else if (ev.turn || ev.tap) {
     audio::knobClick();
   }
