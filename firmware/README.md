@@ -27,7 +27,13 @@ pio device monitor                  # serial log, 115200
 If the upload stops at `Wrong boot mode detected (0x13)`, the board's
 auto-reset can't pull GPIO0 low (some CYD clones are wired this way): hold
 **BOOT** while the upload says `Connecting...`, and let go once it starts
-writing.
+writing. Or let `scripts/flash_cyd.py` do the timing: it builds, resets the
+board until it is in download mode, then flashes, so BOOT needs holding for
+only about 2 s:
+
+```bash
+~/.platformio/penv/Scripts/python scripts/flash_cyd.py       # cyd_st7789; pass `cyd` for ILI9341
+```
 
 | Environment | What it is |
 | --- | --- |
