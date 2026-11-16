@@ -9,7 +9,7 @@ Each drawing is full-colour line art on a white background. This script:
    removes the background, keeps the black ink as outlines, maps colours to
    brightness, and adds the floor shadow;
 2. adds the small extras that don't survive the shrink: the watch face, the
-   question mark, confetti, the jump's bounce, the gamepad;
+   question mark, confetti, the jump's bounce, the gamepad, the popcorn;
 3. applies hand touch-ups: clean faces for the two sickest poses and a
    deeper slump for "very sick".
 
@@ -197,6 +197,36 @@ def controller(f, x0, y0):
                 f[y0 + j][x0 + i] = HOT if ch == "o" else 8
 
 
+def popcorn(f):
+    """The popcorn tub, which shrinks to mush: a bright heap, a striped tub
+    and the hand that holds it, plus the piece on its way to his mouth."""
+    heap = [(30, 39, 3), (34, 36, 3.5), (39, 36, 3.5), (43, 39, 3), (36, 39, 4)]
+    paint = {}
+    for y in range(30, 42):
+        for x in range(24, 48):
+            if any((x - cx) ** 2 + (y - cy) ** 2 <= r * r for cx, cy, r in heap):
+                paint[(x, y)] = SKIN if (x * 3 + y * 5) % 7 == 0 else HOT
+    for y in range(42, 55):                       # the tub narrows towards its base
+        inset = (y - 42) // 4
+        for x in range(28 + inset, 45 - inset):
+            paint[(x, y)] = WARN if (x // 2) % 2 else 12
+    hand = {(x, y) for y in range(45, 53) for x in range(25, 39)
+            if ((x - 32) / 5.5) ** 2 + ((y - 49) / 3.2) ** 2 <= 1}
+    for pt in hand:
+        paint[pt] = SKIN
+    for (x, y) in list(paint):                    # ink rim round the lot
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, y + dy) not in paint:
+                f[y + dy][x + dx] = INK
+    for (x, y), c in paint.items():
+        f[y][x] = c
+    for x, y in hand:                             # rim between hand and tub
+        if any((x + dx, y + dy) not in hand for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            f[y][x] = INK
+    put(f, [(29, 49), (30, 49), (31, 49), (32, 49)], INK)   # a finger line
+    put(f, [(25, 25), (26, 25), (25, 24)], HOT)
+
+
 def repaint_face(f, cx, cy, rx, ry):
     """Smooth skin inside the face oval, with a one-pixel ink rim."""
     for y in range(96):
@@ -296,6 +326,10 @@ def build():
     f = convert(d("gaming.webp"))
     controller(f, 40, 38)
     out["stat_gaming.png"] = f
+
+    f = convert(d("trivia.webp"))
+    popcorn(f)
+    out["stat_trivia.png"] = f
     return out
 
 
