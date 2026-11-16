@@ -9,7 +9,7 @@ Each drawing is full-colour line art on a white background. This script:
    removes the background, keeps the black ink as outlines, maps colours to
    brightness, and adds the floor shadow;
 2. adds the small extras that don't survive the shrink: the watch face, the
-   question mark, confetti, the jump's bounce;
+   question mark, confetti, the jump's bounce, the gamepad;
 3. applies hand touch-ups: clean faces for the two sickest poses and a
    deeper slump for "very sick".
 
@@ -184,6 +184,19 @@ def hat_stripes(f, rows=(8, 11, 14), x0=31, x1=40):
                 f[y][x] = HOT
 
 
+def controller(f, x0, y0):
+    """The gamepad, which shrinks to a black blob: grey body, bright buttons."""
+    rows = [".######.",
+            "#o####o#",
+            "######..",
+            ".###....",
+            ".##....."]
+    for j, row in enumerate(rows):
+        for i, ch in enumerate(row):
+            if ch != "." and f[y0 + j][x0 + i] == INK:
+                f[y0 + j][x0 + i] = HOT if ch == "o" else 8
+
+
 def repaint_face(f, cx, cy, rx, ry):
     """Smooth skin inside the face oval, with a one-pixel ink rim."""
     for y in range(96):
@@ -279,6 +292,10 @@ def build():
         f = convert(d("waiting.jpg"))
         watch(f, 31, 37, hand)
         out[f"syncing_{i}@600.png"] = f
+
+    f = convert(d("gaming.webp"))
+    controller(f, 40, 38)
+    out["stat_gaming.png"] = f
     return out
 
 
