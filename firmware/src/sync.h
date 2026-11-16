@@ -30,6 +30,8 @@ int updateProgress();
 // status, through GitHub's redirect). Otherwise, any HTTP answer for the club
 // file counts: a typo in it mustn't roll back a good firmware.
 uint32_t reachedCount();
+// Fetches finished (good or bad) since start-up.
+uint32_t fetchesDone();
 // How long the current fetch has been running (0 when idle), so a stuck one
 // can be spotted. Excludes a firmware download, which can take minutes.
 uint32_t busyForMs(uint32_t nowMs);

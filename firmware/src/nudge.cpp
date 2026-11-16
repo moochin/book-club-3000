@@ -296,6 +296,9 @@ static void taskMain(void*) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kWakeMs));
     if (!g_wifiUp || !configured()) continue;
+    // The club file first: it carries firmware updates, and GitHub's
+    // handshake needs a heap the hub's hasn't broken up yet.
+    if (datasync::fetchesDone() == 0) continue;
     const uint32_t now = millis();
     bool pending, due;
     {

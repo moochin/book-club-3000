@@ -65,9 +65,10 @@ static void hostOf(const char* url, char* host, size_t cap) {
   host[n] = 0;
 }
 
-// Downloads at most bc::kMaxFileBytes into buf. Returns length or -1.
+// Downloads at most bc::kMaxFileBytes into buf, which it allocates once
+// connected. Returns length or -1.
 // `answered`: set when the host replied with an HTTP status (good or bad).
-static int download(const char* url, const char* token, char* buf, size_t cap, bool* answered) {
+static int download(const char* url, const char* token, std::unique_ptr<char[]>& buf, bool* answered) {
   if (!url[0]) {
     setError("no data URL: set it on the setup page");
     return -1;
@@ -115,7 +116,24 @@ static int download(const char* url, const char* token, char* buf, size_t cap, b
     http.end();
     return -1;
   }
-  const int n = https::readBody(http, buf, cap, cfg::kHttpTimeoutMs);
+  // Only now, with the session up: the handshake needs the biggest free
+  // block it can get (see runFetch()). And only as big as the file: an open
+  // GitHub session leaves ~12 KB in one piece, too little for the full
+  // kMaxFileBytes, but the club file is a few KB.
+  const int declared = http.getSize();  // -1: not given
+  if (declared > (int)bc::kMaxFileBytes) {
+    http.end();
+    setError("file too large");
+    return -1;
+  }
+  const size_t cap = (declared >= 0 ? (size_t)declared : bc::kMaxFileBytes) + 1;
+  buf.reset(new (std::nothrow) char[cap]);
+  if (!buf) {
+    http.end();
+    setError("out of memory");
+    return -1;
+  }
+  const int n = https::readBody(http, buf.get(), cap, cfg::kHttpTimeoutMs);
   http.end();
   if (n == -1) {
     setError("file too large");
@@ -248,14 +266,9 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   Serial.printf("[sync] firmware %s available (running %s)\n", fw.version, BC_FW_VERSION);
   g_status = Status::Updating;
   g_updatePct = 0;
-  // The download and flash writes keep core 0 busy for long stretches, and
-  // the task watchdog then reset the board mid-install (from 1.2.0 to 1.3.0
-  // it looped: reset, retry, reset). Don't watch core 0's idle task while
-  // the update runs.
-  disableCore0WDT();
+  // Core 0's watchdog is already off: this runs under lockTls().
   char err[64] = "";
   const bool ok = fetchFirmware(url, err, sizeof err);
-  enableCore0WDT();
   if (ok) {
     fwguard::installing(fw.version);  // so a rollback is noticed and counted
     Serial.println("[sync] update installed, restarting");
@@ -271,16 +284,20 @@ static void runFetch() {
   g_probeFailed = false;
   bool answered = false;
   const settings::Unit& u = settings::get();
-  std::unique_ptr<char[]> buf(new (std::nothrow) char[bc::kMaxFileBytes + 1]);
-  std::unique_ptr<bc::BookClubData> data(new (std::nothrow) bc::BookClubData());
-  if (!buf || !data) {
-    setError("out of memory");
+  // The buffers come after the handshake, not before: after a hub poll the
+  // heap's biggest block can be half what it was, and taking ~20 KB out of
+  // it first left GitHub's handshake short ("X509 - Allocation of memory
+  // failed") on every fetch.
+  std::unique_ptr<char[]> buf;
+  const int n = download(u.dataUrl, u.token, buf, &answered);
+  if (n < 0) {
+    if (answered) g_reachedCount = g_reachedCount + 1;  // see reachedCount()
     g_status = Status::Failed;
     return;
   }
-  const int n = download(u.dataUrl, u.token, buf.get(), bc::kMaxFileBytes + 1, &answered);
-  if (n < 0) {
-    if (answered) g_reachedCount = g_reachedCount + 1;  // see reachedCount()
+  std::unique_ptr<bc::BookClubData> data(new (std::nothrow) bc::BookClubData());
+  if (!data) {
+    setError("out of memory");
     g_status = Status::Failed;
     return;
   }
@@ -331,8 +348,21 @@ static void taskMain(void*) {
   }
 }
 
-void lockTls() { xSemaphoreTake(g_tlsMutex, portMAX_DELAY); }
-void unlockTls() { xSemaphoreGive(g_tlsMutex); }
+// While a secure connection runs, core 0's idle task isn't watched. A
+// handshake can hold core 0 for seconds without yielding: the hub's
+// Let's Encrypt chain is ECDSA P-384, which mbedTLS verifies in software in
+// one step (~5 s), and the watchdog then restarted the unit on every boot.
+// Firmware downloads keep core 0 just as busy (1.2.0 to 1.3.0 looped on
+// that). A connection that truly hangs is still caught by the stuck-fetch
+// restart (bc::kStuckMs).
+void lockTls() {
+  xSemaphoreTake(g_tlsMutex, portMAX_DELAY);
+  disableCore0WDT();
+}
+void unlockTls() {
+  enableCore0WDT();
+  xSemaphoreGive(g_tlsMutex);
+}
 
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
@@ -417,6 +447,7 @@ bool takeNewData(bc::BookClubData& out) {
 int updateProgress() { return g_updatePct; }
 
 uint32_t reachedCount() { return g_reachedCount; }
+uint32_t fetchesDone() { return g_doneCount; }
 
 uint32_t busyForMs(uint32_t nowMs) {
   const uint32_t since = g_busySinceMs;
