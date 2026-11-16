@@ -108,6 +108,7 @@ struct View {
   uint8_t tab = 0;
 };
 View view();
+const char* screenName();  // for the test console
 constexpr int kMenuItems = 17;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
