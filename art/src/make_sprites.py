@@ -9,7 +9,7 @@ Each drawing is full-colour line art on a white background. This script:
    removes the background, keeps the black ink as outlines, maps colours to
    brightness, and adds the floor shadow;
 2. adds the small extras that don't survive the shrink: the watch face, the
-   question mark, confetti, the jump's bounce, the gamepad, the popcorn;
+   question mark, confetti, the jump's bounce, the gamepad, the popcorn, the laughter;
 3. applies hand touch-ups: clean faces for the two sickest poses and a
    deeper slump for "very sick".
 
@@ -227,6 +227,26 @@ def popcorn(f):
     put(f, [(25, 25), (26, 25), (25, 24)], HOT)
 
 
+HA = ["#.#..#.",
+      "#.#.#.#",
+      "###.###",
+      "#.#.#.#",
+      "#.#.#.#"]
+
+
+def laughter(f, bob):
+    """Bright "HA"s in place of the drawing's lettering, which shrinks to
+    blobs, and a row of teeth. `bob` nudges alternate HAs for the animation."""
+    for y in range(8, 18):                        # the old lettering, left and right
+        f[y][14:26] = [CLEAR] * 12
+    for y in range(16, 25):
+        f[y][50:64] = [CLEAR] * 14
+    for i, (x0, y0) in enumerate(((17, 3), (10, 11), (52, 14), (56, 22))):
+        y0 += bob if i % 2 else -bob
+        put(f, [(x0 + c, y0 + r) for r, row in enumerate(HA) for c, ch in enumerate(row) if ch == "#"], HOT)
+    put(f, [(x, 18) for x in range(29, 36)], HOT)
+
+
 def repaint_face(f, cx, cy, rx, ry):
     """Smooth skin inside the face oval, with a one-pixel ink rim."""
     for y in range(96):
@@ -330,6 +350,11 @@ def build():
     f = convert(d("trivia.webp"))
     popcorn(f)
     out["stat_trivia.png"] = f
+
+    for i, bob in ((1, 0), (2, 1)):
+        f = convert(d("banter.webp"))
+        laughter(f, bob)
+        out[f"stat_banter_{i}@300.png"] = f
     return out
 
 
