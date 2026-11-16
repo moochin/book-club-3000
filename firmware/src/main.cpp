@@ -6,6 +6,7 @@
 // its own FreeRTOS task, so the knob stays responsive during a fetch.
 #include <Arduino.h>
 #include <esp_system.h>
+#include <string.h>
 
 #include <memory>
 
@@ -217,6 +218,75 @@ ui::SyncInfo syncInfo(datasync::Status s) {
   }
 }
 
+// A test console on the USB serial port, so a bench of units can be driven
+// from a PC: one command per line. Unknown lines print the list.
+void consoleCommand(char* line) {
+  char* cmd = strtok(line, " ");
+  if (!cmd) return;
+  char* rest = strtok(nullptr, "");
+  input::Events e;
+  const uint32_t now = millis();
+  if (!strcmp(cmd, "status")) {
+    char mem[48];
+    diag::memoryText(mem, sizeof mem);
+    bool bad = false;
+    const ui::View v = ui::view();
+    Serial.printf("[con] fw=%s up=%lus wifi=%d ip=%s sync=%d err=\"%s\" probation=%d note=\"%s\" started=\"%s\"\n",
+                  BC_FW_VERSION, (unsigned long)(now / 1000), net::connected(), net::ipString(),
+                  (int)datasync::status(), datasync::lastError(), fwguard::onProbation(), fwguard::note(now),
+                  diag::startedBy(bad));
+    Serial.printf("[con] mem=\"%s\" screen=%s tab=%d menuSel=%d blank=%d nudge=%d signal=%d toast=\"%s\"\n", mem,
+                  ui::screenName(), v.tab, v.menuSel, backlight::blanked(), g_nudgeShown, g_signalShown, g_toast);
+    Serial.printf("[con] me=\"%s\" friends=%d signals=%d hubErr=\"%s\" sigErr=\"%s\" busy=%lu/%lu\n", nudge::me(),
+                  nudge::friendCount(), nudge::signals(g_signals, bc::kMaxSignals, now), nudge::lastError(),
+                  nudge::signalsError(), (unsigned long)datasync::busyForMs(now), (unsigned long)nudge::busyForMs(now));
+    return;
+  }
+  if (!strcmp(cmd, "turn")) e.turn = (int8_t)(rest ? atoi(rest) : 1);
+  else if (!strcmp(cmd, "press")) e.shortPress = true;
+  else if (!strcmp(cmd, "long")) e.longPress = true;
+  else if (!strcmp(cmd, "tap") && rest) {
+    e.tap = true;
+    e.x = (int16_t)atoi(rest);
+    const char* y = strchr(rest, ' ');
+    e.y = (int16_t)(y ? atoi(y) : 0);
+  } else if (!strcmp(cmd, "nudge") && rest) {  // nudge <name|*> <message>
+    char* msg = strchr(rest, ' ');
+    if (!msg) return;
+    *msg++ = '\0';
+    nudge::send(rest, msg);
+  } else if (!strcmp(cmd, "signal") && rest) {
+    nudge::broadcast(rest);
+  } else if (!strcmp(cmd, "refresh")) {
+    datasync::requestNow();
+  } else if (!strcmp(cmd, "restart")) {
+    Serial.println("[con] restarting");
+    delay(50);
+    ESP.restart();
+  } else {
+    Serial.println("[con] status | turn N | press | long | tap X Y | nudge NAME|* MSG | signal MSG | refresh | restart");
+    return;
+  }
+  if (e.any()) input::inject(e);
+  Serial.printf("[con] ok %s\n", cmd);
+}
+
+void consoleTick() {
+  static char line[128];
+  static size_t len = 0;
+  while (Serial.available()) {
+    const int c = Serial.read();
+    if (c == '\r' || c == '\n') {
+      if (!len) continue;
+      line[len] = '\0';
+      len = 0;
+      consoleCommand(line);
+    } else if (len < sizeof line - 1) {
+      line[len++] = (char)c;
+    }
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -261,6 +331,7 @@ void setup() {
 }
 
 void loop() {
+  consoleTick();
   const uint32_t now = millis();
   input::Events ev = input::poll(now);
 

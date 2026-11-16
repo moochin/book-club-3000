@@ -1191,6 +1191,14 @@ void begin() {}
 
 static_assert(kMenuCount == kMenuItems, "ui.h kMenuItems is out of date");
 
+const char* screenName() {
+  static const char* const kNames[] = {"TABS", "MENU", "OWNER", "STAT", "HELP", "ABOUT", "DEBUG", "CONFIRM",
+                                       "NUDGE_TO", "NUDGE_MSG", "NUDGE_SETUP", "SIGNALS", "SIGNAL_QUOTE",
+                                       "SYNC_STATUS"};
+  const unsigned i = (unsigned)g_screen;
+  return i < sizeof kNames / sizeof kNames[0] ? kNames[i] : "?";
+}
+
 View view() {
   View v;
   // The owner card opened by tapping the mascot belongs to the tabs.

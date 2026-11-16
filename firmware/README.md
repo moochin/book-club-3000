@@ -304,6 +304,15 @@ every unit rather than sending it to all; `[]` is the same as leaving it out.
 The partition table (`partitions.csv`) has two 1.9 MB app slots for OTA and a
 64 KB NVS, which holds settings, saved Wi-Fi and the cached file.
 
+## The test console (from 1.5.8)
+
+At 115200 baud on the USB port, a unit takes one command per line, so a bench
+of units can be driven from a PC: `status` (version, memory, Wi-Fi, probation,
+the screen showing), `turn N`, `press`, `long`, `tap X Y` (as if the knob or
+screen did it), `nudge NAME|* MSG`, `signal MSG`, `refresh` and `restart`.
+Open the port with DTR and RTS low, or opening it resets the board. A `restart`
+while a new firmware is on probation rolls it back, as any restart does.
+
 ## Where the data comes from
 
 There is no built-in data URL: the club file is in a secret gist, and its

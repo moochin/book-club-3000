@@ -82,10 +82,23 @@ void begin() {
 }
 
 static bool g_reversed = false;
+static Events g_injected;
+void inject(const Events& e) {
+  g_injected.turn = (int8_t)(g_injected.turn + e.turn);
+  g_injected.shortPress |= e.shortPress;
+  g_injected.longPress |= e.longPress;
+  if (e.tap) {
+    g_injected.tap = true;
+    g_injected.x = e.x;
+    g_injected.y = e.y;
+  }
+}
+
 void setReversed(bool reversed) { g_reversed = reversed; }
 
 Events poll(uint32_t now) {
-  Events e;
+  Events e = g_injected;
+  g_injected = Events();
 
   // Turn: count whole detents, keep the remainder for next time.
   const int64_t count = g_enc.getCount();
@@ -94,7 +107,7 @@ Events poll(uint32_t now) {
     int64_t d = detents - g_lastDetentCount;
     if (d > 100) d = 100;
     if (d < -100) d = -100;
-    e.turn = (int8_t)(g_reversed ? -d : d);
+    e.turn = (int8_t)(e.turn + (g_reversed ? -d : d));
     g_lastDetentCount = detents;
   }
 

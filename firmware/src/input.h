@@ -21,6 +21,9 @@ Events poll(uint32_t nowMs);
 // For a knob wired the other way round: report turns reversed.
 void setReversed(bool reversed);
 
+// Test console: merge these into the next poll(), as if the knob or screen did them.
+void inject(const Events& e);
+
 // True while the BOOT button (GPIO 0) is held.
 bool bootHeld();
 
