@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <driver/dac.h>
+#include <driver/rtc_io.h>
 #include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/semphr.h>
@@ -56,9 +57,35 @@ static int g_geigerCpm = 0;
 static uint32_t g_nextGeigerMs = 0;
 static uint16_t g_curFreq = 0;
 static bool g_dacMode = false;  // pin on the DAC for recorded clips (else on the LEDC)
+static bool g_onLedc = false;   // pin routed to the LEDC for a generated sound
 
 static void silence() {
-  ledcWrite(cfg::kLedcSpeaker, 0);  // pin held low: no amp hiss
+  ledcWrite(cfg::kLedcSpeaker, 0);
+}
+
+// The speaker pin between sounds: on the RTC mux with nothing driving it,
+// as the DAC driver leaves it after a clip. Held low by the LEDC instead, it
+// carried the ground bounce of screen traffic into the amp: a buzz on the
+// STATS page after boot that went away once any clip had played.
+static void releasePin() {
+  silence();
+  ledcDetachPin(cfg::kPinSpeaker);
+  const gpio_num_t pin = (gpio_num_t)cfg::kPinSpeaker;
+  rtc_gpio_init(pin);
+  rtc_gpio_set_direction(pin, RTC_GPIO_MODE_DISABLED);
+  rtc_gpio_pullup_dis(pin);
+  rtc_gpio_pulldown_dis(pin);
+  g_onLedc = false;
+}
+
+// Routes the pin to the LEDC for a generated sound. ledcAttachPin() alone
+// sets the digital mux but leaves the RTC mux on, so after the first clip
+// every generated sound (Geiger clicks, the jingle) went nowhere.
+static void claimLedc() {
+  if (g_onLedc) return;
+  rtc_gpio_deinit((gpio_num_t)cfg::kPinSpeaker);
+  ledcAttachPin(cfg::kPinSpeaker, cfg::kLedcSpeaker);
+  g_onLedc = true;
 }
 
 // Volume, as a scale of the safe maximum: 64..256 (256 = 100 %).
@@ -71,6 +98,7 @@ static void tone(uint16_t freq, uint8_t duty) {
     silence();
     return;
   }
+  claimLedc();
   // Retiming the LEDC timer is the slow part; skip it when the pitch holds.
   if (freq != g_curFreq) {
     ledcChangeFrequency(cfg::kLedcSpeaker, freq, 8);
@@ -119,7 +147,7 @@ static void step() {
     if (runVoice(g_amb, g_ambStartUs)) return;
     g_ambRunning = false;
   }
-  silence();
+  if (!g_dacMode) releasePin();
   g_dueUs = INT64_MAX;
 }
 
@@ -282,6 +310,7 @@ static void enterDac() {
   g_dueUs = INT64_MAX;
   silence();
   ledcDetachPin(cfg::kPinSpeaker);
+  g_onLedc = false;
   dac_output_enable(DAC_CHANNEL_2);
   // The DAC's cosine generator owns its output out of reset (SENS_DAC_CW_EN2
   // defaults to 1), so dacOut()'s raw writes went nowhere: clips played as
@@ -295,13 +324,13 @@ static void enterDac() {
   g_dacMode = true;
 }
 
-// Gives the pin back to the LEDC once the DAC has ramped down. Lock held.
+// Powers the DAC down once it has ramped to 0, leaving the pin idle (see
+// releasePin()); the next generated sound claims it. Lock held.
 static void finishDac() {
   timerAlarmDisable(g_sampleTimer);
   dac_output_disable(DAC_CHANNEL_2);
-  ledcAttachPin(cfg::kPinSpeaker, cfg::kLedcSpeaker);
-  silence();
   g_dacMode = false;
+  releasePin();
 }
 
 // Stops all clips. With `now`, waits out the ramp-down and hands the pin
@@ -356,12 +385,9 @@ static bool playClip(Clip c) {
 }
 
 void begin() {
-  pinMode(cfg::kPinSpeaker, OUTPUT);
-  digitalWrite(cfg::kPinSpeaker, LOW);
   ledcSetup(cfg::kLedcSpeaker, 2000, 8);
-  ledcAttachPin(cfg::kPinSpeaker, cfg::kLedcSpeaker);
   g_curFreq = 2000;
-  silence();
+  releasePin();
   g_lock = xSemaphoreCreateMutex();
   esp_timer_create_args_t args = {};
   args.callback = onTimer;
@@ -396,7 +422,7 @@ static void stopAll() {
   g_seq = nullptr;
   g_ambRunning = false;
   g_amb.level = 0;
-  silence();
+  if (!g_dacMode) releasePin();  // else tick() ramps the DAC down first
   g_dueUs = INT64_MAX;
 }
 
