@@ -21,6 +21,12 @@ const char* lastError();  // human-readable, for the About screen
 // Copies new data into `out` if a fetch produced some since the last call.
 bool takeNewData(bc::BookClubData& out);
 
+// Before a release download (the update itself, or fwguard's check on
+// probation) the sync task asks for the screen's 38 KB back: true while it
+// wants it. The main loop frees the canvas, then calls ramGiven().
+bool wantsRam();
+void ramGiven();
+
 // Firmware update progress, 0..100, while status() == Updating.
 int updateProgress();
 
