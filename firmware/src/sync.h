@@ -33,9 +33,6 @@ uint32_t reachedCount();
 // How long the current fetch has been running (0 when idle), so a stuck one
 // can be spotted. Excludes a firmware download, which can take minutes.
 uint32_t busyForMs(uint32_t nowMs);
-// A sync or hub exchange holds the TLS lock right now (its session has the
-// heap, so the free-memory check would be misleading).
-bool tlsBusy();
 
 // One HTTPS connection at a time: each TLS session needs ~40 KB of RAM, and
 // this board has no PSRAM. The sync task and the nudge task both take this.
