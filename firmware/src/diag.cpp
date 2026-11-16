@@ -9,7 +9,6 @@
 
 #include "bc_health.h"
 #include "https.h"
-#include "sync.h"
 
 namespace diag {
 
@@ -29,9 +28,7 @@ RTC_NOINIT_ATTR uint8_t r_plannedWhy;  // bc::Restart
 char g_started[48] = "UNKNOWN";
 bool g_bad = false;
 bool g_quiet = false;
-uint32_t g_lowSinceMs = 0;  // when TLS last became impossible (0: it isn't)
 uint32_t g_lastCheckMs = 0;
-bool g_hadMemory = false;   // TLS was possible at some point this run
 
 void copyName(char* dst, TaskHandle_t t) {
   const char* n = t ? pcTaskGetName(t) : nullptr;
@@ -108,19 +105,12 @@ bool quietStart() { return g_quiet; }
 void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, uint32_t stuckMs) {
   if (nowMs - g_lastCheckMs < 5000) return;  // a few samples a minute is plenty
   g_lastCheckMs = nowMs;
-  // While a session is open it holds the big block itself, so the heap looks
-  // short when it isn't: TLS is plainly possible, so count that as fine.
-  if (datasync::tlsBusy() || https::memoryOk()) {
-    g_lowSinceMs = 0;
-    g_hadMemory = true;
-  } else if (!g_lowSinceMs) {
-    g_lowSinceMs = nowMs ? nowMs : 1;
-  }
   bc::HealthInput in;
   in.uptimeMs = nowMs;
   in.idleMs = idleMs;
-  in.lowMemoryMs = g_lowSinceMs ? nowMs - g_lowSinceMs : 0;
-  in.hadMemory = g_hadMemory;
+  // From what the connections report, not a heap reading: see https.h.
+  in.lowMemoryMs = https::memoryFailingMs(nowMs);
+  in.hadMemory = https::everWorked();
   in.stuckMs = stuckMs;
   in.busy = busy;
   in.now = now;

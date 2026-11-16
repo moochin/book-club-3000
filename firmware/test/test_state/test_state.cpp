@@ -881,6 +881,7 @@ void test_sync_advice() {
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: can't connect to gist.githubusercontent.com", false), "MEMORY"));
   // TLS's own reasons, from WiFiClientSecure::lastError().
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - Memory allocation failed", false), "memory"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - Memory allocation failed", false), "restarts itself"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: X509 - Certificate verification failed, e.g. CRL, CA or signature check failed", false), "certificate"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("fetch failed: SSL - The connection indicated an EOF", false), "secure connection"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("", true), "7 days"));

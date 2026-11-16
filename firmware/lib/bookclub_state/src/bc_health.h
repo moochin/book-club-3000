@@ -1,6 +1,6 @@
 // When a unit should restart itself to stay healthy: a quiet daily restart
-// in the small hours, and one when memory has been too fragmented for a TLS
-// connection for a while. Pure, so it's tested on the host; src/diag acts on it.
+// in the small hours, and one when secure connections have been failing for
+// lack of memory for a while. Pure, so it's tested on the host; src/diag acts on it.
 #pragma once
 
 #include <stdint.h>
@@ -14,8 +14,8 @@ enum class Restart : uint8_t { None, Daily, LowMemory, Stuck };
 struct HealthInput {
   uint32_t uptimeMs = 0;
   uint32_t idleMs = 0;          // since the last knob turn, press or tap
-  uint32_t lowMemoryMs = 0;     // how long TLS has been impossible (0: it isn't)
-  bool hadMemory = false;       // TLS was possible earlier this run: a restart helps
+  uint32_t lowMemoryMs = 0;     // how long connections have failed for memory (0: they aren't)
+  bool hadMemory = false;       // a connection worked earlier this run: a restart helps
   uint32_t stuckMs = 0;         // longest a background fetch has been running
   bool busy = false;            // a firmware update or the setup portal
   LocalNow now;

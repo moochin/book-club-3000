@@ -263,7 +263,10 @@ release must never strand them. From 1.5.0:
   of `setup()`; paused during a LAN upload), and the background fetches (a
   sync or hub exchange running 5 minutes is wedged: a quiet restart).
 - **Self-healing.** A quiet restart between 03:00 and 05:00 daily, and when
-  memory stays too fragmented for TLS (see `bc_health.h`).
+  secure connections (the club file's or the hub's) have failed for lack of
+  memory for 10 minutes with no success in between (see `bc_health.h`). It
+  goes by what the connections report, not a heap reading: a free 20 KB
+  block doesn't mean a handshake will fit.
 
 **Try a release on one unit first.** Add `"only"` to the firmware block with
 the owner names (as set on each unit's setup page) that should take it:

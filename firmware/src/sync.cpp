@@ -38,7 +38,6 @@ static volatile uint32_t g_doneCount = 0;
 static volatile bool g_lastOk = false;
 static volatile uint32_t g_reachedCount = 0;  // fwguard's proof: see reachedCount()
 static volatile uint32_t g_busySinceMs = 0;  // 0: not fetching
-static volatile bool g_tlsHeld = false;  // a task holds the TLS lock
 static volatile bool g_probeFailed = false;  // the probation check failed this fetch
 static volatile bool g_needStamp = false;  // synced before the clock was set
 
@@ -83,7 +82,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap, b
     return -1;
   }
   // Rather than fail partway through a handshake, don't start one.
-  if (!https::memoryOk()) {
+  if (!https::canStart(https::Channel::Sync)) {
     setError("fetch failed: low memory (trying later)");
     return -1;
   }
@@ -101,6 +100,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap, b
   }
   http.addHeader("Cache-Control", "no-cache");
   const int code = http.GET();
+  https::finished(https::Channel::Sync, code, client);
   if (code > 0 && answered) *answered = true;
   if (code != HTTP_CODE_OK) {
     // HTTPClient calls any failed connect "connection refused". The secure
@@ -133,7 +133,7 @@ static int download(const char* url, const char* token, char* buf, size_t cap, b
 // Stream::readBytes(): about 2.5 KB/s, so a 1.4 MB update took ~10 minutes.
 // Bulk reads into a 4 KB buffer instead. Writes a reason into `err` on failure.
 static bool fetchFirmware(const char* url, char* err, size_t errLen) {
-  if (!https::memoryOk()) {
+  if (!https::canStart(https::Channel::Sync)) {
     snprintf(err, errLen, "low memory (trying later)");
     return false;
   }
@@ -146,6 +146,7 @@ static bool fetchFirmware(const char* url, char* err, size_t errLen) {
     return false;
   }
   const int code = http.GET();
+  https::finished(https::Channel::Sync, code, client);
   const int total = http.getSize();
   if (code != HTTP_CODE_OK || total <= 0) {
     if (code != HTTP_CODE_OK) snprintf(err, errLen, "HTTP %d", code);
@@ -219,7 +220,7 @@ static const char* firmwareUrl(const bc::FirmwareInfo& fw) {
 // redirect to GitHub's download host). Any HTTP status counts: TLS and the
 // redirect worked, even if the club file names a missing asset.
 static bool probeFirmware(const char* url) {
-  if (!https::memoryOk()) return false;
+  if (!https::canStart(https::Channel::Sync)) return false;
   WiFiClientSecure client;
   HTTPClient http;
   https::setup(client, http);
@@ -227,6 +228,7 @@ static bool probeFirmware(const char* url) {
   if (!http.begin(client, url)) return false;
   http.addHeader("Range", "bytes=0-0");
   const int code = http.GET();
+  https::finished(https::Channel::Sync, code, client);
   http.end();  // not reading the body: closing is enough
   Serial.printf("[sync] release download check -> %d\n", code);
   return code > 0;
@@ -329,14 +331,8 @@ static void taskMain(void*) {
   }
 }
 
-void lockTls() {
-  xSemaphoreTake(g_tlsMutex, portMAX_DELAY);
-  g_tlsHeld = true;
-}
-void unlockTls() {
-  g_tlsHeld = false;
-  xSemaphoreGive(g_tlsMutex);
-}
+void lockTls() { xSemaphoreTake(g_tlsMutex, portMAX_DELAY); }
+void unlockTls() { xSemaphoreGive(g_tlsMutex); }
 
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
@@ -429,6 +425,5 @@ uint32_t busyForMs(uint32_t nowMs) {
   return (int32_t)(nowMs - since) > 0 ? nowMs - since : 0;
 }
 
-bool tlsBusy() { return g_tlsHeld; }
 
 }  // namespace datasync
