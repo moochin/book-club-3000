@@ -266,7 +266,8 @@ release must never strand them. From 1.5.0:
   version with a new number. The note clears once a later version is
   confirmed.
 - **Watchdogs.** Core 0's idle task (5 s), the main loop (5 s, from the end
-  of `setup()`; paused during a LAN upload), and the background fetches (a
+  of `setup()`; paused during a LAN upload and while the setup portal is
+  open, whose network scan and join block the loop for longer), and the background fetches (a
   sync or hub exchange running 5 minutes is wedged: a quiet restart).
 - **Self-healing.** A quiet restart between 03:00 and 05:00 daily, and when
   secure connections (the club file's or the hub's) have failed for lack of
