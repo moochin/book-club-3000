@@ -8,7 +8,7 @@ compatibility_date = "2025-06-01"
 # and paste the id it prints here.
 [[kv_namespaces]]
 binding = "NUDGES"
-id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+id = "3fdd5946de3e4abda33d51023f3a75ea"
 
 # UNITS (the per-unit tokens) is a secret, never in this file:
 #   npx wrangler secret put UNITS
