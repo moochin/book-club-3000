@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.5"
+#define BC_FW_VERSION "1.5.6"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
