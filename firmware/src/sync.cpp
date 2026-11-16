@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <Update.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -13,6 +14,7 @@
 #include "bc_state.h"
 #include "clock.h"
 #include "config.h"
+#include "diag.h"
 #include "fwguard.h"
 #include "https.h"
 #include "settings.h"
@@ -30,9 +32,10 @@ static std::unique_ptr<bc::BookClubData> g_new;
 static volatile bool g_wantRam = false;  // the sync task wants the canvas's RAM
 static volatile bool g_ramGiven = false; // the main loop has freed it
 
-// Ask the main loop for the canvas's 38 KB before a release download's TLS
+// Ask the main loop for the canvas's 38 KB before a firmware download's TLS
 // session: without it, the handshake failed for memory right after a club
-// file fetch (1.5.10 on the bench, update and probation check alike).
+// file fetch (1.5.10 on the bench). Only for the download itself: whatever
+// happens next is a restart, so the canvas never has to come back mid-heap.
 static void needRam(bool on) {
   if (!on) {
     g_wantRam = false;
@@ -330,11 +333,35 @@ static bool probeFirmware(const char* url) {
   return code > 0;
 }
 
+// A version whose download failed just before a restart, skipped once.
+static bool skipOnce(const char* version) {
+  Preferences p;
+  if (!p.begin("sync", false)) return false;
+  char v[bc::kVersionLen] = "";
+  p.getString("skip1", v, sizeof v);
+  const bool skip = v[0] && strcmp(v, version) == 0;
+  if (v[0]) p.remove("skip1");  // once only
+  p.end();
+  return skip;
+}
+
+static void setSkipOnce(const char* version) {
+  Preferences p;
+  if (!p.begin("sync", false)) return;
+  p.putString("skip1", version);
+  p.end();
+}
+
 static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   const char* url = firmwareUrl(fw);
   if (!url) return;
   if (bc::compareVersions(fw.version, BC_FW_VERSION) <= 0) return;
   if (strcmp(fw.version, g_failedFwVersion) == 0) return;  // tried already this boot
+  if (skipOnce(fw.version)) {
+    Serial.printf("[sync] %s failed before the last restart: trying it next time\n", fw.version);
+    strlcpy(g_failedFwVersion, fw.version, sizeof g_failedFwVersion);
+    return;
+  }
   if (!fw.forUnit(settings::get().owner)) return;           // "only" names other units
   if (fwguard::onProbation()) return;  // prove this one first: no update mid-probation
   if (fwguard::skipVersion(fw.version)) {
@@ -357,6 +384,14 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   }
   strlcpy(g_failedFwVersion, fw.version, sizeof g_failedFwVersion);
   setError("update %s failed: %s", fw.version, err);
+  // The canvas was given up for the download. Taking it back mid-heap split
+  // the heap so badly that hub polls failed and the canvas sometimes couldn't
+  // come back at all (1.5.12), so restart instead: the heap comes back as it
+  // is at boot. The next boot skips this version once, so a bad network
+  // can't make a restart loop of it.
+  Serial.printf("[sync] update %s failed: %s; restarting\n", fw.version, err);
+  setSkipOnce(fw.version);
+  diag::restartQuietly();
 }
 
 static void runFetch() {
@@ -404,13 +439,7 @@ static void runFetch() {
   // On probation, prove the update path itself when the club file names a
   // release; otherwise GitHub's answer for the club file has to do.
   const char* probeUrl = fwguard::onProbation() ? firmwareUrl(fw) : nullptr;
-  bool probed = true;
-  if (probeUrl) {
-    needRam(true);
-    probed = probeFirmware(probeUrl);
-    needRam(false);
-  }
-  if (probed) g_reachedCount = g_reachedCount + 1;
+  if (!probeUrl || probeFirmware(probeUrl)) g_reachedCount = g_reachedCount + 1;
   else g_probeFailed = true;  // try again soon, not in a day (see tick())
   maybeUpdateFirmware(fw);
   if (g_status == Status::Updating) g_status = Status::Failed;

@@ -30,4 +30,8 @@ bool quietStart();
 // `stuckMs`: the longest any background fetch has been running.
 void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, uint32_t stuckMs);
 
+// A planned, quiet restart now, shown on ABOUT as a low-memory self-heal
+// (used after a failed firmware download, to get the boot-time heap back).
+void restartQuietly();
+
 }  // namespace diag

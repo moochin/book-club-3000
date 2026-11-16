@@ -124,6 +124,14 @@ void tick(uint32_t nowMs, uint32_t idleMs, const bc::LocalNow& now, bool busy, u
   ESP.restart();
 }
 
+void restartQuietly() {
+  Serial.println("[diag] planned restart: low memory (after a failed update)");
+  r_plannedWhy = (uint8_t)bc::Restart::LowMemory;
+  r_planned = kPlannedMagic;
+  delay(50);
+  ESP.restart();
+}
+
 void memoryText(char* buf, size_t cap) {
   snprintf(buf, cap, "%uK FREE, LOW %uK, BLOCK %uK", (unsigned)(ESP.getFreeHeap() / 1024),
            (unsigned)(esp_get_minimum_free_heap_size() / 1024),
