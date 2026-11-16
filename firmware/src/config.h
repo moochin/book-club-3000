@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.6"
+#define BC_FW_VERSION "1.5.7"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -110,6 +110,5 @@ constexpr int kClipSwing = 10;  // peak deviation from kClipBias
 // Generated sounds (LEDC PWM): duty is scaled by kToneLevel / 256. At full
 // level any sound pulled enough current to drop the board's USB link.
 constexpr int kToneLevel = 64;
-constexpr uint32_t kSettingsHumMs = 30UL * 1000;  // hum fades after this long untouched
 
 }  // namespace cfg
