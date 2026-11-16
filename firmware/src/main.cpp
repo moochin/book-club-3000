@@ -167,13 +167,19 @@ void doAction(const ui::Result& r) {
       if (to[0] && msg[0]) nudge::send(to, msg);
       return;
     }
-    case ui::Action::DismissNudge: g_nudgeShown = false; return;
+    case ui::Action::DismissNudge:
+      g_nudgeShown = false;
+      Serial.println("[main] nudge dismissed");
+      return;
     case ui::Action::BroadcastSignal: {
       const char* msg = bc::signalQuote(g_hasData ? &g_data : nullptr, r.arg);
       if (msg[0]) nudge::broadcast(msg);
       return;
     }
-    case ui::Action::DismissSignal: g_signalShown = false; return;
+    case ui::Action::DismissSignal:
+      g_signalShown = false;
+      Serial.println("[main] signal dismissed");
+      return;
   }
   settings::save();
 }
@@ -406,6 +412,7 @@ void loop() {
   // LED and wake the screen. In quiet hours it waits on screen, silently.
   if (!g_nudgeShown && nudge::takeIncoming(g_nudge)) {
     g_nudgeShown = true;
+    Serial.printf("[main] showing nudge from %s: %s\n", g_nudge.from, g_nudge.msg);
     g_dirty = true;
     if (!quietHours(liveNow)) {
       audio::nudgeChirp();
@@ -430,6 +437,7 @@ void loop() {
     }
     if (newest >= 0) {
       g_signal = g_signals[newest];
+      Serial.printf("[main] showing signal from %s\n", g_signal.from);
       g_signalShown = true;
       g_signalSeenAt = seen;
       settings::setSignalSeenAt(seen);
