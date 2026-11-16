@@ -9,7 +9,7 @@ Each drawing is full-colour line art on a white background. This script:
    removes the background, keeps the black ink as outlines, maps colours to
    brightness, and adds the floor shadow;
 2. adds the small extras that don't survive the shrink: the watch face, the
-   question mark, confetti, the jump's bounce;
+   question mark, confetti, the jump's bounce, the gamepad, the popcorn, the laughter;
 3. applies hand touch-ups: clean faces for the two sickest poses and a
    deeper slump for "very sick".
 
@@ -184,6 +184,69 @@ def hat_stripes(f, rows=(8, 11, 14), x0=31, x1=40):
                 f[y][x] = HOT
 
 
+def controller(f, x0, y0):
+    """The gamepad, which shrinks to a black blob: grey body, bright buttons."""
+    rows = [".######.",
+            "#o####o#",
+            "######..",
+            ".###....",
+            ".##....."]
+    for j, row in enumerate(rows):
+        for i, ch in enumerate(row):
+            if ch != "." and f[y0 + j][x0 + i] == INK:
+                f[y0 + j][x0 + i] = HOT if ch == "o" else 8
+
+
+def popcorn(f):
+    """The popcorn tub, which shrinks to mush: a bright heap, a striped tub
+    and the hand that holds it, plus the piece on its way to his mouth."""
+    heap = [(30, 39, 3), (34, 36, 3.5), (39, 36, 3.5), (43, 39, 3), (36, 39, 4)]
+    paint = {}
+    for y in range(30, 42):
+        for x in range(24, 48):
+            if any((x - cx) ** 2 + (y - cy) ** 2 <= r * r for cx, cy, r in heap):
+                paint[(x, y)] = SKIN if (x * 3 + y * 5) % 7 == 0 else HOT
+    for y in range(42, 55):                       # the tub narrows towards its base
+        inset = (y - 42) // 4
+        for x in range(28 + inset, 45 - inset):
+            paint[(x, y)] = WARN if (x // 2) % 2 else 12
+    hand = {(x, y) for y in range(45, 53) for x in range(25, 39)
+            if ((x - 32) / 5.5) ** 2 + ((y - 49) / 3.2) ** 2 <= 1}
+    for pt in hand:
+        paint[pt] = SKIN
+    for (x, y) in list(paint):                    # ink rim round the lot
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, y + dy) not in paint:
+                f[y + dy][x + dx] = INK
+    for (x, y), c in paint.items():
+        f[y][x] = c
+    for x, y in hand:                             # rim between hand and tub
+        if any((x + dx, y + dy) not in hand for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            f[y][x] = INK
+    put(f, [(29, 49), (30, 49), (31, 49), (32, 49)], INK)   # a finger line
+    put(f, [(25, 25), (26, 25), (25, 24)], HOT)
+
+
+HA = ["#.#..#.",
+      "#.#.#.#",
+      "###.###",
+      "#.#.#.#",
+      "#.#.#.#"]
+
+
+def laughter(f, bob):
+    """Bright "HA"s in place of the drawing's lettering, which shrinks to
+    blobs, and a row of teeth. `bob` nudges alternate HAs for the animation."""
+    for y in range(8, 18):                        # the old lettering, left and right
+        f[y][14:26] = [CLEAR] * 12
+    for y in range(16, 25):
+        f[y][50:64] = [CLEAR] * 14
+    for i, (x0, y0) in enumerate(((17, 3), (10, 11), (52, 14), (56, 22))):
+        y0 += bob if i % 2 else -bob
+        put(f, [(x0 + c, y0 + r) for r, row in enumerate(HA) for c, ch in enumerate(row) if ch == "#"], HOT)
+    put(f, [(x, 18) for x in range(29, 36)], HOT)
+
+
 def repaint_face(f, cx, cy, rx, ry):
     """Smooth skin inside the face oval, with a one-pixel ink rim."""
     for y in range(96):
@@ -279,6 +342,28 @@ def build():
         f = convert(d("waiting.jpg"))
         watch(f, 31, 37, hand)
         out[f"syncing_{i}@600.png"] = f
+
+    f = convert(d("gaming.webp"))
+    controller(f, 40, 38)
+    out["stat_gaming.png"] = f
+
+    f = convert(d("trivia.webp"))
+    popcorn(f)
+    out["stat_trivia.png"] = f
+
+    for i, bob in ((1, 0), (2, 1)):
+        f = convert(d("banter.webp"))
+        laughter(f, bob)
+        out[f"stat_banter_{i}@300.png"] = f
+
+    out["stat_beer.png"] = convert(d("beer.webp"), beer=True)
+    out["stat_snacks.png"] = convert(d("snacks.webp"))
+    out["stat_stamina.png"] = convert(d("coffee.webp"))
+
+    for i, hand in ((1, (0, -1)), (2, (1, 0))):
+        f = convert(d("punctual.webp"))
+        watch(f, 31, 38, hand)
+        out[f"stat_punctuality_{i}@600.png"] = f
     return out
 
 
