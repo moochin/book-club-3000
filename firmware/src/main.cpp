@@ -362,6 +362,19 @@ void loop() {
     g_dirty = true;
   }
 
+  // The setup page runs inside net::tick() and blocks it: listing networks
+  // is a scan of about 4 s (longer while joined to a router), and saving
+  // waits up to 20 s for the new network. Either can outlast the loop
+  // watchdog's 5 s, which restarted the unit mid-setup. So the loop isn't
+  // watched while the portal is open (the portal closes itself after 15 min).
+  {
+    static bool unwatched = false;
+    if (net::portalActive() != unwatched) {
+      unwatched = !unwatched;
+      if (unwatched) disableLoopWDT();
+      else enableLoopWDT();
+    }
+  }
   net::tick(now);
   const bool up = net::connected();
   clockmod::tick(up);
