@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
@@ -55,7 +56,18 @@ static char g_sendError[48] = "";
 static char g_error[48] = "";
 static char g_tlsWhy[48] = "";  // TLS's reason for the last failed connect (task only)
 static volatile uint32_t g_busySinceMs = 0;  // 0: idle
-static uint64_t g_ackAt = 0;  // newest nudge taken from /poll, acked on the next (task only)
+// The newest nudge taken from /poll, acked on the next (task only). Kept in
+// flash: a restart before that next poll would otherwise ack nothing, and
+// the hub would hand the same nudges over again.
+static uint64_t g_ackAt = 0;
+constexpr const char* kAckNs = "nudge";
+
+static void saveAck(uint64_t at) {
+  Preferences p;
+  if (!p.begin(kAckNs, false)) return;
+  p.putULong64("ack", at);
+  p.end();
+}
 
 struct Lock {
   Lock() { xSemaphoreTake(g_mutex, portMAX_DELAY); }
@@ -203,20 +215,24 @@ static bool applyInbox(const char* buf, int code) {
   static bc::Nudge got[bc::kMaxInbox];
   const int n = code == 200 ? bc::parseInbox(buf, strlen(buf), got, bc::kMaxInbox) : -1;
   if (n < 0) return false;
-  Lock l;
+  const uint64_t ackWas = g_ackAt;
   int fresh = 0;
-  for (int i = 0; i < n; ++i) {
-    // /poll resends what it hasn't had an ack for: take each nudge once.
-    if (got[i].at && got[i].at <= g_ackAt) continue;
-    if (got[i].at > g_ackAt) g_ackAt = got[i].at;
-    ++fresh;
-    if (g_inCount == bc::kMaxInbox) {  // full: drop the oldest
-      g_inHead = (g_inHead + 1) % bc::kMaxInbox;
-      --g_inCount;
+  {
+    Lock l;
+    for (int i = 0; i < n; ++i) {
+      // /poll resends what it hasn't had an ack for: take each nudge once.
+      if (got[i].at && got[i].at <= g_ackAt) continue;
+      if (got[i].at > g_ackAt) g_ackAt = got[i].at;
+      ++fresh;
+      if (g_inCount == bc::kMaxInbox) {  // full: drop the oldest
+        g_inHead = (g_inHead + 1) % bc::kMaxInbox;
+        --g_inCount;
+      }
+      g_incoming[(g_inHead + g_inCount) % bc::kMaxInbox] = got[i];
+      ++g_inCount;
     }
-    g_incoming[(g_inHead + g_inCount) % bc::kMaxInbox] = got[i];
-    ++g_inCount;
   }
+  if (g_ackAt != ackWas) saveAck(g_ackAt);  // outside the lock: flash writes are slow
   if (fresh) Serial.printf("[nudge] %d new\n", fresh);
   return true;
 }
@@ -322,6 +338,11 @@ static void taskMain(void*) {
 
 void begin() {
   g_mutex = xSemaphoreCreateMutex();
+  Preferences p;
+  if (p.begin(kAckNs, true)) {
+    g_ackAt = p.getULong64("ack", 0);
+    p.end();
+  }
   xTaskCreatePinnedToCore(taskMain, "nudge", kTaskStack, nullptr, 1, &g_task, 0);
 }
 
