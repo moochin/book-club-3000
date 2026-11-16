@@ -5,6 +5,7 @@
 // screen shows; the UI only draws what it is given. Slow work (HTTPS) runs in
 // its own FreeRTOS task, so the knob stays responsive during a fetch.
 #include <Arduino.h>
+#include <WiFi.h>
 #include <esp_system.h>
 #include <string.h>
 
@@ -231,8 +232,9 @@ void consoleCommand(char* line) {
     diag::memoryText(mem, sizeof mem);
     bool bad = false;
     const ui::View v = ui::view();
-    Serial.printf("[con] fw=%s up=%lus wifi=%d ip=%s sync=%d err=\"%s\" probation=%d note=\"%s\" started=\"%s\"\n",
-                  BC_FW_VERSION, (unsigned long)(now / 1000), net::connected(), net::ipString(),
+    Serial.printf("[con] fw=%s up=%lus wifi=%d rssi=%d ip=%s sync=%d err=\"%s\" probation=%d note=\"%s\" started=\"%s\"\n",
+                  BC_FW_VERSION, (unsigned long)(now / 1000), net::connected(), net::connected() ? (int)WiFi.RSSI() : 0,
+                  net::ipString(),
                   (int)datasync::status(), datasync::lastError(), fwguard::onProbation(), fwguard::note(now),
                   diag::startedBy(bad));
     Serial.printf("[con] mem=\"%s\" screen=%s tab=%d menuSel=%d blank=%d nudge=%d signal=%d toast=\"%s\"\n", mem,
