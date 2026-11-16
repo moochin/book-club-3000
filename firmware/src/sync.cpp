@@ -5,6 +5,7 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 
 #include <memory>
@@ -161,12 +162,13 @@ static constexpr uint32_t kFwStallMs = 30000;  // no data this long: reconnect
 // One connection: from byte `done` on (all of it when `done` is 0). Sets
 // `total` from the first answer. Returns false with `err` set if it can't
 // go on; `done` is how far it got either way.
-static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
-                              std::unique_ptr<uint8_t[]>& buf, uint32_t startMs, char* err,
+enum class Part : uint8_t { Ok, Retry, Fatal };  // Retry: the connection itself failed
+
+static Part fetchFirmwarePart(const char* url, size_t& done, int& total, uint32_t startMs, char* err,
                               size_t errLen) {
   if (!https::canStart(https::Channel::Sync)) {
     snprintf(err, errLen, "low memory (trying later)");
-    return false;
+    return Part::Retry;
   }
   WiFiClientSecure client;
   HTTPClient http;
@@ -174,7 +176,7 @@ static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
   http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub release assets redirect
   if (!http.begin(client, url)) {
     snprintf(err, errLen, "bad URL");
-    return false;
+    return Part::Fatal;
   }
   char range[32];
   if (done > 0) {
@@ -189,23 +191,26 @@ static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
     if (code != want) snprintf(err, errLen, "HTTP %d", code);
     else snprintf(err, errLen, "unexpected length %d", size);
     http.end();
-    return false;
+    // No answer at all (a dropped link, a TLS failure) is worth another go;
+    // a wrong answer isn't.
+    return code <= 0 ? Part::Retry : Part::Fatal;
   }
   if (total == 0) {  // the first answer: open the spare slot
     if (!Update.begin((size_t)size, U_FLASH)) {
       snprintf(err, errLen, "%s", Update.errorString());
       http.end();
-      return false;
+      return Part::Fatal;
     }
     total = size;
   }
-  // After the handshake, like the club file's buffer: 4 KB taken first can
-  // leave the handshake short.
-  if (!buf) buf.reset(new (std::nothrow) uint8_t[4096]);
+  // After the handshake, like the club file's buffer, and freed before the
+  // next one: a resume's handshake with this 4 KB still held (on top of
+  // Update's own buffer) ran out of memory ("PK verify failed", 1.5.8).
+  std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[4096]);
   if (!buf) {
     snprintf(err, errLen, "out of memory");
     http.end();
-    return false;
+    return Part::Retry;
   }
   WiFiClient* in = http.getStreamPtr();
   uint32_t lastData = millis(), lastLog = lastData;
@@ -219,7 +224,7 @@ static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
         if (Update.write(buf.get(), (size_t)got) != (size_t)got) {
           snprintf(err, errLen, "flash write: %s", Update.errorString());
           http.end();
-          return false;
+          return Part::Fatal;
         }
         done += (size_t)got;
         g_updatePct = (int)(done * 100 / (size_t)total);
@@ -238,26 +243,28 @@ static bool fetchFirmwarePart(const char* url, size_t& done, int& total,
   }
   http.end();
   if (done < (size_t)total) snprintf(err, errLen, "cut short (%u of %d bytes)", (unsigned)done, total);
-  return true;
+  return Part::Ok;
 }
 
 static bool fetchFirmware(const char* url, char* err, size_t errLen) {
-  std::unique_ptr<uint8_t[]> buf;
   size_t done = 0;
   int total = 0;
   const uint32_t startMs = millis();
+  int idle = 0;  // connections in a row that brought nothing new
   for (int i = 0; i < kFwConnects; ++i) {
     const size_t before = done;
     if (i > 0) {
-      Serial.printf("[sync] update %s; resuming at %u\n", err, (unsigned)done);
-      vTaskDelay(pdMS_TO_TICKS(2000));
+      Serial.printf("[sync] update %s; resuming at %u (heap %u, block %u)\n", err, (unsigned)done,
+                    (unsigned)ESP.getFreeHeap(), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+      vTaskDelay(pdMS_TO_TICKS(idle ? 5000 : 2000));  // a failed connect: give the link longer
     }
     err[0] = '\0';
-    const bool goOn = fetchFirmwarePart(url, done, total, buf, startMs, err, errLen);
+    const Part part = fetchFirmwarePart(url, done, total, startMs, err, errLen);
     if (total > 0 && done == (size_t)total) break;
-    // A connection that can't go on, or brings nothing new, ends the try
-    // (the first one may fail before anything comes; one more chance then).
-    if (!goOn || (done == before && i > 0)) break;
+    if (part == Part::Fatal) break;
+    // Three connections in a row with nothing new: the network has gone.
+    idle = done == before ? idle + 1 : 0;
+    if (idle >= 3) break;
   }
   if (total <= 0 || done != (size_t)total) {
     if (total > 0) Update.abort();
