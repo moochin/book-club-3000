@@ -27,6 +27,21 @@ static volatile Status g_status = Status::Idle;
 static char g_error[64] = "";
 static bool g_hasNew = false;
 static std::unique_ptr<bc::BookClubData> g_new;
+static volatile bool g_wantRam = false;  // the sync task wants the canvas's RAM
+static volatile bool g_ramGiven = false; // the main loop has freed it
+
+// Ask the main loop for the canvas's 38 KB before a release download's TLS
+// session: without it, the handshake failed for memory right after a club
+// file fetch (1.5.10 on the bench, update and probation check alike).
+static void needRam(bool on) {
+  if (!on) {
+    g_wantRam = false;
+    return;
+  }
+  g_ramGiven = false;
+  g_wantRam = true;
+  for (int i = 0; i < 100 && !g_ramGiven; ++i) vTaskDelay(pdMS_TO_TICKS(20));  // up to 2 s
+}
 static volatile int g_updatePct = 0;
 
 static bool g_bootFetchDone = false;
@@ -331,7 +346,9 @@ static void maybeUpdateFirmware(const bc::FirmwareInfo& fw) {
   g_updatePct = 0;
   // Core 0's watchdog is already off: this runs under lockTls().
   char err[64] = "";
+  needRam(true);
   const bool ok = fetchFirmware(url, err, sizeof err);
+  needRam(false);
   if (ok) {
     fwguard::installing(fw.version);  // so a rollback is noticed and counted
     Serial.println("[sync] update installed, restarting");
@@ -387,7 +404,13 @@ static void runFetch() {
   // On probation, prove the update path itself when the club file names a
   // release; otherwise GitHub's answer for the club file has to do.
   const char* probeUrl = fwguard::onProbation() ? firmwareUrl(fw) : nullptr;
-  if (!probeUrl || probeFirmware(probeUrl)) g_reachedCount = g_reachedCount + 1;
+  bool probed = true;
+  if (probeUrl) {
+    needRam(true);
+    probed = probeFirmware(probeUrl);
+    needRam(false);
+  }
+  if (probed) g_reachedCount = g_reachedCount + 1;
   else g_probeFailed = true;  // try again soon, not in a day (see tick())
   maybeUpdateFirmware(fw);
   if (g_status == Status::Updating) g_status = Status::Failed;
@@ -508,6 +531,9 @@ bool takeNewData(bc::BookClubData& out) {
 }
 
 int updateProgress() { return g_updatePct; }
+
+bool wantsRam() { return g_wantRam; }
+void ramGiven() { g_ramGiven = true; }
 
 uint32_t reachedCount() { return g_reachedCount; }
 uint32_t fetchesDone() { return g_doneCount; }

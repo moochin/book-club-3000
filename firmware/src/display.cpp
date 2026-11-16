@@ -1,6 +1,9 @@
 #include "display.h"
 
 #include <string.h>
+#ifndef BC_SIM
+#include <esp_heap_caps.h>
+#endif
 
 namespace display {
 
@@ -148,13 +151,81 @@ void begin(uint8_t rotation, uint8_t theme) {
 #endif
   }
   g_canvas.createPalette();
-  buildPalette(theme);
+  setTheme(theme);
   buildLuts();
   g_canvas.setFont(&fonts::Font0);
   g_canvas.setTextWrap(false);
 }
 
-void setTheme(uint8_t theme) { buildPalette(theme); }
+static uint8_t g_theme = 0;
+static bool g_released = false;
+
+void setTheme(uint8_t theme) {
+  g_theme = theme;
+  buildPalette(theme);
+}
+
+void releaseCanvas() {
+  if (g_released) return;
+  g_canvas.deleteSprite();
+  g_released = true;
+#ifndef BC_SIM
+  Serial.printf("[display] canvas released (block now %u)\n",
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+#endif
+}
+
+bool restoreCanvas() {
+  if (!g_released) return true;
+  g_canvas.setColorDepth(4);
+  g_canvas.setPsram(false);
+  if (!g_canvas.createSprite(cfg::kScreenW, cfg::kScreenH)) return false;
+  g_canvas.createPalette();
+  buildPalette(g_theme);
+  g_canvas.setFont(&fonts::Font0);
+  g_canvas.setTextWrap(false);
+  g_released = false;
+#ifndef BC_SIM
+  Serial.println("[display] canvas restored");
+#endif
+  return true;
+}
+
+bool canvasReleased() { return g_released; }
+
+void drawProgress(const char* title, int pct) {
+#ifndef BC_SIM
+  // The panel's own colours (RGB565), in the theme's accent.
+  const uint16_t accent = g_theme == 1 ? lgfx::color565(0xFF, 0xB0, 0x28) : lgfx::color565(0x3C, 0xFF, 0x6E);
+  const uint16_t warn = g_theme == 1 ? lgfx::color565(0xFF, 0x50, 0x30) : lgfx::color565(0xFF, 0xB0, 0x28);
+  static int lastPct = -2;
+  auto& p = g_panel;
+  if (lastPct == -2 || pct < lastPct) {  // first frame: the whole screen
+    p.fillScreen(TFT_BLACK);
+    p.setFont(&fonts::Font0);
+    p.setTextDatum(lgfx::top_center);
+    p.setTextColor(accent, TFT_BLACK);
+    p.setTextSize(2, 2);
+    p.drawString(title, 160, 60);
+    p.setTextColor(warn, TFT_BLACK);
+    p.setTextSize(1, 2);
+    p.drawString("DO NOT UNPLUG", 160, 190);
+    p.drawRect(30, 110, 260, 22, accent);
+  }
+  lastPct = pct;
+  const int w = (256 * (pct < 0 ? 0 : pct > 100 ? 100 : pct)) / 100;
+  p.fillRect(32, 112, w, 18, accent);
+  char buf[8];
+  snprintf(buf, sizeof buf, " %d%% ", pct);
+  p.setTextDatum(lgfx::top_center);
+  p.setTextColor(accent, TFT_BLACK);
+  p.setTextSize(2, 2);
+  p.drawString(buf, 160, 142);
+#else
+  (void)title;
+  (void)pct;
+#endif
+}
 #ifndef BC_SIM
 void setRotation(uint8_t rotation) { g_panel.setRotation(rotation & 3); }
 void setBrightness(uint8_t level) { g_panel.setBrightness(level); }

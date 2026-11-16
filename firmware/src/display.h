@@ -53,6 +53,16 @@ void setBrightness(uint8_t level);  // 0..255
 Panel& panel();
 LGFX_Sprite& canvas();
 
+// The canvas is 38 KB of a heap that a firmware download's TLS session needs
+// nearly all of. releaseCanvas() frees it (the panel keeps showing the last
+// picture); restoreCanvas() takes it back, false if 38 KB isn't free yet.
+// While released, nothing should draw to the canvas: use drawProgress().
+void releaseCanvas();
+bool restoreCanvas();
+bool canvasReleased();
+// Update progress straight onto the panel, for while the canvas is released.
+void drawProgress(const char* title, int pct);
+
 // Anti-retention nudge: the canvas is pushed at this offset (0..1 px each way).
 void setShift(int8_t dx, int8_t dy);
 

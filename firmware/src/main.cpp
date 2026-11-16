@@ -369,6 +369,18 @@ void loop() {
   if (ota::active()) return;  // ArduinoOTA draws its own progress
 
   datasync::tick(now, up);
+  // A release download wants the canvas's RAM: hand it over, and take it
+  // back once the download is done (the panel holds the picture meanwhile).
+  if (datasync::wantsRam()) {
+    display::releaseCanvas();
+    datasync::ramGiven();
+  } else if (display::canvasReleased()) {
+    static uint32_t lastTryMs = 0;
+    if (now - lastTryMs >= 500) {
+      lastTryMs = now;
+      if (display::restoreCanvas()) g_dirty = true;
+    }
+  }
   nudge::tick(now, up, g_hasData ? g_data.nudges.url : "");
   if (datasync::takeNewData(g_data)) {
     g_hasData = true;
@@ -573,6 +585,16 @@ void loop() {
     lastPctStep = -1;
   }
   if (due && audio::playing()) due = false;
+  if (display::canvasReleased()) {
+    // No canvas to draw on: only the update's progress, straight to the panel.
+    static int lastDirect = -1;
+    if (m.updatePct >= 0 && m.updatePct != lastDirect) {
+      lastDirect = m.updatePct;
+      display::drawProgress("INSTALLING UPDATE", m.updatePct);
+    }
+    inputSound(ev, viewWas, viewIs, now);
+    return;
+  }
   if (g_dirty || due) {
     ui::render(m, now);
     g_lastFrameMs = now;
