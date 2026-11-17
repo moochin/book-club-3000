@@ -953,7 +953,8 @@ void drawIncoming(const Model& m, uint32_t t) {
   char from[bc::kNameLen], title[40];
   bc::asciiFold(m.incoming->from, from, sizeof from);
   bc::upperAscii(from);
-  snprintf(title, sizeof title, "NUDGE FROM %s", from);
+  if (from[0]) snprintf(title, sizeof title, "NUDGE FROM %s", from);
+  else strlcpy(title, "BOOK CLUB", sizeof title);  // a reminder from the unit itself
   textCentered(cfg::kScreenW / 2, y + 12, title, kHot, 2, 2);
   c.drawFastHLine(x + 10, y + 40, w - 20, kMid);
   char msg[bc::kNudgeMsgLen];
