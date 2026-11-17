@@ -66,7 +66,7 @@ You need Node.js 18 or later and a free Cloudflare account.
      (or `"nudges": {"url": "…"}` in the gist). Every unit picks it up on its
      next sync.
    - Send each friend **their own** token, privately. They enter it on their
-     unit's setup page (**SETTINGS → WI-FI RESET → OPEN**, then *Nudge token*).
+     unit's setup page (**SETTINGS → THIS UNIT → WI-FI RESET → OPEN**, then *Nudge token*).
 
 ## Updating the hub
 
