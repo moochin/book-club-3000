@@ -5,6 +5,7 @@
 // screen shows; the UI only draws what it is given. Slow work (HTTPS) runs in
 // its own FreeRTOS task, so the knob stays responsive during a fetch.
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_system.h>
 #include <string.h>
@@ -41,6 +42,29 @@ bc::BookClubData g_previewData;
 bc::LocalNow g_previewNow;
 
 bc::Date g_jingledOn;  // meeting-day / birthday jingle plays once per day
+
+// Days kept in flash (yyyymmdd), so a restart later that day (an update,
+// say) doesn't play the jingle or show a reminder again.
+bc::Date loadDay(const char* key) {
+  bc::Date d;
+  Preferences p;
+  if (!p.begin("main", true)) return d;
+  const uint32_t v = p.getUInt(key, 0);
+  p.end();
+  d.year = (int16_t)(v / 10000);
+  d.month = (int8_t)(v / 100 % 100);
+  d.day = (int8_t)(v % 100);
+  return d;
+}
+
+void saveDay(const char* key, const bc::Date& d) {
+  Preferences p;
+  if (!p.begin("main", false)) return;
+  p.putUInt(key, (uint32_t)d.year * 10000 + d.month * 100 + d.day);
+  p.end();
+}
+
+bc::Date g_remindedOn;  // the lead-up reminder, a week and a day before the meeting
 uint32_t g_lastFrameMs = 0;
 uint32_t g_lastInputMs = 0;
 bool g_dirty = true;
@@ -331,6 +355,8 @@ void setup() {
   datasync::begin();
   nudge::begin();  // after datasync: shares its TLS lock
   g_signalSeenAt = settings::signalSeenAt();
+  g_jingledOn = loadDay("jingled");
+  g_remindedOn = loadDay("reminded");
   ui::begin();
   // From here the main loop is watched too: if it ever freezes for 5 s, the
   // unit restarts (and a new firmware on probation rolls back). Not earlier:
@@ -423,15 +449,39 @@ void loop() {
     wasQuiet = quiet;
   }
   audio::setGeigerRate(data && state.clockValid ? state.geigerClicksPerMin : 0);
-  // The jingle: once on meeting day, and once on this unit owner's birthday.
+  // The jingle: once on meeting day, and once on this unit owner's birthday,
+  // from 08:00 (not midnight). Quiet hours still hold it back.
   const bool ownBirthday = data && state.birthdayIndex >= 0 &&
                            bc::sameName(data->birthdays[state.birthdayIndex].name,
-                                        settings::get().owner);
+                                        settings::get().owner) &&
+                           liveNow.minuteOfDay >= cfg::kBirthdayJingleMinute;
   if (!preview && state.clockValid && (state.quest == bc::Quest::MeetingDay || ownBirthday) &&
       g_jingledOn != liveNow.date && audio::canPlay()) {
     g_jingledOn = liveNow.date;
+    saveDay("jingled", g_jingledOn);
+    Serial.printf("[main] %s jingle\n", state.quest == bc::Quest::MeetingDay ? "meeting-day" : "birthday");
     if (state.quest == bc::Quest::MeetingDay) audio::jingle();
     else audio::birthday();
+  }
+  // The lead-up to a meeting: a week before, and the day before, a message
+  // from the club from 08:00, shown (and sounded) like a nudge.
+  if (!preview && data && state.clockValid && state.quest == bc::Quest::FinalWeek &&
+      (state.daysToNext == 7 || state.daysToNext == 1) &&
+      liveNow.minuteOfDay >= cfg::kBirthdayJingleMinute && g_remindedOn != liveNow.date && !g_nudgeShown) {
+    g_remindedOn = liveNow.date;
+    saveDay("reminded", g_remindedOn);
+    const bool tomorrow = state.daysToNext == 1;
+    g_nudge = bc::Nudge();  // no sender: the screen says BOOK CLUB
+    strlcpy(g_nudge.msg, tomorrow ? "TOMORROW! PACK YOUR STUFF" : "ONLY ONE WEEK TO GO!", sizeof g_nudge.msg);
+    g_nudgeShown = true;
+    g_dirty = true;
+    Serial.printf("[main] reminder: %s\n", g_nudge.msg);
+    if (!quietHours(liveNow)) {
+      if (tomorrow) audio::jingle();
+      else audio::nudgeChirp();
+      g_ledUntilMs = now + 8000;
+      g_nudgeWake = true;
+    }
   }
   // A received nudge: show it; outside quiet hours also chirp, flash the
   // LED and wake the screen. In quiet hours it waits on screen, silently.
