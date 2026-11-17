@@ -113,4 +113,4 @@ The output is in `art/preview/`.
 
 **On a unit:** flash new firmware (or release it over the air, see
 `firmware/README.md`), then use the hidden preview menu (hold the knob 2 s →
-ABOUT → press 5 times) to step through every pose.
+THIS UNIT → ABOUT → press 5 times) to step through every pose.

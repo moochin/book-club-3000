@@ -12,6 +12,16 @@
 #include "config.h"
 #include "diag.h"
 #include "display.h"
+#include <lgfx/utility/lgfx_qrcode.h>
+// It defines generic macro names (MODE_*, ECC_*, LOCK_VERSION): drop them.
+#undef MODE_NUMERIC
+#undef MODE_ALPHANUMERIC
+#undef MODE_BYTE
+#undef ECC_LOW
+#undef ECC_MEDIUM
+#undef ECC_QUARTILE
+#undef ECC_HIGH
+#undef LOCK_VERSION
 #include "fwguard.h"
 #include "logo_data.h"
 #include "mascot.h"
@@ -27,7 +37,7 @@ namespace {
 
 enum class Screen : uint8_t {
   Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup,
-  Signals, SignalQuote, SyncStatus
+  Signals, SignalQuote, SyncStatus, PhoneQr
 };
 enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kSet = 3, kTabCount = 4 };
 // Tab boxes in the header: x of the first, step, width.
@@ -52,14 +62,41 @@ enum MenuItem : uint8_t {
   kMiAbout,
   kMiWifi,
   kMiBack,
-  kMenuCount
+  kMiPhone,        // the hub's web page as a QR code
+  kMiGroupScreen,  // the groups: each opens a list of its own
+  kMiGroupSound,
+  kMiGroupUnit,
 };
+
+// SETTINGS is a short top-level list, with the rest in groups, so no list
+// needs more than one page. A hold or BACK in a group goes up to the top.
+enum MenuGroup : uint8_t { kGroupTop, kGroupScreen, kGroupSound, kGroupUnit, kGroupCount };
+constexpr MenuItem kTopItems[] = {kMiRefresh,     kMiNudge,      kMiSignals,   kMiPhone,
+                                  kMiGroupScreen, kMiGroupSound, kMiGroupUnit, kMiBack};
+constexpr MenuItem kScreenItems[] = {kMiBrightness, kMiTheme, kMiEffects, kMiNight, kMiIdle, kMiDark, kMiBack};
+constexpr MenuItem kSoundItems[] = {kMiSound, kMiVolume, kMiQuiet, kMiBack};
+constexpr MenuItem kUnitItems[] = {kMiOwner, kMiKnob, kMiHelp, kMiAbout, kMiWifi, kMiBack};
+struct MenuDef {
+  const char* title;
+  const MenuItem* items;
+  int count;
+  MenuItem row;  // its row in the top-level list
+};
+#define BC_MENU(t, a, r) {t, a, (int)(sizeof a / sizeof a[0]), r}
+const MenuDef kMenus[kGroupCount] = {
+    BC_MENU("SETTINGS", kTopItems, kMiBack),
+    BC_MENU("SCREEN", kScreenItems, kMiGroupScreen),
+    BC_MENU("SOUND", kSoundItems, kMiGroupSound),
+    BC_MENU("THIS UNIT", kUnitItems, kMiGroupUnit),
+};
+#undef BC_MENU
 
 Screen g_screen = Screen::Tabs;
 uint8_t g_tab = kStat;
 bool g_logScroll = false;
 int g_logTop = 0;
 int g_menuSel = 0;
+uint8_t g_menuGroup = kGroupTop;
 int g_debugSel = 0;
 int g_nudgeSel = 0;  // NUDGE WHO?: 0 = everyone, 1.. = friends
 int g_nudgeTo = -1;  // the chosen friend (-1 = everyone)
@@ -557,7 +594,9 @@ void drawLog(const Model& m) {
 
 // ---- Menu screens -----------------------------------------------------------
 
-void menuLabel(int i, const Model& m, char* buf, int len) {
+const MenuDef& curMenu() { return kMenus[g_menuGroup < kGroupCount ? g_menuGroup : kGroupTop]; }
+
+void menuItemLabel(MenuItem i, const Model& m, char* buf, int len) {
   switch (i) {
     case kMiRefresh: snprintf(buf, len, "REFRESH NOW"); break;
     case kMiNudge: snprintf(buf, len, m.nudgesConfigured ? "SEND NUDGE" : "SEND NUDGE (NOT SET UP)"); break;
@@ -584,8 +623,43 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiAbout: snprintf(buf, len, "ABOUT"); break;
     case kMiWifi: snprintf(buf, len, "WI-FI RESET"); break;
     case kMiBack: snprintf(buf, len, "< BACK"); break;
+    case kMiPhone: snprintf(buf, len, "SEND FROM PHONE (QR)"); break;
+    case kMiGroupScreen: snprintf(buf, len, "SCREEN >"); break;
+    case kMiGroupSound: snprintf(buf, len, "SOUND >"); break;
+    case kMiGroupUnit: snprintf(buf, len, "THIS UNIT >"); break;
     default: buf[0] = 0;
   }
+}
+
+// Row `i` of the list on screen.
+void menuLabel(int i, const Model& m, char* buf, int len) {
+  const MenuDef& d = curMenu();
+  if (i < 0 || i >= d.count) {
+    buf[0] = 0;
+    return;
+  }
+  menuItemLabel(d.items[i], m, buf, len);
+}
+
+// Opens SETTINGS at the top.
+void openMenu() {
+  g_screen = Screen::Menu;
+  g_menuGroup = kGroupTop;
+  g_menuSel = 0;
+}
+
+// BACK or a hold in SETTINGS: from a group up to the top (on that group's
+// row), from the top out to the tabs.
+void menuUp() {
+  if (g_menuGroup == kGroupTop) {
+    g_screen = Screen::Tabs;
+    return;
+  }
+  const MenuItem row = curMenu().row;
+  g_menuGroup = kGroupTop;
+  g_menuSel = 0;
+  for (int k = 0; k < kMenus[kGroupTop].count; ++k)
+    if (kMenus[kGroupTop].items[k] == row) g_menuSel = k;
 }
 
 // A list too long for the screen is shown a page at a time: the page's first
@@ -812,12 +886,12 @@ const HelpPage kHelp[] = {
     {"GETTING AROUND",
      {"TABS: tap STAT, DATA, LOG or SET, or turn the knob.",
       "SETTINGS: turn to SET and press, tap the clock, or hold 2 s.",
-      "BACK: pick < BACK with the knob, tap a screen's title, or hold 2 s.",
+      "BACK: pick < BACK, tap the title, or hold 2 s. In a settings group: up a level.",
       "LOG: tap the top or bottom half to page.",
       "OWNER CARD: press the knob on STAT, or tap the mascot. Turn or tap for a stat's page."}},
     {"YOUR UNIT",
      {"Owner name, card stats, theme, rotation and the data URL are set on the setup page.",
-      "To open it: SETTINGS > WI-FI RESET > OPEN, then join the BookClub network on your phone "
+      "To open it: SETTINGS > THIS UNIT > WI-FI RESET > OPEN, then join the BookClub network on your phone "
       "(or browse to 192.168.4.1) and tap Configure WiFi.",
       "Your Wi-Fi is kept until you save a new one.", nullptr}},
     {"THE CLUB FILE",
@@ -830,6 +904,7 @@ const HelpPage kHelp[] = {
      {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
       "A friend's nudge chirps, flashes the light and stays on screen until you press or tap. "
       "In quiet hours it just waits.",
+      "From a phone: SETTINGS > SEND FROM PHONE shows a QR code for the hub's web page.",
       "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
       nullptr}},
     {"SIGNALS",
@@ -839,9 +914,9 @@ const HelpPage kHelp[] = {
       "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
       "Your own quotes: \"signals\" in the club file.", nullptr}},
     {"THE SCREEN",
-     {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room "
-      "(SETTINGS > DARK ROOM OFF). Turn the knob or tap to wake it.",
-      "Left untouched it dims (SETTINGS > DIM WHEN IDLE).",
+     {"It switches off at night (SETTINGS > SCREEN > SCREEN OFF) and after 10 min in a dark "
+      "room (SCREEN > DARK ROOM OFF). Turn the knob or tap to wake it.",
+      "Left untouched it dims (SCREEN > DIM WHEN IDLE).",
       "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
       nullptr}},
 };
@@ -928,8 +1003,46 @@ void drawNudgeSetup() {
               "whoever runs the hub.",
               50, 3, kText);
   textWrapped(8, 132,
-              "Enter the token on the setup page: SETTINGS > WI-FI RESET > OPEN.", 50, 2, kText);
+              "Enter the token on the setup page: SETTINGS > THIS UNIT > WI-FI RESET > OPEN.", 50, 2, kText);
   text(8, 210, "PRESS OR TAP TO GO BACK", kDim);
+}
+
+// The hub's web page as a QR code, to nudge or broadcast from a phone. Dark
+// modules on the palette's lightest ink, with the 4-module quiet zone phone
+// cameras need.
+void drawQr(const char* s, int x, int y, int size) {
+  auto& c = canvas();
+  for (uint8_t version = 1; version <= 10; ++version) {
+    QRCode qr;
+    static uint8_t data[512];  // lgfx_qrcode_getBufferSize(10) is 407
+    if (lgfx_qrcode_initText(&qr, data, version, 0 /* low ECC */, s) != 0) continue;
+    const int cells = qr.size + 8;
+    const int px = size / cells;
+    if (px < 1) return;
+    const int w = cells * px, ox = x + (size - w) / 2, oy = y + (size - w) / 2;
+    c.fillRect(ox, oy, w, w, kHot);
+    for (int iy = 0; iy < qr.size; ++iy)
+      for (int ix = 0; ix < qr.size; ++ix)
+        if (lgfx_qrcode_getModule(&qr, ix, iy)) c.fillRect(ox + (ix + 4) * px, oy + (iy + 4) * px, px, px, kBg);
+    return;
+  }
+}
+
+void drawPhoneQr(const Model& m) {
+  auto& c = canvas();
+  text(8, 4, "SEND FROM PHONE", kBright, 2, 2);
+  c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
+  if (!m.hubUrl[0]) {
+    text(8, 40, "THE NUDGE HUB ISN'T SET UP YET", kWarn);
+    textWrapped(8, 68, "The club file needs the nudge hub's address: ask whoever runs the hub.", 50, 3,
+                kText);
+    text(8, 210, "PRESS OR TAP TO GO BACK", kDim);
+    return;
+  }
+  drawQr(m.hubUrl, 4, 32, 176);
+  textWrapped(186, 40, "SCAN TO NUDGE OR BROADCAST FROM A PHONE.", 21, 4, kText);
+  textWrapped(186, 118, "Sign in with your nudge token.", 21, 3, kDim);
+  textWrapped(186, 180, "PRESS OR TAP TO GO BACK", 21, 2, kDim);
 }
 
 void drawToast(const Model& m) {
@@ -1192,12 +1305,11 @@ void openSignals(const Model& m, Screen from) {
 
 void begin() {}
 
-static_assert(kMenuCount == kMenuItems, "ui.h kMenuItems is out of date");
 
 const char* screenName() {
   static const char* const kNames[] = {"TABS", "MENU", "OWNER", "STAT", "HELP", "ABOUT", "DEBUG", "CONFIRM",
                                        "NUDGE_TO", "NUDGE_MSG", "NUDGE_SETUP", "SIGNALS", "SIGNAL_QUOTE",
-                                       "SYNC_STATUS"};
+                                       "SYNC_STATUS", "PHONE_QR"};
   const unsigned i = (unsigned)g_screen;
   return i < sizeof kNames / sizeof kNames[0] ? kNames[i] : "?";
 }
@@ -1244,14 +1356,8 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
   switch (g_screen) {
     case Screen::Tabs:
-      if (e.longPress) {
-        g_screen = Screen::Menu;
-        g_menuSel = 0;
-        break;
-      }
-      if (g_tab == kSet && e.shortPress) {
-        g_screen = Screen::Menu;
-        g_menuSel = 0;
+      if (e.longPress || (g_tab == kSet && e.shortPress)) {
+        openMenu();
         break;
       }
       if (g_tab == kStat && e.shortPress) {
@@ -1278,12 +1384,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
     case Screen::Menu:
       if (e.longPress) {
-        g_screen = Screen::Tabs;
+        menuUp();
         break;
       }
-      g_menuSel = constrain(g_menuSel + e.turn, 0, kMenuCount - 1);
+      g_menuSel = constrain(g_menuSel + e.turn, 0, curMenu().count - 1);
       if (e.shortPress) {
-        switch (g_menuSel) {
+        switch (curMenu().items[g_menuSel]) {
           case kMiRefresh: r.action = Action::RefreshNow; g_screen = Screen::Tabs; g_tab = kData; break;
           case kMiNudge:
             g_setupReturn = Screen::Menu;
@@ -1306,9 +1412,17 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
           case kMiWifi: g_screen = Screen::ConfirmPortal; g_confirmYes = false; break;
-          case kMiBack: g_screen = Screen::Tabs; break;
+          case kMiPhone: g_screen = Screen::PhoneQr; break;
+          case kMiGroupScreen: g_menuGroup = kGroupScreen; g_menuSel = 0; break;
+          case kMiGroupSound: g_menuGroup = kGroupSound; g_menuSel = 0; break;
+          case kMiGroupUnit: g_menuGroup = kGroupUnit; g_menuSel = 0; break;
+          case kMiBack: menuUp(); break;
         }
       }
+      break;
+
+    case Screen::PhoneQr:
+      if (e.shortPress || e.longPress || e.turn) g_screen = Screen::Menu;
       break;
 
     case Screen::OwnerCard: {
@@ -1554,7 +1668,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       int count, rowH = 20;  // as passed to drawList()
       int* selp;
       switch (g_screen) {
-        case Screen::Menu: count = kMenuCount; selp = &g_menuSel; break;
+        case Screen::Menu: count = curMenu().count; selp = &g_menuSel; break;
         case Screen::Debug: count = scenarios::count() + 1; selp = &g_debugSel; rowH = 18; break;
         case Screen::NudgeTo: count = m.friendCount + 2; selp = &g_nudgeSel; break;
         default: count = bc::nudgeMessageCount(m.data) + 1; selp = &g_msgSel; break;
@@ -1690,7 +1804,7 @@ void render(const Model& m, uint32_t t) {
   } else {
     switch (g_screen) {
       case Screen::Menu: {
-        drawList("SETTINGS", kMenuCount, g_menuSel, menuLabel, m);
+        drawList(curMenu().title, curMenu().count, g_menuSel, menuLabel, m);
         break;
       }
       case Screen::OwnerCard: drawOwnerCard(m); break;
@@ -1711,6 +1825,7 @@ void render(const Model& m, uint32_t t) {
       case Screen::Signals: drawSignals(m, t); break;
       case Screen::SignalQuote: drawSignalQuote(m); break;
       case Screen::SyncStatus: drawSyncStatus(m); break;
+      case Screen::PhoneQr: drawPhoneQr(m); break;
       default: break;
     }
   }
@@ -1718,7 +1833,7 @@ void render(const Model& m, uint32_t t) {
   if (!m.portal && m.incoming) drawIncoming(m, t);
   else if (!m.portal && m.incomingSignal) drawIncomingSignal(m, t);
   previewBanner(m);
-  present(m.effects, t);
+  present(m.effects && g_screen != Screen::PhoneQr, t);  // scanlines would cut into the QR code
 }
 
 // ---- Start-up screen --------------------------------------------------------

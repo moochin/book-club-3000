@@ -63,7 +63,8 @@ struct Model {
   const char* me = "";                     // this unit's name on the hub
   const char* signalsError = "";           // why the last check failed
   const bc::Signal* incomingSignal = nullptr;  // a new one waiting to be seen
-  const char* hubError = "";               // the nudge hub's last problem ("" if none)
+  const char* hubError = "";
+  const char* hubUrl = "";                 // the nudge hub's web page ("" if not set up)               // the nudge hub's last problem ("" if none)
 };
 
 enum class Action : uint8_t {
@@ -111,7 +112,6 @@ struct View {
 };
 View view();
 const char* screenName();  // for the test console
-constexpr int kMenuItems = 18;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);

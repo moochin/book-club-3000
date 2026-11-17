@@ -111,7 +111,7 @@ src/diag       why the unit last started (watchdog culprit, crash, planned
                the small hours, or when memory stays too fragmented
 src/backlight  auto-dimming from the LDR; the screen-power policy
                (lib/bookclub_state/src/bc_screen.h): off at night and after
-               10 min in a dark room (SETTINGS > DARK ROOM OFF), dim when
+               10 min in a dark room (SETTINGS > SCREEN > DARK ROOM OFF), dim when
                idle, 2-min wake at night
 src/ota        ArduinoOTA for LAN flashing
 src/main.cpp   the non-blocking loop that ticks each module
@@ -137,7 +137,7 @@ and plays as 8-bit 11 kHz audio through the speaker pin's DAC. Slot names,
 formats and tips are in `../art/sounds/README.md`.
 
 The sound setting and quiet hours mute all of these. Quiet hours are set in
-**SETTINGS → QUIET HOURS** (NEVER, 22:00–08:00 by default, 21:00–08:00,
+**SETTINGS → SOUND → QUIET HOURS** (NEVER, 22:00–08:00 by default, 21:00–08:00,
 23:00–07:00 or 00:00–07:00); while they are muting sound, a crossed-out
 speaker shows at the top right of the screen. To hear the generated
 ones without a unit, render them to WAV files (in `art/preview/sounds/`):
@@ -191,7 +191,7 @@ sudo apt-get install libsdl2-dev && pio pkg install -e cyd
 ./sim/build.sh && ./sim/out/sim sim/out
 ```
 
-On the device, **hold 2 s → ABOUT → press 5 times quickly** opens the hidden
+On the device, **hold 2 s → THIS UNIT → ABOUT → press 5 times quickly** opens the hidden
 **PREVIEW STATES** menu, which shows every exposure level and quest state
 from a built-in sample file. A banner shows while a preview is active; pick
 **LIVE DATA** to leave.

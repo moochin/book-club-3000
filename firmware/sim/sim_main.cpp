@@ -126,18 +126,23 @@ int main(int argc, char** argv) {
   ev(m, 0, true); ev(m, +1); shot("set", m);  // SET: the way into settings
   ev(m, +1);                                     // round to STAT
 
-  // Settings menu and its screens.
+  // Settings menu, its groups and their screens. Top level: REFRESH, NUDGE,
+  // SIGNALS, PHONE, SCREEN >, SOUND >, THIS UNIT >, BACK.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +5); shot("menu_quiet", m);                    // menu item 5: QUIET HOURS
-  ev(m, +6); shot("menu_knob", m);                     // menu item 11: KNOB
-  ev(m, +1); ev(m, 0, true); shot("owner_card", m);  // menu item 12: OWNER CARD
+  ev(m, +4); ev(m, 0, true); shot("menu_screen", m);   // SCREEN >
+  ev(m, 0, false, true); shot("menu_back_on_screen", m);  // hold: up to the top, on SCREEN >
+  ev(m, +1); ev(m, 0, true); ev(m, +2); shot("menu_quiet", m);  // SOUND > QUIET HOURS
+  ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("menu_unit", m);  // THIS UNIT >
+  ev(m, +1); shot("menu_knob", m);                     // THIS UNIT > KNOB
+  ev(m, -1); ev(m, 0, true); shot("owner_card", m);    // THIS UNIT > OWNER CARD
   // Stat pages: press for the first, turn through the rest (stats 8 10 4 2 ...).
   ev(m, 0, true); shot("stat_gaming", m);               // 8: a stock pose
   ev(m, +1); shot("stat_trivia", m);                    // a perfect 10
   ev(m, +2); shot("stat_snacks", m);                    // 2: the low band
   ev(m, 0, true); shot("owner_card_sel", m);            // back on the card, SNACK SUPPLY picked
   ev(m, -4); shot("owner_card_back", m);                // turned onto < BACK
-  ev(m, 0, false, true); ev(m, +1); ev(m, 0, true);     // hold: menu; HOW TO USE
+  ev(m, 0, false, true); ev(m, +2); ev(m, 0, true);     // hold: THIS UNIT; HOW TO USE
+  shot("help_getting_around", m);                        // page 1
   for (int i = 0; i < 3; ++i) ev(m, +1);
   shot("help_nudges", m);                                // page 4: NUDGES
   ev(m, +1);
@@ -147,7 +152,18 @@ int main(int argc, char** argv) {
   shot("debug_menu", m);
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("wifi_confirm", m);
   ev(m, +1); shot("wifi_confirm_open", m);
-  ev(m, 0, false, true); ev(m, 0, false, true);  // back to tabs
+  ev(m, 0, false, true); ev(m, 0, false, true); ev(m, 0, false, true);  // back to tabs
+
+  // SEND FROM PHONE: the hub's page as a QR code, and without a hub.
+  {
+    ui::Model pm = m;
+    pm.hubUrl = "https://bookclub-nudge.example.workers.dev/";
+    ev(pm, 0, false, true); ev(pm, +3); shot("menu_phone", pm);
+    ev(pm, 0, true); shot("phone_qr", pm);
+    pm.hubUrl = "";
+    shot("phone_qr_unset", pm);
+    ev(pm, 0, true); ev(pm, 0, false, true);             // back to the menu, then the tabs
+  }
 
   // A knob press on STAT opens the owner card; a hold goes back.
   ev(m, 0, true); shot("owner_card_from_stat", m);
@@ -187,7 +203,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +12); ev(cm, 0, true);  // menu > owner card
+    ev(cm, 0, false, true); ev(cm, +6); ev(cm, 0, true); ev(cm, 0, true);  // THIS UNIT > OWNER CARD
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;
@@ -196,7 +212,7 @@ int main(int argc, char** argv) {
     strcpy(cm.caps.note, "Missed the school play for club night");
     cm.caps.balance = -2;
     shot("owner_card_overdrawn", cm);
-    ev(cm, 0, false, true); ev(cm, 0, false, true);  // back to tabs
+    ev(cm, 0, false, true); ev(cm, 0, false, true); ev(cm, 0, false, true);  // back to tabs
   }
 
   // Nudges: who, what, the note after sending, an incoming one, not set up.
