@@ -81,4 +81,32 @@ const char* nudgeMessage(const BookClubData* data, int i) {
   return (i >= 0 && i < kDefaultCount) ? kDefaults[i] : "";
 }
 
+bool phoneLink(const char* hubUrl, const char* token, char* out, size_t cap) {
+  if (!cap) return false;
+  out[0] = 0;
+  size_t n = 0;
+  auto put = [&](char ch) {
+    if (n + 1 >= cap) return false;
+    out[n++] = ch;
+    out[n] = 0;
+    return true;
+  };
+  for (const char* p = hubUrl; *p && *p != '#'; ++p)  // any fragment of its own goes
+    if (!put(*p)) return false;
+  if (!token || !token[0]) return true;
+  for (const char* p = "#t="; *p; ++p)
+    if (!put(*p)) return false;
+  static const char kHex[] = "0123456789ABCDEF";
+  for (const unsigned char* p = (const unsigned char*)token; *p; ++p) {
+    const bool plain = (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+                       *p == '-' || *p == '_' || *p == '.' || *p == '~';
+    if (plain) {
+      if (!put((char)*p)) return false;
+    } else if (!put('%') || !put(kHex[*p >> 4]) || !put(kHex[*p & 15])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace bc

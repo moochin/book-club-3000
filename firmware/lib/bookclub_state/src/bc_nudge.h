@@ -34,4 +34,10 @@ int parseRoster(const char* json, size_t len, char (*friends)[kNameLen], int cap
 int nudgeMessageCount(const BookClubData* data);
 const char* nudgeMessage(const BookClubData* data, int i);
 
+// The hub's web page for the phone QR code: `hubUrl` with this unit's token
+// after "#t=" (the page signs straight in, and the fragment never reaches the
+// server), percent-encoded. With no token, just the page. False if it doesn't
+// fit in `out`.
+bool phoneLink(const char* hubUrl, const char* token, char* out, size_t cap);
+
 }  // namespace bc

@@ -785,6 +785,17 @@ void test_nudge_roster_parsing() {
   TEST_ASSERT_EQUAL(-1, parseRoster("{}", 2, friends, kMaxFriends, me, sizeof me));
 }
 
+void test_phone_link() {
+  char buf[96];
+  TEST_ASSERT_TRUE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://hub.example.workers.dev/#t=tok-pete", buf);
+  TEST_ASSERT_TRUE(phoneLink("https://hub.example.workers.dev/", "", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://hub.example.workers.dev/", buf);  // no token: just the page
+  TEST_ASSERT_TRUE(phoneLink("https://h.dev/#old", "a b&c", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://h.dev/#t=a%20b%26c", buf);  // own fragment dropped, encoded
+  TEST_ASSERT_FALSE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, 20));
+}
+
 void test_nudge_messages_from_club_file() {
   BookClubData none;
   TEST_ASSERT_TRUE(nudgeMessageCount(&none) >= 10);  // built-in set
@@ -1086,6 +1097,7 @@ int main() {
   RUN_TEST(test_nudge_inbox_parsing);
   RUN_TEST(test_nudge_roster_parsing);
   RUN_TEST(test_nudge_messages_from_club_file);
+  RUN_TEST(test_phone_link);
   RUN_TEST(test_signal_parsing);
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);

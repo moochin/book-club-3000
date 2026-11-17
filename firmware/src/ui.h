@@ -64,7 +64,8 @@ struct Model {
   const char* signalsError = "";           // why the last check failed
   const bc::Signal* incomingSignal = nullptr;  // a new one waiting to be seen
   const char* hubError = "";
-  const char* hubUrl = "";                 // the nudge hub's web page ("" if not set up)               // the nudge hub's last problem ("" if none)
+  const char* hubUrl = "";                 // the nudge hub's web page ("" if not set up)
+  const char* nudgeToken = "";             // this unit's hub token, for the QR sign-in link               // the nudge hub's last problem ("" if none)
 };
 
 enum class Action : uint8_t {

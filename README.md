@@ -215,8 +215,10 @@ The hub has its own web page, at the address it was deployed to (the one in
 the club file, e.g. `https://bookclub-nudge.<something>.workers.dev`). Sign
 in with your nudge token, then send a nudge or broadcast a signal **in your
 own words**: nudges up to 40 characters, signals up to 100. The same limits
-apply as on the units. To open it without typing the address, scan the QR
-code in **SETTINGS → SEND FROM PHONE** on any unit. It also shows what's on the air. Tick *Remember on
+apply as on the units. To skip typing the address and the token, scan the
+QR code in **SETTINGS → SEND FROM PHONE** on your unit: it carries the unit's
+token, so the page signs straight in as that unit (and remembers it on that
+phone). Only let friends scan it. A unit without a token shows the plain page. It also shows what's on the air. Tick *Remember on
 this phone* to stay signed in; the hub owner can also send someone a link
 that signs them in, `https://…workers.dev/#t=<their token>` (keep it private:
 it's as good as the token).

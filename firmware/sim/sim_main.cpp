@@ -160,6 +160,9 @@ int main(int argc, char** argv) {
     pm.hubUrl = "https://bookclub-nudge.example.workers.dev/";
     ev(pm, 0, false, true); ev(pm, +3); shot("menu_phone", pm);
     ev(pm, 0, true); shot("phone_qr", pm);
+    pm.nudgeToken = "pete-7f3a9c2e41b84d0e9a6c5b2f1e8d7c40";
+    shot("phone_qr_token", pm);
+    pm.nudgeToken = "";
     pm.hubUrl = "";
     shot("phone_qr_unset", pm);
     ev(pm, 0, true); ev(pm, 0, false, true);             // back to the menu, then the tabs
