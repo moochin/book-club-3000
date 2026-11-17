@@ -622,6 +622,7 @@ void loop() {
   m.incomingSignal = g_signalShown ? &g_signal : nullptr;
   m.hubError = nudge::lastError();
   m.hubUrl = g_hasData ? g_data.nudges.url : "";
+  m.nudgeToken = u.nudgeToken;
   m.toastWarn = g_toastWarn;
 
   const ui::View viewWas = ui::view();

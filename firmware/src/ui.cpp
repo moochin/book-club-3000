@@ -904,7 +904,7 @@ const HelpPage kHelp[] = {
      {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
       "A friend's nudge chirps, flashes the light and stays on screen until you press or tap. "
       "In quiet hours it just waits.",
-      "From a phone: SETTINGS > SEND FROM PHONE shows a QR code for the hub's web page.",
+      "From a phone: SETTINGS > SEND FROM PHONE shows a QR code that signs into the hub's page as you.",
       "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
       nullptr}},
     {"SIGNALS",
@@ -1039,10 +1039,23 @@ void drawPhoneQr(const Model& m) {
     text(8, 210, "PRESS OR TAP TO GO BACK", kDim);
     return;
   }
-  drawQr(m.hubUrl, 4, 32, 176);
-  textWrapped(186, 40, "SCAN TO NUDGE OR BROADCAST FROM A PHONE.", 21, 4, kText);
-  textWrapped(186, 118, "Sign in with your nudge token.", 21, 3, kDim);
-  textWrapped(186, 180, "PRESS OR TAP TO GO BACK", 21, 2, kDim);
+  // With this unit's token in the link, the page signs straight in.
+  char link[bc::kUrlLen + 80];
+  const bool signIn = m.nudgeToken[0] && bc::phoneLink(m.hubUrl, m.nudgeToken, link, sizeof link);
+  if (!signIn) bc::phoneLink(m.hubUrl, "", link, sizeof link);
+  drawQr(link, 4, 32, 176);
+  if (signIn) {
+    char name[24], who[80];
+    bc::asciiFold(m.owner[0] ? m.owner : "this unit", name, sizeof name);
+    bc::upperAscii(name);
+    snprintf(who, sizeof who, "SCAN TO NUDGE OR BROADCAST AS %s FROM A PHONE.", name);
+    textWrapped(186, 40, who, 21, 5, kText);
+    textWrapped(186, 132, "It signs in as you: only let friends scan it.", 21, 3, kDim);
+  } else {
+    textWrapped(186, 40, "SCAN TO NUDGE OR BROADCAST FROM A PHONE.", 21, 4, kText);
+    textWrapped(186, 118, "Sign in with your nudge token.", 21, 3, kDim);
+  }
+  textWrapped(186, 196, "PRESS OR TAP TO GO BACK", 21, 2, kDim);
 }
 
 void drawToast(const Model& m) {
