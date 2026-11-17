@@ -165,7 +165,15 @@ int main(int argc, char** argv) {
     pm.nudgeToken = "";
     pm.hubUrl = "";
     shot("phone_qr_unset", pm);
-    ev(pm, 0, true); ev(pm, 0, false, true);             // back to the menu, then the tabs
+    {
+      input::Events tap;  // a tap on the QR screen goes back to the menu
+      tap.tap = true;
+      tap.x = 160;
+      tap.y = 120;
+      ui::handle(tap, pm, g_simMillis += 100);
+      shot("phone_qr_tapped_back", pm);
+    }
+    ev(pm, 0, false, true);                                // back to the tabs
   }
 
   // A knob press on STAT opens the owner card; a hold goes back.
