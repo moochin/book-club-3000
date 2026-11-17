@@ -6,6 +6,7 @@
 #include <ctype.h>
 
 #include "config.h"
+#include "fwguard.h"
 #include "art_data.h"
 #include "portal_theme.h"
 #include "settings.h"
@@ -61,6 +62,7 @@ static void buildPortalHead() {
 
 static bool g_portal = false;
 static bool g_settingsChanged = false;
+static bool g_savedInPortal = false;  // settings were saved while this portal was open
 static bool g_wasConnected = false;
 static uint32_t g_downSinceMs = 0;
 static uint32_t g_lastRetryMs = 0;
@@ -133,6 +135,7 @@ static void onSaveParams() {
 
   settings::save();
   g_settingsChanged = true;
+  g_savedInPortal = true;
   Serial.printf("[net] settings saved for %s\n", settings::displayName());
 }
 
@@ -151,6 +154,7 @@ static void makeNames() {
 }
 
 static void startPortal(uint32_t timeoutS) {
+  g_savedInPortal = false;
   makeNames();
   refreshFields();
   buildPortalHead();
@@ -208,6 +212,16 @@ void tick(uint32_t now) {
     if (!g_wm.getConfigPortalActive()) {
       g_portal = false;
       Serial.println("[net] portal closed");
+      // Once the portal has run, about 8 KB stays taken and every TLS
+      // handshake after it failed for memory ("PK verify failed") until a
+      // restart: a new unit sat on "fetch failed" (1.5.16, Pete's first
+      // setup). So after a save, start afresh with the new settings. Not on
+      // probation: a restart then would roll the new firmware back.
+      if (g_savedInPortal && !fwguard::onProbation()) {
+        Serial.println("[net] settings saved: restarting to use them");
+        delay(300);  // let the log and the portal's last page out
+        ESP.restart();
+      }
       if (WiFi.getMode() != WIFI_STA) stationMode();
       if (!WiFi.isConnected() && g_wm.getWiFiIsSaved()) WiFi.begin();
     }

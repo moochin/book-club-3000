@@ -172,6 +172,9 @@ in `lib/bookclub_state/src/bc_state.h`.
 - If the saved network is down the unit keeps running on cached data and
   retries every minute. The setup portal only opens from the menu
   (**Wi-Fi reset**), and the old network is kept until a new one is saved.
+- Saving on the setup page restarts the unit (from 1.5.17): once the portal
+  has run, it holds about 8 KB that every TLS handshake then lacked, so a
+  freshly set-up unit failed every fetch until it was restarted.
 
 ## The UI without a board
 
