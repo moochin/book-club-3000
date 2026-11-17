@@ -95,7 +95,8 @@ static const char kPortalIntro[] =
 static const char kPortalSecOperative[] = "<div class='bc-sec'>OPERATIVE</div>";
 static const char kPortalStatsHint[] =
     "<div class='bc-hint'>Owner card stats, seven numbers from 1 to 10: gaming skill, movie trivia, beer "
-    "capacity, snack supply, banter, punctuality, staying power.</div>";
+    "capacity, snack supply, banter, punctuality, staying power. Separate them with dots, commas or "
+    "spaces.</div>";
 static const char kPortalSecTerminal[] =
     "<div class='bc-sec'>TERMINAL</div>"
     "<label for='bc-theme'>Screen colour</label>"

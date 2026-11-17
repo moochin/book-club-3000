@@ -26,7 +26,7 @@ static char g_statsStr[32];
 static WiFiManagerParameter g_secOperative(kPortalSecOperative);
 static WiFiManagerParameter g_pOwner("owner", "Your name (as your friends know you)", "", 23,
                                      "autocapitalize='words' placeholder='Pete'");
-static WiFiManagerParameter g_pStats("stats", "Owner card stats", "", 31, "inputmode='numeric' placeholder='7,3,9,5,8,2,6'");
+static WiFiManagerParameter g_pStats("stats", "Owner card stats", "", 31, "inputmode='decimal' placeholder='7.3.9.5.8.2.6'");
 static WiFiManagerParameter g_statsHint(kPortalStatsHint);
 static WiFiManagerParameter g_secTerminal(kPortalSecTerminal);
 static WiFiManagerParameter g_pTheme("theme", "", "green", 6, "type='hidden'", WFM_NO_LABEL);
