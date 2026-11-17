@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.15"
+#define BC_FW_VERSION "1.5.16"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -96,7 +96,11 @@ constexpr uint8_t kBacklightMax = 255;
 constexpr bool kLdrBrightIsLow = true;
 constexpr int kLdrBright = 0;    // raw reading in a bright room
 constexpr int kLdrDark = 900;    // raw reading in a dark room
-constexpr int kLdrDarkRoom = 700;  // at or beyond this counts as "dark" for blanking
+// Dark-room blanking thresholds (SETTINGS > DARK ROOM OFF): at or beyond this
+// counts as "dark". DARK (700) also caught a dim, overcast day indoors, so the
+// default is VERY DARK. ABOUT shows the live reading for calibrating these.
+constexpr int kLdrVeryDarkRoom = 850;
+constexpr int kLdrDarkRoom = 700;
 constexpr uint32_t kBlankAfterDarkMs = 10UL * 60 * 1000;
 
 // ---- Sound --------------------------------------------------------------------

@@ -31,8 +31,11 @@ static int levelFromRaw(int raw) {
   return (int)constrain(l, 0, 1000);
 }
 
-static bool rawIsDark(int raw) {
-  return cfg::kLdrBrightIsLow ? raw >= cfg::kLdrDarkRoom : raw <= cfg::kLdrDarkRoom;
+// `preset`: bc::darkPresetLabel() index. 0 (never) is never dark.
+static bool rawIsDark(int raw, uint8_t preset) {
+  if (preset == 0) return false;
+  const int t = preset == 2 ? cfg::kLdrDarkRoom : cfg::kLdrVeryDarkRoom;
+  return cfg::kLdrBrightIsLow ? raw >= t : raw <= t;
 }
 
 void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
@@ -41,7 +44,7 @@ void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
     g_raw = analogRead(cfg::kPinLdr);
     // Exponential smoothing so a passing shadow does not pump the backlight.
     g_level += (levelFromRaw(g_raw) - g_level) / 8;
-    const bool dark = rawIsDark(g_raw);
+    const bool dark = rawIsDark(g_raw, settings::get().darkPreset);
     if (dark && !g_dark) g_darkSinceMs = now;
     g_dark = dark;
   }

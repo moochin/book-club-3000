@@ -147,12 +147,13 @@ typo in the gist, a firmware update that couldn't install, no Wi-Fi...) and
 what to do, with a REFRESH NOW button. Tapping the ⚠ opens it too. A 2 s hold is a shortcut: it opens
 settings from the tabs and goes back from anywhere else. Settings has refresh,
 send nudge, signals, sound, volume, quiet hours, brightness, theme, scanlines, screen off
-at night, dim when idle, knob direction, owner card, how to use, about and
+at night, dim when idle, dark room off, knob direction, owner card, how to use, about and
 Wi-Fi reset. If a knob turns the wrong way, set **KNOB: REVERSED** rather than
 re-soldering it.
 **The screen** switches itself off at night (23:00–07:00 by default) and after
-10 minutes in a dark room, and dims after 30 minutes untouched; turn the knob
-or tap to wake it. Both times are in the settings menu. It's an LCD, so it
+10 minutes in a very dark room, and dims after 30 minutes untouched; turn the
+knob or tap to wake it. All three are in the settings menu (**DARK ROOM OFF**:
+never, very dark or dark). It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 **Staying up:** each unit restarts itself quietly once a day between 03:00
