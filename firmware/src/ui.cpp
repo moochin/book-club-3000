@@ -1031,6 +1031,9 @@ void drawQr(const char* s, int x, int y, int size) {
 void drawPhoneQr(const Model& m) {
   auto& c = canvas();
   text(8, 4, "SEND FROM PHONE", kBright, 2, 2);
+  // BACK is the only thing to pick here: shown selected, like the owner card's.
+  c.drawRect(cfg::kScreenW - 80, 2, 76, 22, kBright);
+  textCentered(cfg::kScreenW - 42, 5, "< BACK", kHot, 2, 2);
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
   if (!m.hubUrl[0]) {
     text(8, 40, "THE NUDGE HUB ISN'T SET UP YET", kWarn);
@@ -1779,6 +1782,9 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         }
       }
       return r;
+
+    case Screen::PhoneQr:
+      return handle(press, m, now);  // a tap anywhere goes back
   }
   return r;
 }
