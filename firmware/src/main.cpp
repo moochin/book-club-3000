@@ -5,6 +5,7 @@
 // screen shows; the UI only draws what it is given. Slow work (HTTPS) runs in
 // its own FreeRTOS task, so the knob stays responsive during a fetch.
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_system.h>
 #include <string.h>
@@ -41,6 +42,25 @@ bc::BookClubData g_previewData;
 bc::LocalNow g_previewNow;
 
 bc::Date g_jingledOn;  // meeting-day / birthday jingle plays once per day
+
+// The day the jingle last played, kept in flash: a restart later that day
+// (an update, say) mustn't play it again.
+void loadJingledOn() {
+  Preferences p;
+  if (!p.begin("main", true)) return;
+  const uint32_t v = p.getUInt("jingled", 0);  // yyyymmdd
+  p.end();
+  g_jingledOn.year = (int16_t)(v / 10000);
+  g_jingledOn.month = (int8_t)(v / 100 % 100);
+  g_jingledOn.day = (int8_t)(v % 100);
+}
+
+void saveJingledOn() {
+  Preferences p;
+  if (!p.begin("main", false)) return;
+  p.putUInt("jingled", (uint32_t)g_jingledOn.year * 10000 + g_jingledOn.month * 100 + g_jingledOn.day);
+  p.end();
+}
 uint32_t g_lastFrameMs = 0;
 uint32_t g_lastInputMs = 0;
 bool g_dirty = true;
@@ -331,6 +351,7 @@ void setup() {
   datasync::begin();
   nudge::begin();  // after datasync: shares its TLS lock
   g_signalSeenAt = settings::signalSeenAt();
+  loadJingledOn();
   ui::begin();
   // From here the main loop is watched too: if it ever freezes for 5 s, the
   // unit restarts (and a new firmware on probation rolls back). Not earlier:
@@ -423,13 +444,17 @@ void loop() {
     wasQuiet = quiet;
   }
   audio::setGeigerRate(data && state.clockValid ? state.geigerClicksPerMin : 0);
-  // The jingle: once on meeting day, and once on this unit owner's birthday.
+  // The jingle: once on meeting day, and once on this unit owner's birthday,
+  // from 08:00 (not midnight). Quiet hours still hold it back.
   const bool ownBirthday = data && state.birthdayIndex >= 0 &&
                            bc::sameName(data->birthdays[state.birthdayIndex].name,
-                                        settings::get().owner);
+                                        settings::get().owner) &&
+                           liveNow.minuteOfDay >= cfg::kBirthdayJingleMinute;
   if (!preview && state.clockValid && (state.quest == bc::Quest::MeetingDay || ownBirthday) &&
       g_jingledOn != liveNow.date && audio::canPlay()) {
     g_jingledOn = liveNow.date;
+    saveJingledOn();
+    Serial.printf("[main] %s jingle\n", state.quest == bc::Quest::MeetingDay ? "meeting-day" : "birthday");
     if (state.quest == bc::Quest::MeetingDay) audio::jingle();
     else audio::birthday();
   }

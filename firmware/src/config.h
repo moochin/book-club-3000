@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.14"
+#define BC_FW_VERSION "1.5.15"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -52,6 +52,8 @@ constexpr uint8_t kDefaultRotation = 3;  // right way up in the printed case (kn
 constexpr uint32_t kFrameMsEffects = 66;  // ~15 fps while scanline sweep runs
 constexpr uint32_t kFrameMsIdle = 1000;   // otherwise redraw once a second
 constexpr uint32_t kBootSplashMs = 3200;  // start-up screen with the scrolling boot log
+// The owner's birthday jingle waits for this time of day (local), not midnight.
+constexpr int16_t kBirthdayJingleMinute = 8 * 60;
 
 // ---- Knob -------------------------------------------------------------------
 constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per click
