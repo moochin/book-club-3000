@@ -179,6 +179,7 @@ void doAction(const ui::Result& r) {
     case ui::Action::CycleNight: u.nightPreset = (uint8_t)((u.nightPreset + 1) % bc::kNightPresets); break;
     case ui::Action::CycleQuiet: u.quietPreset = (uint8_t)((u.quietPreset + 1) % bc::kQuietPresets); break;
     case ui::Action::CycleIdleDim: u.idlePreset = (uint8_t)((u.idlePreset + 1) % bc::kIdlePresets); break;
+    case ui::Action::CycleDark: u.darkPreset = (uint8_t)((u.darkPreset + 1) % bc::kDarkPresets); break;
     case ui::Action::OpenPortal: net::openPortal(); return;
     case ui::Action::CancelPortal: net::closePortal(); return;
     case ui::Action::Preview:
@@ -597,6 +598,7 @@ void loop() {
   m.effects = u.effects;
   m.nightPreset = u.nightPreset;
   m.idlePreset = u.idlePreset;
+  m.darkPreset = u.darkPreset;
   m.quietPreset = u.quietPreset;
   m.knobReversed = u.knobReversed;
   m.quietNow = u.sound && quietHours(liveNow);

@@ -51,6 +51,11 @@ NightWindow quietPreset(int i) {
   return kPresets[(i >= 0 && i < kQuietPresets) ? i : 1];
 }
 
+const char* darkPresetLabel(int i) {
+  static const char* const kLabels[kDarkPresets] = {"NEVER", "VERY DARK", "DARK"};
+  return kLabels[(i >= 0 && i < kDarkPresets) ? i : 1];
+}
+
 uint32_t idleDimPresetMs(int i) {
   static const uint32_t kMs[kIdlePresets] = {0, 10UL * 60 * 1000, 30UL * 60 * 1000, 60UL * 60 * 1000};
   return kMs[(i >= 0 && i < kIdlePresets) ? i : 0];

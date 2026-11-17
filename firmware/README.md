@@ -70,7 +70,7 @@ pio run -e cyd_bringup -t upload && pio device monitor
    beeps.
 5. **Light sensor.** The serial log prints `ldr=` twice a second. Note the
    reading in a bright room and in a dark one and set `kLdrBright`,
-   `kLdrDark` and `kLdrDarkRoom` in `src/config.h` (and flip
+   `kLdrDark`, `kLdrVeryDarkRoom` and `kLdrDarkRoom` in `src/config.h` (and flip
    `kLdrBrightIsLow` if the reading rises with light).
 
 **Confirmed on hardware:** partly, on a USB-C "TPM408-2.8" board (2026-11-11).
@@ -111,7 +111,8 @@ src/diag       why the unit last started (watchdog culprit, crash, planned
                the small hours, or when memory stays too fragmented
 src/backlight  auto-dimming from the LDR; the screen-power policy
                (lib/bookclub_state/src/bc_screen.h): off at night and after
-               10 min in a dark room, dim when idle, 2-min wake at night
+               10 min in a dark room (SETTINGS > DARK ROOM OFF), dim when
+               idle, 2-min wake at night
 src/ota        ArduinoOTA for LAN flashing
 src/main.cpp   the non-blocking loop that ticks each module
 ```

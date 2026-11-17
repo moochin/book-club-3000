@@ -48,6 +48,8 @@ void begin() {
   u.effects = p.getBool("fx", true);
   u.nightPreset = p.getUChar("night", 1);
   u.idlePreset = p.getUChar("idle", 2);
+  u.darkPreset = p.getUChar("dark", 1);
+  if (u.darkPreset >= bc::kDarkPresets) u.darkPreset = 1;
   u.quietPreset = p.getUChar("quiet", 1);
   u.knobReversed = p.getBool("knobrev", false);
   if (u.quietPreset >= bc::kQuietPresets) u.quietPreset = 1;
@@ -76,6 +78,7 @@ void save() {
   p.putBool("fx", u.effects);
   p.putUChar("night", u.nightPreset);
   p.putUChar("idle", u.idlePreset);
+  p.putUChar("dark", u.darkPreset);
   p.putUChar("quiet", u.quietPreset);
   p.putBool("knobrev", u.knobReversed);
   p.end();

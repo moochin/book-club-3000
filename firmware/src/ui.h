@@ -42,6 +42,7 @@ struct Model {
   bool effects = true;
   uint8_t nightPreset = 1;
   uint8_t idlePreset = 2;
+  uint8_t darkPreset = 1;
   uint8_t quietPreset = 1;
   bool knobReversed = false;
   bool quietNow = false;    // quiet hours are muting the sound right now
@@ -75,6 +76,7 @@ enum class Action : uint8_t {
   ToggleEffects,
   CycleNight,
   CycleIdleDim,
+  CycleDark,
   CycleQuiet,
   ToggleKnob,
   OpenPortal,
@@ -109,7 +111,7 @@ struct View {
 };
 View view();
 const char* screenName();  // for the test console
-constexpr int kMenuItems = 17;  // rows in the settings list
+constexpr int kMenuItems = 18;  // rows in the settings list
 
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);

@@ -45,6 +45,7 @@ enum MenuItem : uint8_t {
   kMiEffects,
   kMiNight,
   kMiIdle,
+  kMiDark,
   kMiKnob,
   kMiOwner,
   kMiHelp,
@@ -576,6 +577,7 @@ void menuLabel(int i, const Model& m, char* buf, int len) {
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
     case kMiNight: snprintf(buf, len, "SCREEN OFF: %s", bc::nightPreset(m.nightPreset).label); break;
     case kMiIdle: snprintf(buf, len, "DIM WHEN IDLE: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
+    case kMiDark: snprintf(buf, len, "DARK ROOM OFF: %s", bc::darkPresetLabel(m.darkPreset)); break;
     case kMiKnob: snprintf(buf, len, "KNOB: %s", m.knobReversed ? "REVERSED" : "NORMAL"); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
     case kMiHelp: snprintf(buf, len, "HOW TO USE"); break;
@@ -837,8 +839,8 @@ const HelpPage kHelp[] = {
       "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
       "Your own quotes: \"signals\" in the club file.", nullptr}},
     {"THE SCREEN",
-     {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room. "
-      "Turn the knob or tap to wake it.",
+     {"It switches off at night (SETTINGS > SCREEN OFF) and after 10 min in a dark room "
+      "(SETTINGS > DARK ROOM OFF). Turn the knob or tap to wake it.",
       "Left untouched it dims (SETTINGS > DIM WHEN IDLE).",
       "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
       nullptr}},
@@ -1298,6 +1300,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiNight: r.action = Action::CycleNight; break;
           case kMiIdle: r.action = Action::CycleIdleDim; break;
+          case kMiDark: r.action = Action::CycleDark; break;
           case kMiKnob: r.action = Action::ToggleKnob; break;
           case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; g_cardSel = 0; break;
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
