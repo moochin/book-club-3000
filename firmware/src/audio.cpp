@@ -474,6 +474,10 @@ void knobClick() {
   blip(3200, 40, 1500);
 }
 
+void itemTick() {
+  blip(1300, 72, 4000);
+}
+
 void geigerClick() {
   if (playClip(Clip::Geiger)) return;
   // A short, slightly random-pitched pulse reads as a "tick".

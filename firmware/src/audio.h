@@ -34,6 +34,9 @@ bool playing();
 void setGeigerRate(int clicksPerMin);
 
 void knobClick();
+// One step through a list (LOG scrolling, settings): a short, low "tock",
+// unlike the knob click, so each item moved past can be counted by ear.
+void itemTick();
 void geigerClick();
 void jingle();      // meeting day fanfare, ~1.5 s
 void birthday();    // on this unit owner's birthday (the jingle unless a clip is given)

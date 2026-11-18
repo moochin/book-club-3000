@@ -226,15 +226,25 @@ bool bootSoundWanted() {
 }
 
 // Sounds for what the knob or a tap just did: the microfiche whir between
-// tabs, else a click. Settings is silent (bar the SOUND and VOLUME confirm
-// beeps): once 1.5.5 freed the speaker pin, its valve-radio hum and tuning
-// sounds came through as a constant buzz.
+// tabs, a tick for each step through a list (scrolling LOG, any settings
+// list), else a click. A turn against the end of a list is silent. Settings
+// otherwise stays quiet (bar the SOUND and VOLUME confirm beeps): once 1.5.5
+// freed the speaker pin, its valve-radio hum and tuning sounds came through
+// as a constant buzz.
 void inputSound(const input::Events& ev, const ui::View& was, const ui::View& is, uint32_t now) {
   if (ev.any()) g_lastInputMs = now;
-  if (!ev.any() || is.settings || was.settings) return;
-  if (is.tab != was.tab) {
+  if (!ev.any()) return;
+  const bool sameList = is.screen == was.screen && is.group == was.group && is.tab == was.tab;
+  const bool stepped = sameList && is.cursor != was.cursor && is.cursor != -100 && was.cursor != -100;
+  if (stepped && (ev.turn || ev.tap)) {
+    audio::itemTick();
+  } else if (is.settings || was.settings) {
+    return;
+  } else if (is.tab != was.tab) {
     const int dir = ev.turn ? ev.turn : (is.tab > was.tab ? 1 : -1);
     audio::tabAdvance(dir);
+  } else if (ev.turn && is.cursor != -100) {
+    return;  // LOG scrolling, already at the end
   } else if (ev.turn || ev.tap) {
     audio::knobClick();
   }

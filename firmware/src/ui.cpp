@@ -515,6 +515,17 @@ int buildLog(const Model& m, LogEntry* out, int cap) {
   return n;
 }
 
+LogEntry g_log[bc::kMaxHistory + bc::kMaxSideQuests];
+int logCount(const Model& m) { return m.data ? buildLog(m, g_log, bc::kMaxHistory + bc::kMaxSideQuests) : 0; }
+
+// Keeps the LOG's top row in range, so a turn past either end doesn't count
+// as a move (the main loop ticks only when the list really scrolls).
+void clampLogTop(const Model& m) {
+  const int count = logCount(m);
+  const int maxTop = count > kLogRows ? count - kLogRows : 0;
+  g_logTop = constrain(g_logTop, 0, maxTop);
+}
+
 // The SET tab: a way into settings with the knob alone, and a glance at
 // the sound settings.
 void drawSet(const Model& m) {
@@ -542,8 +553,8 @@ void drawSet(const Model& m) {
 void drawLog(const Model& m) {
   auto& c = canvas();
   const bc::BookClubData& d = *m.data;
-  static LogEntry log[bc::kMaxHistory + bc::kMaxSideQuests];
-  const int count = buildLog(m, log, bc::kMaxHistory + bc::kMaxSideQuests);
+  LogEntry* log = g_log;
+  const int count = logCount(m);
   text(8, 32, "MEETING LOG", kBright);
   textRight(cfg::kScreenW - 8, 32, g_logScroll ? "[TURN: SCROLL]" : "[TURN: TABS]",
             g_logScroll ? kHot : kDim);
@@ -1340,6 +1351,23 @@ View view() {
   v.menu = g_screen == Screen::Menu;
   v.menuSel = g_menuSel;
   v.tab = g_tab;
+  v.screen = (uint8_t)g_screen;
+  v.group = g_menuGroup;
+  switch (g_screen) {
+    case Screen::Tabs: v.cursor = g_tab == kLog && g_logScroll ? g_logTop : -100; break;
+    case Screen::Menu: v.cursor = g_menuSel; break;
+    case Screen::OwnerCard:
+    case Screen::StatDetail: v.cursor = g_cardSel; break;
+    case Screen::Help: v.cursor = g_helpPage; break;
+    case Screen::Debug: v.cursor = g_debugSel; break;
+    case Screen::ConfirmPortal: v.cursor = g_confirmYes; break;
+    case Screen::NudgeTo: v.cursor = g_nudgeSel; break;
+    case Screen::NudgeMsg: v.cursor = g_msgSel; break;
+    case Screen::Signals: v.cursor = g_sigSel; break;
+    case Screen::SignalQuote: v.cursor = g_quoteSel; break;
+    case Screen::SyncStatus: v.cursor = g_syncBack; break;
+    default: break;
+  }
   return v;
 }
 
@@ -1399,7 +1427,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       if (e.turn) {
         if (g_tab == kLog && g_logScroll) {
           g_logTop += e.turn;
-          if (g_logTop < 0) g_logTop = 0;  // upper clamp in drawLog
+          clampLogTop(m);
         } else {
           g_tab = (uint8_t)((g_tab + kTabCount + (e.turn % kTabCount)) % kTabCount);
           g_logScroll = false;
@@ -1680,7 +1708,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         const int top = 52, bottom = 52 + kLogRows * kLogRowH;
         if (y >= top - 4 && y < bottom) {
           g_logTop += y < (top + bottom) / 2 ? -(kLogRows - 1) : (kLogRows - 1);
-          if (g_logTop < 0) g_logTop = 0;  // upper clamp in drawLog
+          clampLogTop(m);
         }
       }
       return r;
