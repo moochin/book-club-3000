@@ -740,7 +740,7 @@ void test_minute_window_and_shift() {
   TEST_ASSERT_FALSE(nightPreset(99).enabled);  // bad stored value: safe default
   TEST_ASSERT_EQUAL_UINT32(0, idleDimPresetMs(-1));
   TEST_ASSERT_EQUAL_STRING("NEVER", darkPresetLabel(0));
-  TEST_ASSERT_EQUAL_STRING("VERY DARK", darkPresetLabel(99));  // bad stored value: the default
+  TEST_ASSERT_EQUAL_STRING("NEVER", darkPresetLabel(99));  // bad stored value: the default
   TEST_ASSERT_FALSE(quietPreset(0).enabled);
   const NightWindow q = quietPreset(1);  // the default: 22:00-08:00
   TEST_ASSERT_TRUE(q.enabled);

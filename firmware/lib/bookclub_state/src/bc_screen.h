@@ -54,7 +54,8 @@ constexpr int kQuietPresets = 5;
 NightWindow quietPreset(int i);
 
 // Dark-room blanking: how dark the room must be before the screen goes off.
-// Index 0 = never, 1 = only a very dark room (the default), 2 = a dark one.
+// Index 0 = never (the default: light sensors differ too much between units
+// for a fixed level), 1 = only a very dark room, 2 = a dark one.
 // The thresholds are hardware readings, so they live in the firmware's config.
 constexpr int kDarkPresets = 3;
 const char* darkPresetLabel(int i);

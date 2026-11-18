@@ -156,10 +156,11 @@ then three groups:
 
 If a knob turns the wrong way, set **THIS UNIT → KNOB: REVERSED** rather than
 re-soldering it.
-**The screen** switches itself off at night (23:00–07:00 by default) and after
-10 minutes in a very dark room, and dims after 30 minutes untouched; turn the
-knob or tap to wake it. All three are in **SETTINGS → SCREEN** (**DARK ROOM
-OFF**: never, very dark or dark). It's an LCD, so it
+**The screen** switches itself off at night (23:00–07:00 by default) and dims
+after 30 minutes untouched; turn the knob or tap to wake it. It can also
+switch off after 10 minutes in a dark room (**DARK ROOM OFF**: never, very dark
+or dark), but that is off by default: the light sensors read very differently
+from unit to unit. All three are in **SETTINGS → SCREEN**. It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 **Staying up:** each unit restarts itself quietly once a day between 03:00

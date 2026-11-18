@@ -42,7 +42,7 @@ struct Model {
   bool effects = true;
   uint8_t nightPreset = 1;
   uint8_t idlePreset = 2;
-  uint8_t darkPreset = 1;
+  uint8_t darkPreset = 0;
   uint8_t quietPreset = 1;
   bool knobReversed = false;
   bool quietNow = false;    // quiet hours are muting the sound right now
