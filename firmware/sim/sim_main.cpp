@@ -145,8 +145,8 @@ int main(int argc, char** argv) {
   shot("help_getting_around", m);                        // page 1
   for (int i = 0; i < 3; ++i) ev(m, +1);
   shot("help_nudges", m);                                // page 4: NUDGES
-  ev(m, +1);
-  shot("help_screen", m);                                // page 5: THE SCREEN
+  ev(m, +2);
+  shot("help_screen", m);                                // page 6: THE SCREEN
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("about", m);
   for (int i = 0; i < 5; ++i) ev(m, 0, true);
   shot("debug_menu", m);

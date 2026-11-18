@@ -914,8 +914,8 @@ const HelpPage kHelp[] = {
       "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
       "Your own quotes: \"signals\" in the club file.", nullptr}},
     {"THE SCREEN",
-     {"It switches off at night (SETTINGS > SCREEN > SCREEN OFF) and after 10 min in a dark "
-      "room (SCREEN > DARK ROOM OFF). Turn the knob or tap to wake it.",
+     {"It switches off at night (SETTINGS > SCREEN > SCREEN OFF). It can also switch off after "
+      "10 min in a dark room (SCREEN > DARK ROOM OFF; off by default). Turn the knob or tap to wake it.",
       "Left untouched it dims (SCREEN > DIM WHEN IDLE).",
       "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
       nullptr}},
