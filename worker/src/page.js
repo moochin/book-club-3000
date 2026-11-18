@@ -106,6 +106,13 @@ export const PAGE = `<!doctype html>
   .bar > i { flex: 1; height: 6px; background: var(--f); }
   .bar > i.on { background: var(--a); box-shadow: 0 0 4px var(--g); }
   li.empty, li.warn { border-left-color: var(--d); color: var(--d); }
+  #units li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+  #units li.old { border-left-color: var(--warn); }
+  #units li.off { border-left-color: var(--f); }
+  #units .nm { letter-spacing: .14em; text-transform: uppercase; }
+  #units .fw { text-align: right; }
+  #units .det { grid-column: 1 / -1; font-size: .75rem; color: var(--d); letter-spacing: .06em; text-transform: uppercase; overflow-wrap: anywhere; }
+  #units .det.warn { color: var(--warn); }
   li.warn { border-left-color: var(--warn); color: var(--warn); }
   [hidden] { display: none !important; }
 </style>
@@ -166,6 +173,15 @@ export const PAGE = `<!doctype html>
         <button class="small" id="refresh" type="button">Scan</button>
       </div>
       <ul id="signals"></ul>
+    </section>
+
+    <section>
+      <div class="sec-row">
+        <h2 class="bc-sec">Units</h2>
+        <button class="small" id="refreshUnits" type="button">Scan</button>
+      </div>
+      <ul id="units"></ul>
+      <p class="hint">Each unit reports in about every 5 minutes; times here can be up to half an hour behind. Amber: an old version, on probation, rolled back or a bad restart.</p>
     </section>
   </div>
 </main>
@@ -268,6 +284,68 @@ export const PAGE = `<!doctype html>
     }
   }
 
+  function ago(ms) {
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return m + "m";
+    if (m < 48 * 60) return Math.floor(m / 60) + "h";
+    return Math.floor(m / 1440) + "d";
+  }
+  // "1.5.25" -> comparable; anything unparsable sorts first.
+  function ver(v) {
+    const p = String(v).split(".").map((n) => parseInt(n, 10));
+    return p.length === 3 && p.every((n) => n >= 0) ? p[0] * 1e6 + p[1] * 1e3 + p[2] : -1;
+  }
+
+  async function loadUnits() {
+    const list = $("units");
+    const add = (cls, text) => {
+      const li = document.createElement("li");
+      li.className = cls;
+      li.textContent = text;
+      list.append(li);
+    };
+    try {
+      const { units, now } = await api("GET", "/fleet");
+      list.replaceChildren();
+      const newest = Math.max(-1, ...units.map((u) => ver(u.fw)));
+      for (const u of units) {
+        const li = document.createElement("li");
+        const cell = (cls, text) => {
+          const d = document.createElement("div");
+          d.className = cls;
+          d.textContent = text;
+          li.append(d);
+          return d;
+        };
+        if (!u.seen) {
+          li.className = "off";
+          cell("nm", u.name);
+          cell("fw", "-");
+          cell("det", "No report yet (firmware before 1.5.25, or never switched on)");
+          list.append(li);
+          continue;
+        }
+        const since = now - u.seen;
+        const online = since < 40 * 60000;
+        const old = ver(u.fw) < newest;
+        const trouble = !!u.fwst || u.bad;
+        li.className = !online ? "off" : old || trouble ? "old" : "";
+        cell("nm", u.name);
+        cell("fw" + (old ? " warn" : ""), u.fw || "?");
+        cell("det", (online ? "Online" : "Last seen " + ago(since) + " ago") +
+             (u.started ? " - up " + ago(Math.max(0, now - u.started)) : "") +
+             (u.panel ? " - " + u.panel : ""));
+        if (u.fwst) cell("det warn", u.fwst);
+        cell("det" + (u.bad ? " warn" : ""), "Started by: " + (u.why || "?"));
+        if (u.mem) cell("det", "Memory: " + u.mem);
+        list.append(li);
+      }
+    } catch (e) {
+      list.replaceChildren();
+      add("warn", e.status === 404 ? "This hub needs redeploying to show units." : "No contact: " + e.message);
+    }
+  }
+
   async function signIn(t, remember) {
     token = t.trim();
     if (!token) return false;
@@ -288,6 +366,7 @@ export const PAGE = `<!doctype html>
     $("signin").hidden = true;
     $("app").hidden = false;
     loadSignals();
+    loadUnits();
     return true;
   }
 
@@ -374,6 +453,7 @@ export const PAGE = `<!doctype html>
     $("signin").hidden = false;
   };
   $("refresh").onclick = loadSignals;
+  $("refreshUnits").onclick = loadUnits;
 
   // A link can carry the token after "#t=" (never sent to the server); it is
   // removed from the address bar straight away.

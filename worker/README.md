@@ -88,8 +88,9 @@ unit token" until they're updated.
 | `GET /` | The web page: sign in with a token, send nudges and signals in your own words (no token needed to load it) |
 | `GET /roster` | Who this unit is, and the friends it can nudge |
 | `GET /inbox` | This unit's waiting nudges, which are then removed |
-| `POST /nudge` `{"to": "Dave" or "*", "msg": "…"}` | Sends a nudge to one friend or everyone |
-| `GET /poll?ack=AT` | All of the above for this unit in one reply: `me`, `friends`, `nudges` and `signals`. Nudges stay until acked: each poll drops those with `at` up to `ack` (the newest the unit has taken), so a reply the unit couldn't read is sent again. Units from 1.5 use only this |
+| `POST /nudge` `{"to": "Dave" or "*", "msg": "…", "re": true}` | Sends a nudge to one friend or everyone. `"re": true` marks it as a reply (units from 1.5.25 show it as one and offer no reply back) |
+| `GET /poll?ack=AT` | All of the above for this unit in one reply: `me`, `friends`, `nudges` and `signals`. Nudges stay until acked: each poll drops those with `at` up to `ack` (the newest the unit has taken), so a reply the unit couldn't read is sent again. Units from 1.5 use only this. From 1.5.25 they add their health to the query (`fw`, `fwst`, `why`, `bad`, `mem`, `up`, `panel`), kept for `/fleet` |
+| `GET /fleet` | Every unit's last health report: version, probation or rollback, why it last started, memory, panel, when it was last seen and when it started. The web page's UNITS list |
 | `POST /signal` `{"msg": "…"}` | Puts this unit's signal on the air for 24 hours, replacing its last one |
 | `GET /signals` | Every unit's live signal (this one's too), newest first, each with `left`: seconds until it's gone |
 
@@ -110,8 +111,16 @@ unit token" until they're updated.
   `src/mascot.js`: after redrawing `art/mascot/level0.png`, run
   `python3 tools/make-mascot.py` here and redeploy.
 - **Rate limit:** a unit can send one nudge every 15 seconds and 12 an hour.
-- **Free-plan limits:** checking an empty inbox doesn't write to storage, so
-  it stays well inside the free plan's 1,000 writes a day.
+- **Free-plan limits:** checking an empty inbox doesn't write to storage, and
+  a unit's health is written only when it changes (version, probation, why
+  it last started, a restart) or every 30 minutes, so the hub stays well
+  inside the free plan's 1,000 writes a day: about 50 a day per unit. That's
+  why UNITS can show a unit as last seen up to 30 minutes ago when it
+  checked in a minute ago, and counts anything under 40 minutes as online.
+- **Units:** the web page's UNITS list shows every unit in `UNITS`, so you
+  can check a release from a phone: who has it, who's on probation or rolled
+  back, and who hasn't reported in. A unit's report is forgotten after 60
+  days of silence.
 
 ## Test it
 
