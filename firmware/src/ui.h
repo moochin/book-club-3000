@@ -110,6 +110,9 @@ struct View {
   uint8_t tab = 0;
 };
 View view();
+// From the SET tab or any settings screen, back to the STAT tab (the main
+// loop calls this after a long idle). True if the screen changed.
+bool returnToStat();
 const char* screenName();  // for the test console
 constexpr int kMenuItems = 18;  // rows in the settings list
 

@@ -1215,6 +1215,14 @@ View view() {
   return v;
 }
 
+bool returnToStat() {
+  if (!view().settings && !(g_screen == Screen::Tabs && g_tab == kSet)) return false;
+  g_screen = Screen::Tabs;
+  g_tab = kStat;
+  g_logScroll = false;
+  return true;
+}
+
 bool animating(const Model& m) {
   if (m.portal || m.updatePct >= 0) return false;
   if (m.incoming || m.incomingSignal) return false;

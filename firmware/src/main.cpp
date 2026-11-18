@@ -623,6 +623,9 @@ void loop() {
   m.hubError = nudge::lastError();
   m.toastWarn = g_toastWarn;
 
+  // Left on SET or in settings, go back to STAT after a while.
+  if (!ev.any() && !m.portal && now - g_lastInputMs >= cfg::kSettingsIdleReturnMs && ui::returnToStat())
+    g_dirty = true;
   const ui::View viewWas = ui::view();
   const ui::Result r = ui::handle(ev, m, now);
   const ui::View viewIs = ui::view();

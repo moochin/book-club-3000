@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.18"
+#define BC_FW_VERSION "1.5.19"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -102,6 +102,9 @@ constexpr int kLdrDark = 900;    // raw reading in a dark room
 constexpr int kLdrVeryDarkRoom = 850;
 constexpr int kLdrDarkRoom = 700;
 constexpr uint32_t kBlankAfterDarkMs = 10UL * 60 * 1000;
+// Left on the SET tab or in settings this long untouched, the screen goes
+// back to STAT, the club's everyday face.
+constexpr uint32_t kSettingsIdleReturnMs = 5UL * 60 * 1000;
 
 // ---- Sound --------------------------------------------------------------------
 // Quiet hours (no sound) are a setting: see bc::quietPreset().
