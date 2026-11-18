@@ -740,7 +740,7 @@ void test_minute_window_and_shift() {
   TEST_ASSERT_FALSE(nightPreset(99).enabled);  // bad stored value: safe default
   TEST_ASSERT_EQUAL_UINT32(0, idleDimPresetMs(-1));
   TEST_ASSERT_EQUAL_STRING("NEVER", darkPresetLabel(0));
-  TEST_ASSERT_EQUAL_STRING("VERY DARK", darkPresetLabel(99));  // bad stored value: the default
+  TEST_ASSERT_EQUAL_STRING("NEVER", darkPresetLabel(99));  // bad stored value: the default
   TEST_ASSERT_FALSE(quietPreset(0).enabled);
   const NightWindow q = quietPreset(1);  // the default: 22:00-08:00
   TEST_ASSERT_TRUE(q.enabled);
@@ -783,6 +783,17 @@ void test_nudge_roster_parsing() {
   TEST_ASSERT_EQUAL_STRING("Pete", me);
   TEST_ASSERT_EQUAL_STRING("Sam", friends[1]);
   TEST_ASSERT_EQUAL(-1, parseRoster("{}", 2, friends, kMaxFriends, me, sizeof me));
+}
+
+void test_phone_link() {
+  char buf[96];
+  TEST_ASSERT_TRUE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://hub.example.workers.dev/#t=tok-pete", buf);
+  TEST_ASSERT_TRUE(phoneLink("https://hub.example.workers.dev/", "", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://hub.example.workers.dev/", buf);  // no token: just the page
+  TEST_ASSERT_TRUE(phoneLink("https://h.dev/#old", "a b&c", buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("https://h.dev/#t=a%20b%26c", buf);  // own fragment dropped, encoded
+  TEST_ASSERT_FALSE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, 20));
 }
 
 void test_nudge_messages_from_club_file() {
@@ -1086,6 +1097,7 @@ int main() {
   RUN_TEST(test_nudge_inbox_parsing);
   RUN_TEST(test_nudge_roster_parsing);
   RUN_TEST(test_nudge_messages_from_club_file);
+  RUN_TEST(test_phone_link);
   RUN_TEST(test_signal_parsing);
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);

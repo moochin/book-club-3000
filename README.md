@@ -77,7 +77,7 @@ runs on your computer.
   count towards the meeting total or the longest gap. Leave old ones in the
   list or delete them, either is fine.
 - **Fun Caps** are the club's joke currency of goodwill from home, shown on
-  each unit's owner card (hold the knob 2 s → OWNER CARD). Everyone earns
+  each unit's owner card (hold the knob 2 s → THIS UNIT → OWNER CARD). Everyone earns
   **1 cap per fortnight** at home, up to **10**; each proper club night
   costs **3** (side quests are free). The balance is worked out from the
   meeting history, so it needs no upkeep and every unit agrees. To award a
@@ -145,21 +145,28 @@ switch between changing tabs and scrolling. On DATA, press for **SYNC STATUS**:
 if a ⚠ shows by the clock, it says what went wrong fetching the club file (a
 typo in the gist, a firmware update that couldn't install, no Wi-Fi...) and
 what to do, with a REFRESH NOW button. Tapping the ⚠ opens it too. A 2 s hold is a shortcut: it opens
-settings from the tabs and goes back from anywhere else. Settings has refresh,
-send nudge, signals, sound, volume, quiet hours, brightness, theme, scanlines, screen off
-at night, dim when idle, dark room off, knob direction, owner card, how to use, about and
-Wi-Fi reset. If a knob turns the wrong way, set **KNOB: REVERSED** rather than
+settings from the tabs and goes back from anywhere else (in a settings group,
+up one level). Settings has refresh, send nudge, signals and send from phone,
+then three groups:
+
+- **SCREEN >** brightness, theme, scanlines, screen off at night, dim when
+  idle, dark room off
+- **SOUND >** sound, volume, quiet hours
+- **THIS UNIT >** owner card, knob direction, how to use, about, Wi-Fi reset
+
+If a knob turns the wrong way, set **THIS UNIT → KNOB: REVERSED** rather than
 re-soldering it.
-**The screen** switches itself off at night (23:00–07:00 by default) and after
-10 minutes in a very dark room, and dims after 30 minutes untouched; turn the
-knob or tap to wake it. All three are in the settings menu (**DARK ROOM OFF**:
-never, very dark or dark). It's an LCD, so it
+**The screen** switches itself off at night (23:00–07:00 by default) and dims
+after 30 minutes untouched; turn the knob or tap to wake it. It can also
+switch off after 10 minutes in a dark room (**DARK ROOM OFF**: never, very dark
+or dark), but that is off by default: the light sensors read very differently
+from unit to unit. All three are in **SETTINGS → SCREEN**. It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 **Staying up:** each unit restarts itself quietly once a day between 03:00
 and 05:00 when nobody's using it, and sooner if its memory gets too
 fragmented for secure connections. Both are silent and normal. **SETTINGS →
-ABOUT** shows why it last started; WATCHDOG, CRASH or BROWNOUT there (in
+THIS UNIT → ABOUT** shows why it last started; WATCHDOG, CRASH or BROWNOUT there (in
 amber) is a real problem worth reporting, along with the MEMORY line.
 
 ## Nudges
@@ -167,7 +174,7 @@ amber) is a real problem worth reporting, along with the MEMORY line.
 Poke a friend from your desk: **SETTINGS → SEND NUDGE**, pick a friend (or
 EVERYONE), then a message. It lands on their unit within 5 minutes, with a
 chirp, a flashing blue light and the message in big letters until they press
-or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → QUIET HOURS**) it arrives silently and waits on screen.
+or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → SOUND → QUIET HOURS**) it arrives silently and waits on screen.
 
 The built-in messages include *GET YOUR ASS ONLINE*, *THINKING OF YOU,
 LOSER*, *WHERE ARE YOU, COWARD?* and *I'M ON. YOU'RE NOT. SHAME.* To use the
@@ -209,7 +216,10 @@ The hub has its own web page, at the address it was deployed to (the one in
 the club file, e.g. `https://bookclub-nudge.<something>.workers.dev`). Sign
 in with your nudge token, then send a nudge or broadcast a signal **in your
 own words**: nudges up to 40 characters, signals up to 100. The same limits
-apply as on the units. It also shows what's on the air. Tick *Remember on
+apply as on the units. To skip typing the address and the token, scan the
+QR code in **SETTINGS → SEND FROM PHONE** on your unit: it carries the unit's
+token, so the page signs straight in as that unit (and remembers it on that
+phone). Only let friends scan it. A unit without a token shows the plain page. It also shows what's on the air. Tick *Remember on
 this phone* to stay signed in; the hub owner can also send someone a link
 that signs them in, `https://…workers.dev/#t=<their token>` (keep it private:
 it's as good as the token).

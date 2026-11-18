@@ -519,7 +519,7 @@ void loop() {
       settings::setSignalSeenAt(seen);
       g_dirty = true;
       if (!quietHours(liveNow)) {
-        audio::tunerScan(0, ui::kMenuItems - 1, ui::kMenuItems);  // tuning in to a station
+        audio::tunerScan(0, 17, 18);  // tuning in to a station
         g_ledUntilMs = now + 8000;
         g_nudgeWake = true;
       }
@@ -621,6 +621,8 @@ void loop() {
   m.signalsError = nudge::signalsError();
   m.incomingSignal = g_signalShown ? &g_signal : nullptr;
   m.hubError = nudge::lastError();
+  m.hubUrl = g_hasData ? g_data.nudges.url : "";
+  m.nudgeToken = u.nudgeToken;
   m.toastWarn = g_toastWarn;
 
   // Left on SET or in settings, go back to STAT after a while.
