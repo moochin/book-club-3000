@@ -110,6 +110,12 @@ struct View {
   bool menu = false;      // the settings list itself
   int menuSel = 0;
   uint8_t tab = 0;
+  uint8_t screen = 0;  // which screen (opaque; compare only)
+  uint8_t group = 0;   // which settings list (opaque; compare only)
+  // The highlighted item, or the LOG's top row while it scrolls; -100 when
+  // the knob doesn't move through a list. A change on the same screen is a
+  // step through the list.
+  int cursor = -100;
 };
 View view();
 // From the SET tab or any settings screen, back to the STAT tab (the main
