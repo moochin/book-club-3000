@@ -29,6 +29,8 @@ const char* friendName(int i);
 
 // Queue a nudge. `to` is a friend's name or "*" for everyone.
 void send(const char* to, const char* msg);
+// Queue a reply to a friend's nudge: sent like a nudge, marked as a reply.
+void reply(const char* to, const char* msg);
 
 // Broadcast a signal (a quote) to everyone, replacing this unit's last one.
 // It shares the send state below with nudges.
@@ -37,6 +39,7 @@ void broadcast(const char* msg);
 enum class SendState : uint8_t { Idle, Sending, Sent, Failed };
 SendState sendState();
 bool sendWasSignal();     // the last send was a signal, not a nudge
+bool sendWasReply();      // the last send was a reply to a nudge
 const char* sendTo();     // who the last send was for ("*" = everyone)
 const char* sendError();  // why it failed
 void clearSendState();

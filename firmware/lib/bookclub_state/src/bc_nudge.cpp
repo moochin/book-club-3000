@@ -1,6 +1,7 @@
 #include "bc_nudge.h"
 
 #include <ArduinoJson.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "bc_text.h"
@@ -25,6 +26,15 @@ static const char* const kDefaults[] = {
 };
 static constexpr int kDefaultCount = sizeof kDefaults / sizeof kDefaults[0];
 
+// Short enough to read at a glance in the reply line.
+static const char* const kReplies[] = {
+    "ON MY WAY", "5 MINS", "LATER", "NOT TONIGHT", "NO.", "LOL", "YOU WISH", "LEAVE ME ALONE",
+};
+static constexpr int kReplyCount = sizeof kReplies / sizeof kReplies[0];
+
+int nudgeReplyCount() { return kReplyCount; }
+const char* nudgeReply(int i) { return (i >= 0 && i < kReplyCount) ? kReplies[i] : ""; }
+
 static void copyFolded(const char* s, char* dst, size_t cap) {
   asciiFold(s ? s : "", dst, cap);  // the units' font is ASCII
 }
@@ -44,6 +54,7 @@ int parseInbox(const char* json, size_t len, Nudge* out, int cap) {
     copyFolded(from, out[n].from, sizeof out[n].from);
     copyFolded(msg, out[n].msg, sizeof out[n].msg);
     out[n].at = e["at"] | (uint64_t)0;
+    out[n].re = e["re"] | false;
     ++n;
   }
   return n;
@@ -79,6 +90,50 @@ const char* nudgeMessage(const BookClubData* data, int i) {
     return (i >= 0 && i < data->nudges.messageCount) ? data->nudges.messages[i] : "";
   }
   return (i >= 0 && i < kDefaultCount) ? kDefaults[i] : "";
+}
+
+// Appends `s` to out[n..], percent-encoding all but the unreserved characters.
+static bool appendEncoded(const char* s, char* out, size_t& n, size_t cap) {
+  static const char kHex[] = "0123456789ABCDEF";
+  for (const unsigned char* p = (const unsigned char*)(s ? s : ""); *p; ++p) {
+    const bool plain = (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+                       *p == '-' || *p == '_' || *p == '.' || *p == '~';
+    const size_t need = plain ? 1 : 3;
+    if (n + need >= cap) return false;
+    if (plain) {
+      out[n++] = (char)*p;
+    } else {
+      out[n++] = '%';
+      out[n++] = kHex[*p >> 4];
+      out[n++] = kHex[*p & 15];
+    }
+  }
+  out[n] = 0;
+  return true;
+}
+
+static bool appendRaw(const char* s, char* out, size_t& n, size_t cap) {
+  const size_t len = strlen(s);
+  if (n + len >= cap) return false;
+  memcpy(out + n, s, len + 1);
+  n += len;
+  return true;
+}
+
+bool pollPath(uint64_t ack, const UnitHealth& h, char* out, size_t cap) {
+  if (!cap) return false;
+  out[0] = 0;
+  size_t n = 0;
+  char num[24];
+  snprintf(num, sizeof num, "%llu", (unsigned long long)ack);
+  if (!appendRaw("/poll?ack=", out, n, cap) || !appendRaw(num, out, n, cap)) return false;
+  const char* const keys[] = {"&fw=", "&fwst=", "&why=", "&mem=", "&panel="};
+  const char* const vals[] = {h.fw, h.fwst, h.why, h.mem, h.panel};
+  for (int i = 0; i < 5; ++i) {
+    if (!appendRaw(keys[i], out, n, cap) || !appendEncoded(vals[i], out, n, cap)) return false;
+  }
+  snprintf(num, sizeof num, "&bad=%d&up=%lu", h.bad ? 1 : 0, (unsigned long)h.upMin);
+  return appendRaw(num, out, n, cap);
 }
 
 bool phoneLink(const char* hubUrl, const char* token, char* out, size_t cap) {

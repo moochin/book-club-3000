@@ -108,6 +108,11 @@ Screen g_setupReturn = Screen::Menu;  // where "not set up" goes back to
 bool g_syncBack = false;              // SYNC STATUS: BACK picked (else REFRESH NOW)
 bool g_setupSignals = false;          // it was opened from SIGNALS
 bool g_confirmYes = false;
+// The reply picked on a received nudge: -1 = none (pressing dismisses).
+// Reset whenever a different nudge is on screen.
+int g_replySel = -1;
+uint64_t g_replyAt = 0;
+char g_replyFrom[bc::kNameLen] = "";
 int g_helpPage = 0;
 Screen g_cardReturn = Screen::Menu;  // where the owner card goes back to
 int g_cardSel = 0;                   // the stat picked on the owner card (-1: BACK)
@@ -913,8 +918,8 @@ const HelpPage kHelp[] = {
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
     {"NUDGES",
      {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
-      "A friend's nudge chirps, flashes the light and stays on screen until you press or tap. "
-      "In quiet hours it just waits.",
+      "A friend's nudge chirps, flashes and waits on screen (silently in quiet hours). "
+      "Turn to pick a reply; press sends it or dismisses.",
       "From a phone: SETTINGS > SEND FROM PHONE shows a QR code that signs into the hub's page as you.",
       "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
       nullptr}},
@@ -1095,7 +1100,7 @@ void drawIncoming(const Model& m, uint32_t t) {
   char from[bc::kNameLen], title[40];
   bc::asciiFold(m.incoming->from, from, sizeof from);
   bc::upperAscii(from);
-  if (from[0]) snprintf(title, sizeof title, "NUDGE FROM %s", from);
+  if (from[0]) snprintf(title, sizeof title, m.incoming->re ? "REPLY FROM %s" : "NUDGE FROM %s", from);
   else strlcpy(title, "BOOK CLUB", sizeof title);  // a reminder from the unit itself
   textCentered(cfg::kScreenW / 2, y + 12, title, kHot, 2, 2);
   c.drawFastHLine(x + 10, y + 40, w - 20, kMid);
@@ -1120,7 +1125,53 @@ void drawIncoming(const Model& m, uint32_t t) {
     p += n;
     ++row;
   }
-  textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
+  if (!bc::canReply(*m.incoming)) {
+    textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
+    return;
+  }
+  // The reply line: turn (or tap the arrows) to pick, press to send.
+  const int ry = y + h - 26;
+  const bool picked = g_replySel >= 0;
+  text(x + 10, ry, "<", picked ? kHot : kDim, 2, 2);
+  textRight(x + w - 10, ry, ">", picked ? kHot : kDim, 2, 2);
+  if (picked) {
+    char reply[32];
+    snprintf(reply, sizeof reply, "SEND: %s", bc::nudgeReply(g_replySel));
+    textCentered(cfg::kScreenW / 2, ry, reply, kHot, 2, 2);
+  } else {
+    textCentered(cfg::kScreenW / 2, ry, "TURN TO REPLY, PRESS TO DISMISS", kDim);
+  }
+}
+
+// Which reply is picked, kept per nudge: a new one starts with none.
+void syncReply(const bc::Nudge& n) {
+  if (n.at == g_replyAt && strcmp(n.from, g_replyFrom) == 0) return;
+  g_replyAt = n.at;
+  strlcpy(g_replyFrom, n.from, sizeof g_replyFrom);
+  g_replySel = -1;
+}
+
+// Steps through none, then each reply, wrapping both ways.
+void stepReply(int dir) {
+  const int slots = bc::nudgeReplyCount() + 1;  // + "none"
+  int i = g_replySel + 1 + dir % slots;
+  i = ((i % slots) + slots) % slots;
+  g_replySel = i - 1;
+}
+
+// A press, or a tap in the middle of the reply line: send what's picked, or
+// just dismiss.
+Result replyOrDismiss() {
+  Result r;
+  r.redraw = true;
+  if (g_replySel >= 0) {
+    r.action = Action::ReplyNudge;
+    r.arg = g_replySel;
+  } else {
+    r.action = Action::DismissNudge;
+  }
+  g_replySel = -1;
+  return r;
 }
 
 // ---- Signals ------------------------------------------------------------------
@@ -1396,8 +1447,26 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
     if (e.longPress && m.portalCancellable) r.action = Action::CancelPortal;
     return r;
   }
-  // A nudge on screen: any knob or touch event just dismisses it.
+  // A nudge on screen. One that can be answered: turn to pick a reply,
+  // press to send it (or dismiss, with none picked); tap the arrows at the
+  // bottom to pick, the middle to send, anywhere else to dismiss. Any other
+  // nudge: any knob or touch event dismisses it.
   if (m.incoming) {
+    if (bc::canReply(*m.incoming)) {
+      syncReply(*m.incoming);
+      if (e.turn) {
+        stepReply(e.turn);
+        return r;
+      }
+      if (e.shortPress) return replyOrDismiss();
+      if (e.tap && e.y >= 196) {
+        if (e.x < 80) stepReply(-1);
+        else if (e.x >= cfg::kScreenW - 80) stepReply(1);
+        else return replyOrDismiss();
+        return r;
+      }
+    }
+    g_replySel = -1;
     r.action = Action::DismissNudge;
     return r;
   }

@@ -796,6 +796,45 @@ void test_phone_link() {
   TEST_ASSERT_FALSE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, 20));
 }
 
+void test_nudge_replies() {
+  const char* j = R"J({"nudges":[
+    {"from":"Dave","msg":"ON MY WAY","at":1,"re":true},
+    {"from":"Sam","msg":"OI","at":2}]})J";
+  Nudge n[kMaxInbox];
+  TEST_ASSERT_EQUAL(2, parseInbox(j, strlen(j), n, kMaxInbox));
+  TEST_ASSERT_TRUE(n[0].re);
+  TEST_ASSERT_FALSE(n[1].re);
+  TEST_ASSERT_FALSE(canReply(n[0]));  // no replying to a reply
+  TEST_ASSERT_TRUE(canReply(n[1]));
+  Nudge reminder;  // the unit's own, no sender
+  strcpy(reminder.msg, "ONLY ONE WEEK TO GO!");
+  TEST_ASSERT_FALSE(canReply(reminder));
+  TEST_ASSERT_TRUE(nudgeReplyCount() > 0);
+  for (int i = 0; i < nudgeReplyCount(); ++i) TEST_ASSERT_TRUE(strlen(nudgeReply(i)) <= 16);  // fits the line
+  TEST_ASSERT_EQUAL_STRING("", nudgeReply(nudgeReplyCount()));
+}
+
+void test_poll_path() {
+  UnitHealth h;
+  h.fw = "1.5.25";
+  h.fwst = "1.6.0 ROLLED BACK";
+  h.why = "WATCHDOG: sync (UP 42 MIN)";
+  h.bad = true;
+  h.mem = "142K FREE, LOW 96K, BLOCK 60K";
+  h.upMin = 1440;
+  h.panel = "st7789";
+  char buf[320];
+  TEST_ASSERT_TRUE(pollPath(1794779400706ULL, h, buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING(
+      "/poll?ack=1794779400706&fw=1.5.25&fwst=1.6.0%20ROLLED%20BACK&why=WATCHDOG%3A%20sync%20%28UP%2042%20MIN%29"
+      "&mem=142K%20FREE%2C%20LOW%2096K%2C%20BLOCK%2060K&panel=st7789&bad=1&up=1440",
+      buf);
+  UnitHealth empty;
+  TEST_ASSERT_TRUE(pollPath(0, empty, buf, sizeof buf));
+  TEST_ASSERT_EQUAL_STRING("/poll?ack=0&fw=&fwst=&why=&mem=&panel=&bad=0&up=0", buf);
+  TEST_ASSERT_FALSE(pollPath(0, h, buf, 40));  // too small: refused, not cut short
+}
+
 void test_nudge_messages_from_club_file() {
   BookClubData none;
   TEST_ASSERT_TRUE(nudgeMessageCount(&none) >= 10);  // built-in set
@@ -1098,6 +1137,8 @@ int main() {
   RUN_TEST(test_nudge_roster_parsing);
   RUN_TEST(test_nudge_messages_from_club_file);
   RUN_TEST(test_phone_link);
+  RUN_TEST(test_nudge_replies);
+  RUN_TEST(test_poll_path);
   RUN_TEST(test_signal_parsing);
   RUN_TEST(test_signal_quotes_from_club_file);
   RUN_TEST(test_signal_time_left);
