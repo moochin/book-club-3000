@@ -357,7 +357,12 @@ void setup() {
 #endif
   checkFactoryReset();
 #if !BC_BRINGUP
-  // Start-up screen. Blocking is fine here: nothing else is running yet.
+  // Start-up screens. Blocking is fine here: nothing else is running yet.
+  // The greeting first, then the boot log, with the beeps timed to the log.
+  for (uint32_t start = millis(), t = 0; t < cfg::kBootIntroMs; t = millis() - start) {
+    ui::drawBootIntro(t);
+    delay(33);
+  }
   if (bootSoundWanted()) audio::bootBeeps();
   for (uint32_t start = millis(), t = 0; t < cfg::kBootSplashMs; t = millis() - start) {
     ui::drawBoot(t);
