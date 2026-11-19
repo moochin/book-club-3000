@@ -2012,6 +2012,16 @@ void bootLine(int step, char* buf, size_t len) {
 }
 }  // namespace
 
+void drawBootIntro(uint32_t ms) {
+  auto& c = canvas();
+  c.fillScreen(kBg);
+  constexpr int gap = 12;
+  const int top = (cfg::kScreenH - (mascot::kH + gap + logo::kH)) / 2;
+  mascot::draw((cfg::kScreenW - mascot::kW) / 2, top, bc::Pose::Level0, ms, false);
+  drawLogo((cfg::kScreenW - logo::kW) / 2, top + mascot::kH + gap);
+  present(true, ms);
+}
+
 void drawBoot(uint32_t ms) {
   auto& c = canvas();
   c.fillScreen(kBg);

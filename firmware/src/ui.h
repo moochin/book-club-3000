@@ -124,6 +124,9 @@ View view();
 bool returnToStat();
 const char* screenName();  // for the test console
 
+// The start-up greeting before the boot log: the mascot, thumbs up, over the
+// logo. msSinceStart runs to kBootIntroMs.
+void drawBootIntro(uint32_t msSinceStart);
 // One frame of the start-up screen, msSinceStart into kBootSplashMs.
 void drawBoot(uint32_t msSinceStart);
 
