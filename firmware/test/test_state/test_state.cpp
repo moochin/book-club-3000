@@ -287,7 +287,6 @@ void test_parse_sample() {
   TEST_ASSERT_TRUE(d.hasNext);
   TEST_ASSERT_TRUE(d.next.hasTime);
   TEST_ASSERT_EQUAL_INT16(19 * 60 + 30, d.next.minute);
-  TEST_ASSERT_EQUAL_STRING("Bring snacks", d.message);
   TEST_ASSERT_EQUAL(2, d.historyCount);
   TEST_ASSERT_EQUAL_STRING("Pub, then co-op games", d.history[1].plan);
   TEST_ASSERT_FALSE(d.firmware.present);

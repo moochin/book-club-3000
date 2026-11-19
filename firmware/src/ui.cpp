@@ -136,12 +136,6 @@ void folded(int x, int y, const char* s, uint8_t ink, int maxChars, bool upper =
   text(x, y, buf, ink);
 }
 
-void foldedWrapped(int x, int y, const char* s, int maxChars, int maxLines, uint8_t ink) {
-  char buf[bc::kMessageLen];
-  bc::asciiFold(s, buf, sizeof buf);
-  textWrapped(x, y, buf, maxChars, maxLines, ink);
-}
-
 void frame(int x, int y, int w, int h, uint8_t ink = kMid) {
   auto& c = canvas();
   c.drawRect(x, y, w, h, ink);
@@ -405,7 +399,7 @@ void drawData(const Model& m) {
   const bool sq = st.side != bc::SideQuest::None && st.sideIndex >= 0;
   char buf[64], date[16];
   // Row positions: the side-quest block squeezes the rest when present.
-  const int yPlan = sq ? 72 : 78, yAt = sq ? 88 : 96, yMsg = sq ? 106 : 118;
+  const int yPlan = sq ? 72 : 78, yAt = sq ? 88 : 96;
 
   text(8, 32, "NEXT MEETING", kBright);
   if (d.hasNext && st.quest != bc::Quest::NoDate) {
@@ -424,10 +418,6 @@ void drawData(const Model& m) {
   } else {
     text(8, 50, "NOT SET", kWarn, 2, 2);
     text(8, yPlan, "Edit bookclub.json to schedule one.", kDim);
-  }
-  if (d.message[0]) {
-    text(8, yMsg, "MSG", kDim);
-    foldedWrapped(50, yMsg, d.message, 44, sq ? 1 : 2, kText);
   }
 
   if (sq) {

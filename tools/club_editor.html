@@ -100,11 +100,6 @@
   </section>
 
   <section>
-    <h2>MESSAGE</h2>
-    <div class="grid" id="msg"></div>
-  </section>
-
-  <section>
     <h2>SIDE QUESTS <small>get-togethers that don't reset exposure</small></h2>
     <div id="quests"></div>
     <button id="addQuest">+ Side quest</button>
@@ -241,7 +236,7 @@ function render(fromRaw = false) {
     input(doc.next, "location", "Location"),
   ] : []);
 
-  fill($("msg"), [input(doc, "message", "Shown on the units", "text", { wide: true, placeholder: "Bring snacks" })]);
+  delete doc.message;  // no longer shown on the units (1.5.29); saving drops it
 
   renderList("quests", "side_quests", "quest", (q) => [
     input(q, "date", "Date", "date", { keepEmpty: true }),

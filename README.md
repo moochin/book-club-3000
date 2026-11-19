@@ -32,7 +32,7 @@ everyone else sends their changes to the owner.
 
 **The easy way (gist owner):** `python3 tools/club_editor.py` opens a form
 in your browser with every field: next and last meeting, a button for "the
-next meeting happened", side quests, Fun Caps, history, the message and the
+next meeting happened", side quests, Fun Caps, history and the
 firmware update block. It checks each change with the units' own rules and
 won't save a file they would reject. It needs the GitHub CLI signed in as
 the gist's owner (`gh auth login`). The first run asks for the gist's link
@@ -50,8 +50,7 @@ runs on your computer.
   ],
   "side_quests": [],
   "fun_caps": {},
-  "birthdays": {},
-  "message": "Bring snacks"
+  "birthdays": {}
 }
 ```
 
@@ -108,7 +107,7 @@ runs on your computer.
   28 February in other years. The DATA tab always shows whose birthday is
   next, e.g. `BDAY  DAVE  22 OCT (12D)`.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
-  DATA and LOG tabs. `next`, `time`, `plan`, `location` and `message` are
+  DATA and LOG tabs. `next`, `time`, `plan` and `location` are
   all optional. Older files that say `book` instead of `plan` still work.
 - If an edit breaks the file, the units ignore the broken version and keep
   showing the last good one; **ABOUT** shows why it was rejected. Fix it and

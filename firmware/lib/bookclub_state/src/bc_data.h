@@ -12,7 +12,6 @@
 namespace bc {
 
 constexpr int kTextLen = 48;
-constexpr int kMessageLen = 96;
 constexpr int kMaxHistory = 40;
 // Side quests kept (the latest by date; older ones drop off first).
 constexpr int kMaxSideQuests = 12;
@@ -90,7 +89,6 @@ struct BookClubData {
   Meeting next;
   int historyCount = 0;   // newest first; always contains `last`
   Meeting history[kMaxHistory];
-  char message[kMessageLen] = "";
   // Side quests: get-togethers that aren't a proper club meeting (families
   // invited, say). Oldest first. They never reset exposure.
   int sideQuestCount = 0;
