@@ -69,7 +69,7 @@ The book titles and places above are placeholders.
 
 - `next` may be `null`, or omitted, when no date is set. `next.time`, `book` and `location` are all optional.
 - Dates are `YYYY-MM-DD` and times `HH:MM`, both local UK time (Europe/London, with daylight saving).
-- `history` is newest first and feeds the LOG tab. `last` should match its first entry; if they disagree, `last` wins.
+- `history` is newest first and feeds the LOG tab. `last` should match its first entry; if they disagree, `last` wins. From firmware 1.5.30 `last` is optional: without it, the newest history entry is the last meeting.
 - Unknown fields are ignored, so the schema can grow without breaking older firmware.
 
 **Fetch and cache:**

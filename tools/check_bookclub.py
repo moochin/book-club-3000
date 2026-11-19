@@ -49,23 +49,14 @@ def check(raw):
         doc = None
 
     if doc is not None:
+        # "last" is optional from firmware 1.5.30: without it, the newest
+        # history entry is the last meeting. Older units still need it.
         last = doc.get("last")
+        has_last = "last" in doc
         last_date = parse_date(last.get("date")) if isinstance(last, dict) else None
-        if last_date is None:
-            errors.append('"last" must have a "date" written as YYYY-MM-DD, e.g. "2026-08-15"')
-
-        nxt = doc.get("next")
-        if nxt is not None:
-            if not isinstance(nxt, dict):
-                warnings.append('"next" should be an object or null; units will show "no date"')
-            else:
-                nd = parse_date(nxt.get("date"))
-                if nd is None:
-                    warnings.append('"next.date" is not a valid YYYY-MM-DD date; units will show "no date"')
-                elif last_date and nd < last_date:
-                    warnings.append('"next.date" is before "last.date"; units will show "no date"')
-                if "time" in nxt and nxt["time"] is not None and not time_ok(nxt["time"]):
-                    warnings.append('"next.time" should be HH:MM (24-hour), e.g. "19:30"; it will be ignored')
+        if has_last and last_date is None:
+            warnings.append('"last" has no valid YYYY-MM-DD date; units from 1.5.30 use the newest history '
+                            'entry instead, older ones reject the file')
 
         hist = doc.get("history", [])
         if not isinstance(hist, list):
@@ -78,12 +69,35 @@ def check(raw):
                 warnings.append(f"history entry {i + 1} has no valid date; it will be skipped")
             else:
                 dates.append(d)
+        from_file = last_date is not None
+        if last_date is None:
+            if not dates:
+                errors.append('needs at least one "history" entry with a "date" written as YYYY-MM-DD, '
+                              'e.g. "2026-08-15"')
+            else:
+                last_date = max(dates)
+                if not has_last:
+                    warnings.append('no "last": units before firmware 1.5.30 reject the file, so keep '
+                                    '"last" until every unit is on 1.5.30 or later')
         if dates and dates != sorted(dates, reverse=True):
             warnings.append('"history" should be newest first (units sort it anyway)')
-        if last_date and dates and dates[0] != last_date:
+        if from_file and dates and dates[0] != last_date:
             warnings.append('the first "history" entry does not match "last" ("last" wins)')
-        if last_date and any(d > last_date for d in dates):
+        if from_file and any(d > last_date for d in dates):
             warnings.append('"history" has meetings after "last"; they will be hidden')
+
+        nxt = doc.get("next")
+        if nxt is not None:
+            if not isinstance(nxt, dict):
+                warnings.append('"next" should be an object or null; units will show "no date"')
+            else:
+                nd = parse_date(nxt.get("date"))
+                if nd is None:
+                    warnings.append('"next.date" is not a valid YYYY-MM-DD date; units will show "no date"')
+                elif last_date and nd < last_date:
+                    warnings.append('"next.date" is before the last meeting; units will show "no date"')
+                if "time" in nxt and nxt["time"] is not None and not time_ok(nxt["time"]):
+                    warnings.append('"next.time" should be HH:MM (24-hour), e.g. "19:30"; it will be ignored')
 
         sq = doc.get("side_quests", [])
         if not isinstance(sq, list):

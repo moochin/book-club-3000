@@ -343,6 +343,24 @@ void test_parse_last_wins_over_history() {
   TEST_ASSERT_TRUE(st.gapFrom == D("2026-03-02"));
 }
 
+void test_parse_last_from_history() {
+  // No "last" (from 1.5.30): the newest history entry is the last meeting.
+  const char* j = R"({"next":{"date":"2026-12-05"},
+    "history":[{"date":"2026-03-02","plan":"B"},{"date":"2026-08-15","plan":"Newest","location":"Pub"}]})";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(j, strlen(j), d));
+  TEST_ASSERT_TRUE(d.last.date == D("2026-08-15"));
+  TEST_ASSERT_EQUAL_STRING("Newest", d.last.plan);
+  TEST_ASSERT_EQUAL_STRING("Pub", d.last.location);
+  TEST_ASSERT_TRUE(d.hasNext);
+  TEST_ASSERT_EQUAL(2, d.historyCount);
+  TEST_ASSERT_EQUAL_STRING("Newest", d.history[0].plan);
+  TEST_ASSERT_EQUAL_STRING("B", d.history[1].plan);
+  // Neither "last" nor a dated history entry: rejected.
+  const char* none = R"({"history":[{"plan":"No date"}]})";
+  TEST_ASSERT_EQUAL((int)ParseError::NoLastDate, (int)parseBookClub(none, strlen(none), d));
+}
+
 void test_parse_accepts_legacy_book_field() {
   const char* j = R"({"last":{"date":"2026-08-15","book":"Old style"},
     "next":{"date":"2026-12-05","plan":"New style","book":"ignored"}})";
@@ -918,7 +936,8 @@ void test_signal_time_left() {
 void test_sync_advice() {
   // Every message the sync module can set gets specific advice.
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: not valid JSON", false), "comma"));
-  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: missing or bad last.date", false), "last"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: no meeting date in history", false), "history"));
+  TEST_ASSERT_NOT_NULL(strstr(syncAdvice("rejected file: missing or bad last.date", false), "history"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("update 1.4.1 failed: HTTP 404", false), "firmware.bin"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("HTTP 404 (check the data URL)", false), "Raw link"));
   TEST_ASSERT_NOT_NULL(strstr(syncAdvice("no data URL: set it on the setup page", false), "setup page"));
@@ -1101,6 +1120,7 @@ int main() {
   RUN_TEST(test_parse_rejects_bad_files_and_keeps_old);
   RUN_TEST(test_parse_next_variants);
   RUN_TEST(test_parse_last_wins_over_history);
+  RUN_TEST(test_parse_last_from_history);
   RUN_TEST(test_parse_accepts_legacy_book_field);
   RUN_TEST(test_parse_truncates_long_text);
   RUN_TEST(test_parse_utf8_truncation_on_boundary);

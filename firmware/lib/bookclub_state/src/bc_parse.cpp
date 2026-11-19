@@ -19,7 +19,7 @@ const char* parseErrorText(ParseError e) {
     case ParseError::TooLarge: return "file too large";
     case ParseError::BadJson: return "not valid JSON";
     case ParseError::NotAnObject: return "not a JSON object";
-    case ParseError::NoLastDate: return "missing or bad last.date";
+    case ParseError::NoLastDate: return "no meeting date in history";
   }
   return "?";
 }
@@ -84,16 +84,8 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
   // struct does not sit on a small task stack.
   std::unique_ptr<BookClubData> d(new BookClubData());
   d->version = root["version"] | 0;
-  if (!readMeeting(root["last"], d->last)) return ParseError::NoLastDate;
 
-  if (readMeeting(root["next"], d->next)) {
-    // A next date before the last one is stale data: treat as "no date".
-    d->hasNext = daysBetween(d->last.date, d->next.date) >= 0;
-    if (!d->hasNext) d->next = Meeting();
-  }
-
-  // History: keep valid entries, newest first, and make sure `last` is in it
-  // (if the two disagree, `last` wins).
+  // History: keep valid entries, newest first.
   int n = 0;
   for (JsonVariantConst e : root["history"].as<JsonArrayConst>()) {
     if (n >= kMaxHistory) break;
@@ -103,6 +95,21 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
   std::stable_sort(d->history, d->history + n, [](const Meeting& a, const Meeting& b) {
     return daysBetween(b.date, a.date) > 0;  // newest first
   });
+
+  // The last meeting: "last" if the file has one (files before 1.5.30 must,
+  // and it wins over the history), else the newest history entry.
+  if (!readMeeting(root["last"], d->last)) {
+    if (n == 0) return ParseError::NoLastDate;
+    d->last = d->history[0];
+  }
+
+  if (readMeeting(root["next"], d->next)) {
+    // A next date before the last one is stale data: treat as "no date".
+    d->hasNext = daysBetween(d->last.date, d->next.date) >= 0;
+    if (!d->hasNext) d->next = Meeting();
+  }
+
+  // Make sure `last` is in the history (if the two disagree, `last` wins).
   // Drop entries newer than `last` (they cannot have happened yet) and
   // replace an entry on the same date with `last` itself.
   int w = 0;
