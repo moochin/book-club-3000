@@ -59,8 +59,7 @@ All units read one JSON file, `bookclub.json`, kept in a shared GitHub repo that
   "history": [
     { "date": "2026-08-15", "book": "Project Hail Mary", "location": "The Bell, Winchester" },
     { "date": "2026-03-02", "book": "Piranesi", "location": "Pete's house" }
-  ],
-  "message": "Bring snacks"
+  ]
 }
 ```
 
@@ -68,7 +67,7 @@ The book titles and places above are placeholders.
 
 **Field rules:**
 
-- `next` may be `null`, or omitted, when no date is set. `next.time`, `book`, `location` and `message` are all optional.
+- `next` may be `null`, or omitted, when no date is set. `next.time`, `book` and `location` are all optional.
 - Dates are `YYYY-MM-DD` and times `HH:MM`, both local UK time (Europe/London, with daylight saving).
 - `history` is newest first and feeds the LOG tab. `last` should match its first entry; if they disagree, `last` wins.
 - Unknown fields are ignored, so the schema can grow without breaking older firmware.
@@ -127,7 +126,7 @@ The interface is a monochrome phosphor terminal at 320 × 240 with three tabs, d
 | Tab | Content |
 | --- | --- |
 | STAT | Mascot sprite in its current state, exposure in days, the exposure bar and level label, and the quest line (countdown or "schedule Book Club") |
-| DATA | Next meeting: date, time, book, location, and the optional message; last meeting's book; last-synced age |
+| DATA | Next meeting: date, time, book, location; last meeting's book; last-synced age |
 | LOG | Past meetings from `history`, newest first, scrolling; summary lines for total meetings and the longest gap between them |
 
 **Knob controls:**

@@ -116,7 +116,6 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
   d->history[0] = d->last;
   d->historyCount = n + 1;
 
-  copyText(root["message"], d->message, sizeof d->message);
 
   // Side quests: valid entries, oldest first, keeping the latest few.
   std::vector<Meeting> sq;
