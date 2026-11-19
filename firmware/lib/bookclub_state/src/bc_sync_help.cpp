@@ -12,8 +12,8 @@ const char* syncAdvice(const char* error, bool stale) {
     return "The club file has a typo, usually a missing or extra comma or bracket. Fix the gist; "
            "the club editor checks it for you.";
   }
-  if (starts(e, "rejected file: missing or bad last.date")) {
-    return "The club file needs \"last\" with a date like 2026-08-15. Fix the gist.";
+  if (starts(e, "rejected file: no meeting date") || starts(e, "rejected file: missing or bad last.date")) {
+    return "The club file needs a meeting in \"history\" with a date like 2026-08-15. Fix the gist.";
   }
   if (starts(e, "rejected file: empty")) return "The club file came back empty. Check the gist still has bookclub.json.";
   if (starts(e, "rejected file") || strstr(e, "too large")) {

@@ -31,7 +31,7 @@ it, so treat the link like a spare key. Gists have no collaborators, so
 everyone else sends their changes to the owner.
 
 **The easy way (gist owner):** `python3 tools/club_editor.py` opens a form
-in your browser with every field: next and last meeting, a button for "the
+in your browser with every field: next meeting, a button for "the
 next meeting happened", side quests, Fun Caps, history and the
 firmware update block. It checks each change with the units' own rules and
 won't save a file they would reject. It needs the GitHub CLI signed in as
@@ -42,7 +42,6 @@ runs on your computer.
 ```json
 {
   "version": 1,
-  "last": { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Pete's house" },
   "next": { "date": "2026-12-05", "time": "19:30", "plan": "Film night + pizza", "location": "TBC" },
   "history": [
     { "date": "2026-08-15", "plan": "Retro games + curry", "location": "Pete's house" },
@@ -55,10 +54,14 @@ runs on your computer.
 ```
 
 - Dates are `YYYY-MM-DD`, times are 24-hour `HH:MM`, both UK local time.
-- **After a meeting:** set `last` to that meeting, add the same entry to the
-  top of `history`, and set `next` to the new date, or to `null` if there
-  isn't one yet. Until `last` changes, the exposure counter keeps counting
-  and the unit shows **DEBRIEF PENDING**.
+- **After a meeting:** add it to the top of `history`, and set `next` to the
+  new date, or to `null` if there isn't one yet. The newest entry in
+  `history` is the last meeting: until a new one goes in, the exposure
+  counter keeps counting and the unit shows **DEBRIEF PENDING**.
+- **`last`** is only needed by units before firmware 1.5.30, which reject a
+  file without it. Newer units use it if it's there, else the newest
+  `history` entry. Once UNITS on the hub page shows every unit on 1.5.30 or
+  later, delete it.
 - **Side quests** are get-togethers that aren't a proper club meeting, like
   the families coming along. List them in `side_quests`, each with a
   `date` and optionally `time`, `plan` and `location`:
@@ -71,7 +74,7 @@ runs on your computer.
 
   The next one shows as a countdown on STAT and in full on DATA, and on the
   day the unit reassures you that no Fun Caps are being spent. They
-  **never reset the exposure counter**: only a proper meeting in `last`
+  **never reset the exposure counter**: only a proper meeting in `history`
   does. Past side quests stay in the LOG, marked as side quests, but don't
   count towards the meeting total or the longest gap. Leave old ones in the
   list or delete them, either is fine.

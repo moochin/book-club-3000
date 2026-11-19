@@ -88,15 +88,21 @@
     <h2>NEXT MEETING</h2>
     <label class="check"><input type="checkbox" id="noNext"> No date yet</label>
     <div class="grid" id="next" style="margin-top:8px"></div>
+    <div class="actions">
+      <button id="happened">The next meeting happened ▸ add it to the history</button>
+    </div>
+    <p class="hint">Adds NEXT to the top of the history and clears NEXT. The newest history entry is the
+      last meeting, which resets the exposure counter.</p>
   </section>
 
-  <section>
-    <h2>LAST MEETING <small>resets the exposure counter</small></h2>
+  <section id="lastSec">
+    <h2>LAST MEETING <small>only for units before 1.5.30</small></h2>
     <div class="grid" id="last"></div>
+    <p class="hint">Units from 1.5.30 take the last meeting from the history. Once every unit is on 1.5.30
+      or later (see UNITS on the hub page), drop this from the file.</p>
     <div class="actions">
-      <button id="happened">The next meeting happened ▸ make it the last</button>
+      <button id="dropLast">Drop LAST from the file</button>
     </div>
-    <p class="hint">Moves NEXT into LAST, adds it to the top of the history, and clears NEXT.</p>
   </section>
 
   <section>
@@ -219,12 +225,14 @@ function fill(el, nodes) {
 
 // ---- rendering --------------------------------------------------------------
 function render(fromRaw = false) {
-  if (!doc.last || typeof doc.last !== "object") doc.last = {};
-  fill($("last"), [
+  // "last" is only kept while older units need it; without it the section hides.
+  const hasLast = doc.last && typeof doc.last === "object";
+  $("lastSec").hidden = !hasLast;
+  fill($("last"), hasLast ? [
     input(doc.last, "date", "Date", "date", { keepEmpty: true }),
     input(doc.last, "plan", "Plan"),
     input(doc.last, "location", "Location"),
-  ]);
+  ] : []);
 
   const hasNext = doc.next && typeof doc.next === "object";
   $("noNext").checked = !hasNext;
@@ -504,10 +512,15 @@ $("happened").addEventListener("click", () => {
   const meeting = { date: n.date };
   if (n.plan) meeting.plan = n.plan;
   if (n.location) meeting.location = n.location;
-  doc.last = { ...meeting };
+  if (doc.last && typeof doc.last === "object") doc.last = { ...meeting };  // for units before 1.5.30
   if (!Array.isArray(doc.history)) doc.history = [];
   if (!doc.history.length || doc.history[0].date !== meeting.date) doc.history.unshift({ ...meeting });
   doc.next = null;
+  changed(); render();
+});
+
+$("dropLast").addEventListener("click", () => {
+  delete doc.last;
   changed(); render();
 });
 
