@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, MAX_SIGNAL, SIGNAL_TTL_S, cleanMessage, clubDay,
+  handle, MAX_INBOX, MAX_PER_HOUR, MIN_GAP_MS, MAX_SIGNAL, SIGNAL_TTL_S, STATUS_REFRESH_MS, cleanMessage, clubDay,
 } from "../src/hub.js";
 
 function fakeKv() {
@@ -262,4 +262,72 @@ test("an empty poll costs no KV writes", async () => {
   await req(env, "Dave", "GET", "/poll");
   assert.equal(env.NUDGES.writes, 0);
   assert.equal((await req(env, null, "GET", "/poll")).status, 401);
+});
+
+test("a reply is marked as one; a plain nudge isn't", async () => {
+  const env = setup();
+  await req(env, "Dave", "POST", "/nudge", { to: "Pete", msg: "ON MY WAY", re: true });
+  await req(env, "Sam", "POST", "/nudge", { to: "Pete", msg: "OI", re: "yes" });
+  const got = (await req(env, "Pete", "GET", "/inbox")).body.nudges;
+  assert.equal(got[0].re, true);
+  assert.equal("re" in got[1], false);
+});
+
+const HEALTH = "&fw=1.5.25&fwst=&why=POWER%20ON&bad=0&mem=140K%20FREE&up=10&panel=st7789";
+
+test("poll records the unit's health for /fleet", async () => {
+  const env = setup();
+  const t = 50_000_000;
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH}`, undefined, t);
+  const { units } = (await req(env, "Pete", "GET", "/fleet", undefined, t)).body;
+  assert.deepEqual(units.map((u) => u.name), ["Pete", "Dave", "Sam"]);
+  const dave = units[1];
+  assert.equal(dave.fw, "1.5.25");
+  assert.equal(dave.why, "POWER ON");
+  assert.equal(dave.panel, "st7789");
+  assert.equal(dave.bad, false);
+  assert.equal(dave.seen, t);
+  assert.equal(dave.started, t - 10 * 60_000);
+  assert.equal(units[0].seen, 0);  // Pete never reported
+});
+
+test("an unchanged status is rewritten only every 30 minutes", async () => {
+  const env = setup();
+  let t = 50_000_000;
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH}`, undefined, t);
+  const after = env.NUDGES.writes;
+  t += 5 * 60_000;  // next poll, 5 minutes up: memory moved, nothing else did
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH.replace("up=10", "up=15").replace("140K", "120K")}`, undefined, t);
+  assert.equal(env.NUDGES.writes, after);
+  // A change of version is written straight away.
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH.replace("1.5.25", "1.5.26").replace("up=10", "up=15")}`, undefined, t);
+  assert.equal(env.NUDGES.writes, after + 1);
+  // So is a restart, even with the same reason.
+  t += 60_000;
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH.replace("1.5.25", "1.5.26").replace("up=10", "up=0")}`, undefined, t);
+  assert.equal(env.NUDGES.writes, after + 2);
+  // And the "seen" time, once 30 minutes have passed.
+  t += STATUS_REFRESH_MS;
+  await req(env, "Dave", "GET", `/poll?ack=0${HEALTH.replace("1.5.25", "1.5.26").replace("up=10", "up=31")}`, undefined, t);
+  assert.equal(env.NUDGES.writes, after + 3);
+});
+
+test("a poll without health (older firmware) records nothing", async () => {
+  const env = setup();
+  await req(env, "Dave", "GET", "/poll?ack=0");
+  assert.equal(env.NUDGES.writes, 0);
+  assert.equal((await req(env, "Pete", "GET", "/fleet")).body.units[1].seen, 0);
+});
+
+test("health fields are cleaned", async () => {
+  const env = setup();
+  await req(env, "Dave", "GET", `/poll?ack=0&fw=${"9".repeat(60)}&why=%F0%9F%8E%AE&bad=1`);
+  const dave = (await req(env, "Pete", "GET", "/fleet")).body.units[1];
+  assert.equal(dave.fw, "");
+  assert.equal(dave.why, "");
+  assert.equal(dave.bad, true);
+});
+
+test("fleet needs a token", async () => {
+  assert.equal((await req(setup(), null, "GET", "/fleet")).status, 401);
 });

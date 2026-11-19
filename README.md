@@ -176,6 +176,14 @@ EVERYONE), then a message. It lands on their unit within 5 minutes, with a
 chirp, a flashing blue light and the message in big letters until they press
 or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → SOUND → QUIET HOURS**) it arrives silently and waits on screen.
 
+**Replying** (from 1.5.25): turn the knob while a friend's nudge is on screen
+to pick a reply (*ON MY WAY*, *5 MINS*, *LATER*, *NOT TONIGHT*, *NO.*, *LOL*,
+*YOU WISH*, *LEAVE ME ALONE*) and press to send it; with none picked, a press
+just dismisses it. On the touch screen, tap the **<** and **>** at the bottom
+to pick and the middle to send. A reply arrives as **REPLY FROM …** and can't
+be replied to, so nobody gets stuck in a loop. It counts towards the same
+rate limit as nudges.
+
 The built-in messages include *GET YOUR ASS ONLINE*, *THINKING OF YOU,
 LOSER*, *WHERE ARE YOU, COWARD?* and *I'M ON. YOU'RE NOT. SHAME.* To use the
 club's own in-jokes instead, add them under **NUDGES** in the club editor
@@ -223,6 +231,14 @@ phone). Only let friends scan it. A unit without a token shows the plain page. I
 this phone* to stay signed in; the hub owner can also send someone a link
 that signs them in, `https://…workers.dev/#t=<their token>` (keep it private:
 it's as good as the token).
+
+**UNITS** at the bottom of the page lists every unit the hub knows: its
+firmware version, whether it's online or when it was last seen, how long
+it's been up, and why it last started. Anything amber needs a look: an older
+version than the rest, **ON PROBATION**, a rollback, or a crash, watchdog or
+brownout. Use it to check a release without asking around. Units report in
+from 1.5.25, and the times can be up to half an hour behind, to keep the hub
+inside Cloudflare's free plan.
 
 Signals use the nudge hub, so they need the same setup. A hub set up before
 signals existed needs redeploying once (`npx wrangler deploy` in `worker/`);

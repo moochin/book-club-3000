@@ -196,6 +196,13 @@ void doAction(const ui::Result& r) {
       g_nudgeShown = false;
       Serial.println("[main] nudge dismissed");
       return;
+    case ui::Action::ReplyNudge: {
+      const char* msg = bc::nudgeReply(r.arg);
+      if (g_nudge.from[0] && msg[0]) nudge::reply(g_nudge.from, msg);
+      g_nudgeShown = false;
+      Serial.printf("[main] replied to %s: %s\n", g_nudge.from, msg);
+      return;
+    }
     case ui::Action::BroadcastSignal: {
       const char* msg = bc::signalQuote(g_hasData ? &g_data : nullptr, r.arg);
       if (msg[0]) nudge::broadcast(msg);
@@ -556,6 +563,7 @@ void loop() {
     const bool signal = nudge::sendWasSignal();
     if (ss == nudge::SendState::Sending) snprintf(g_toast, sizeof g_toast, signal ? "BROADCASTING..." : "SENDING NUDGE...");
     else if (ss == nudge::SendState::Sent && signal) snprintf(g_toast, sizeof g_toast, "SIGNAL ON THE AIR FOR 24 HOURS");
+    else if (ss == nudge::SendState::Sent && nudge::sendWasReply()) snprintf(g_toast, sizeof g_toast, "REPLY SENT TO %s", who);
     else if (ss == nudge::SendState::Sent) snprintf(g_toast, sizeof g_toast, "NUDGE SENT TO %s", who);
     else if (ss == nudge::SendState::Failed) snprintf(g_toast, sizeof g_toast, "NOT SENT: %s", nudge::sendError());
     else g_toast[0] = '\0';

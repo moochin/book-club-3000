@@ -7,6 +7,8 @@
 #include <WiFiClientSecure.h>
 
 #include "config.h"
+#include "diag.h"
+#include "fwguard.h"
 #include "https.h"
 #include "settings.h"
 #include "sync.h"
@@ -43,6 +45,13 @@ static bool g_sendPending = false;
 static char g_sendTo[bc::kNameLen] = "";
 static char g_sendMsg[bc::kSignalMsgLen] = "";  // a nudge or a signal
 static bool g_sendSignal = false;
+static bool g_sendReply = false;
+// This unit's health, for the hub's UNITS list: gathered by the main loop
+// (fwguard and diag aren't thread-safe), sent with each /poll.
+static char g_hFwst[40] = "", g_hWhy[48] = "", g_hMem[48] = "";
+static bool g_hBad = false;
+static uint32_t g_hAtMs = 0;
+constexpr uint32_t kHealthMs = 30UL * 1000;
 static char g_me[bc::kNameLen] = "";
 static bc::Signal g_signals[bc::kMaxSignals];
 static int g_signalCount = 0;
@@ -84,7 +93,9 @@ constexpr int kLowMemory = -200;  // request() didn't try: not enough heap for T
 // One HTTPS request to the hub. Returns the HTTP status (or a negative
 // HTTPClient error) and the reply body in `out`.
 static int request(const char* method, const char* path, const char* body, char* out, size_t cap) {
-  char url[bc::kUrlLen + 16];
+  // Static, not on the stack: only the nudge task calls this, and a /poll
+  // path with the unit's health is a few hundred bytes the handshake needs.
+  static char url[bc::kUrlLen + 400];
   {
     Lock l;
     snprintf(url, sizeof url, "%s", g_url);
@@ -148,12 +159,13 @@ static void doSend(char* buf) {
   // Static, not on the stack: only the nudge task sends, one at a time, and
   // the TLS handshake underneath needs the stack.
   static char to[bc::kNameLen], msg[bc::kSignalMsgLen];
-  bool signal;
+  bool signal, reply;
   {
     Lock l;
     strlcpy(to, g_sendTo, sizeof to);
     strlcpy(msg, g_sendMsg, sizeof msg);
     signal = g_sendSignal;
+    reply = g_sendReply;
     g_sendPending = false;
   }
   static char body[2 * bc::kNameLen + 2 * bc::kSignalMsgLen + 24];
@@ -176,7 +188,7 @@ static void doSend(char* buf) {
     code = request("POST", "/signal", body, buf, kReplyCap);
     if (code == 404) strlcpy(buf, "{\"error\":\"the hub needs updating for signals\"}", kReplyCap);
   } else {
-    snprintf(body, sizeof body, "{\"to\":\"%s\",\"msg\":\"%s\"}", eto, emsg);
+    snprintf(body, sizeof body, "{\"to\":\"%s\",\"msg\":\"%s\"%s}", eto, emsg, reply ? ",\"re\":true" : "");
     code = request("POST", "/nudge", body, buf, kReplyCap);
   }
   if (code == 200) {
@@ -293,9 +305,31 @@ static void doPoll(char* buf, uint32_t now) {
     g_pollTryMs = now;  // paces the next poll, after a failure too
   }
   // The ack tells the hub which nudges we have, so it can drop them; anything
-  // newer (or a reply we couldn't read) comes again next time.
-  char path[40];
-  snprintf(path, sizeof path, "/poll?ack=%llu", (unsigned long long)g_ackAt);
+  // newer (or a reply we couldn't read) comes again next time. The health
+  // rides along for the hub's UNITS list; an older hub ignores it.
+  static char path[320];
+  static char fwst[sizeof g_hFwst], why[sizeof g_hWhy], mem[sizeof g_hMem];
+  bc::UnitHealth h;
+  {
+    Lock l;
+    strlcpy(fwst, g_hFwst, sizeof fwst);
+    strlcpy(why, g_hWhy, sizeof why);
+    strlcpy(mem, g_hMem, sizeof mem);
+    h.bad = g_hBad;
+  }
+  h.fw = BC_FW_VERSION;
+  h.fwst = fwst;
+  h.why = why;
+  h.mem = mem;
+  h.upMin = millis() / 60000;
+#if defined(BC_PANEL_ST7789)
+  h.panel = "st7789";
+#else
+  h.panel = "ili9341";
+#endif
+  if (!bc::pollPath(g_ackAt, h, path, sizeof path)) {
+    snprintf(path, sizeof path, "/poll?ack=%llu", (unsigned long long)g_ackAt);
+  }
   const int code = request("GET", path, "", buf, kReplyCap);
   if (code == 404) return pollOldHub(buf, now);
   const uint32_t at = millis();
@@ -346,7 +380,21 @@ void begin() {
   xTaskCreatePinnedToCore(taskMain, "nudge", kTaskStack, nullptr, 1, &g_task, 0);
 }
 
-void tick(uint32_t, bool wifiUp, const char* hubUrl) {
+void tick(uint32_t nowMs, bool wifiUp, const char* hubUrl) {
+  if (!g_hAtMs || nowMs - g_hAtMs >= kHealthMs) {
+    g_hAtMs = nowMs | 1;
+    bool bad = false;
+    const char* why = diag::startedBy(bad);
+    char mem[sizeof g_hMem];
+    diag::memoryText(mem, sizeof mem);
+    // Without the minutes, which would change the status at every poll.
+    const char* fwst = fwguard::onProbation() ? "ON PROBATION" : fwguard::note(nowMs);
+    Lock l;
+    strlcpy(g_hWhy, why, sizeof g_hWhy);
+    strlcpy(g_hMem, mem, sizeof g_hMem);
+    strlcpy(g_hFwst, fwst, sizeof g_hFwst);
+    g_hBad = bad;
+  }
   const bool wasUp = g_wifiUp;
   g_wifiUp = wifiUp;
   bool changed;
@@ -383,9 +431,10 @@ const char* friendName(int i) {
   return name;
 }
 
-static void queue(const char* to, const char* msg, bool signal) {
+static void queue(const char* to, const char* msg, bool signal, bool reply = false) {
   {
     Lock l;
+    g_sendReply = reply;
     strlcpy(g_sendTo, to, sizeof g_sendTo);
     strlcpy(g_sendMsg, msg, signal ? sizeof g_sendMsg : bc::kNudgeMsgLen);
     g_sendSignal = signal;
@@ -398,6 +447,8 @@ static void queue(const char* to, const char* msg, bool signal) {
 
 void send(const char* to, const char* msg) { queue(to, msg, false); }
 
+void reply(const char* to, const char* msg) { queue(to, msg, false, true); }
+
 void broadcast(const char* msg) { queue("*", msg, true); }
 
 SendState sendState() { return g_sendState; }
@@ -405,6 +456,11 @@ SendState sendState() { return g_sendState; }
 bool sendWasSignal() {
   Lock l;
   return g_sendSignal;
+}
+
+bool sendWasReply() {
+  Lock l;
+  return g_sendReply;
 }
 
 const char* sendTo() {

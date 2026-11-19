@@ -11,7 +11,9 @@
 // unit is calling. Routes:
 //   GET  /roster   -> {"me": "Pete", "friends": ["Dave", "Sam"]}
 //   GET  /inbox    -> {"nudges": [{"from","msg","at"}]}  (and empties it)
-//   POST /nudge    {"to": "Dave" | "*", "msg": "..."} -> {"sent": ["Dave"]}
+//   POST /nudge    {"to": "Dave" | "*", "msg": "...", "re": true?} -> {"sent": ["Dave"]}
+//                  "re" marks a reply to a nudge; units show it as one and
+//                  offer no reply to it, so two units can't ping-pong.
 //   GET  /         the web page for sending from a phone (no token needed;
 //                  it signs in with one, then uses the routes below)
 //   POST /signal   {"msg": "..."} -> {"signal": {"from","msg","at","left"}}
@@ -22,6 +24,17 @@
 //                  the inbox: it drops only the nudges at or before `ack`
 //                  (the newest "at" the unit has taken), so a reply the unit
 //                  couldn't read is sent again rather than lost.
+//                  Units from 1.5.25 add their health to the query (fw, fwst,
+//                  why, bad, mem, up, panel), which the hub keeps for /fleet.
+//   GET  /fleet    -> {"units": [{"name","fw","fwst","why","bad","mem","panel",
+//                  "seen","started"}]}: every unit's last report, for the
+//                  page's UNITS table. "seen" and "started" are ms since 1970
+//                  (0: never). Any unit's token can read it.
+//
+// A status is written only when it changes (version, probation, why it last
+// started, a restart) or every 30 minutes, so "seen" is up to 30 minutes
+// old: KV's free plan allows 1,000 writes a day, and every unit polls 288
+// times a day.
 //
 // Signals are quotes broadcast to the whole club, one per unit per day (UK
 // time), and each is gone 24 hours after it was sent: KV
@@ -35,6 +48,9 @@ export const MAX_PER_HOUR = 12;      // per sending unit
 export const MAX_SIGNAL = 100;       // characters per signal
 export const SIGNAL_TTL_S = 86_400;  // a signal lasts 24 hours
 export const TIME_ZONE = "Europe/London";  // where the club's "day" starts
+export const STATUS_REFRESH_MS = 30 * 60_000;  // rewrite an unchanged status this often
+export const STATUS_TTL_S = 60 * 86_400;       // forget a unit silent this long
+const MAX_FIELD = 48;                          // characters per status field
 
 import { PAGE } from "./page.js";
 
@@ -91,6 +107,32 @@ export function clubDay(now) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date(now));
 }
 
+// A unit's report from the /poll query, or null if it sent none (firmware
+// before 1.5.25, or the web page).
+export function readStatus(params, now) {
+  if (!params.has("fw")) return null;
+  const field = (k) => cleanMessage(params.get(k) || "", MAX_FIELD) || "";
+  const upMin = Math.max(0, Math.floor(Number(params.get("up")) || 0));
+  return {
+    fw: field("fw"),
+    fwst: field("fwst"),
+    why: field("why"),
+    bad: params.get("bad") === "1",
+    mem: field("mem"),
+    panel: field("panel"),
+    started: now - upMin * 60_000,
+    seen: now,
+  };
+}
+
+// Whether a fresh report needs writing over the stored one.
+export function statusChanged(old, s) {
+  if (!old) return true;
+  for (const k of ["fw", "fwst", "why", "bad", "panel"]) if (old[k] !== s[k]) return true;
+  if (Math.abs((old.started || 0) - s.started) > 5 * 60_000) return true;  // it restarted
+  return s.seen - (old.seen || 0) >= STATUS_REFRESH_MS;
+}
+
 function page() {
   return new Response(PAGE, {
     headers: {
@@ -140,6 +182,13 @@ export async function handle(request, env, now) {
     const ack = Number(url.searchParams.get("ack")) || 0;
     const inbox = (await env.NUDGES.get(key, "json")) || [];
     const nudges = inbox.filter((n) => !(n.at <= ack));
+    const status = readStatus(url.searchParams, now);
+    if (status) {
+      const skey = `status:${me}`;
+      if (statusChanged(await env.NUDGES.get(skey, "json"), status)) {
+        await env.NUDGES.put(skey, JSON.stringify(status), { expirationTtl: STATUS_TTL_S });
+      }
+    }
     if (nudges.length !== inbox.length) {  // only write when the unit took some
       if (nudges.length) await env.NUDGES.put(key, JSON.stringify(nudges));
       else await env.NUDGES.delete(key);
@@ -175,6 +224,7 @@ export async function handle(request, env, now) {
     if (sent.length >= MAX_PER_HOUR) return json(429, { error: "that's enough nudging for this hour" });
 
     const nudge = { from: me, msg, at: now };
+    if (body.re === true) nudge.re = true;
     for (const name of to) {
       const key = `inbox:${name}`;
       const inbox = (await env.NUDGES.get(key, "json")) || [];
@@ -184,6 +234,25 @@ export async function handle(request, env, now) {
     sent.push(now);
     await env.NUDGES.put(rateKey, JSON.stringify(sent), { expirationTtl: 3600 });
     return json(200, { sent: to });
+  }
+
+  if (request.method === "GET" && url.pathname === "/fleet") {
+    const list = [];
+    for (const name of Object.keys(all)) {
+      const s = (await env.NUDGES.get(`status:${name}`, "json")) || {};
+      list.push({
+        name,
+        fw: s.fw || "",
+        fwst: s.fwst || "",
+        why: s.why || "",
+        bad: !!s.bad,
+        mem: s.mem || "",
+        panel: s.panel || "",
+        seen: s.seen || 0,
+        started: s.started || 0,
+      });
+    }
+    return json(200, { units: list, now });
   }
 
   if (request.method === "GET" && url.pathname === "/signals") {

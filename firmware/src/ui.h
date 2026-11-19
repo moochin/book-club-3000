@@ -87,6 +87,7 @@ enum class Action : uint8_t {
   ExitPreview,
   SendNudge,    // arg = friend index (-1 = everyone), arg2 = message index
   DismissNudge,
+  ReplyNudge,   // arg = reply index (bc::nudgeReply)
   BroadcastSignal,  // arg = quote index
   DismissSignal,
 };
