@@ -8,3 +8,8 @@ firmware/src/art_data.h
 firmware/src/sound_data.h
 art/preview/
 .bookclub-gist
+.vscode/
+# ESP-IDF / Arduino 3.x trial build leftovers
+firmware/managed_components/
+firmware/sdkconfig.*
+firmware/.dummy/
