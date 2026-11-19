@@ -12,7 +12,7 @@ firmware/       the PlatformIO project for the ESP32 "Cheap Yellow Display"
 art/            mascot art: PNGs you draw, baked into the firmware (art/README.md)
 tools/          club_editor.py (edit the club file), check_bookclub.py, art tools
 worker/         the nudge hub: a small Cloudflare Worker (worker/README.md)
-docs/           the original handover/spec
+docs/           the original handover/spec; SUCCESSION.md for taking over
 case/           (to come) STL files for the printed case
 ```
 
