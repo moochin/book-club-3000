@@ -1132,14 +1132,14 @@ void drawIncoming(const Model& m, uint32_t t) {
   // The reply line: turn (or tap the arrows) to pick, press to send.
   const int ry = y + h - 26;
   const bool picked = g_replySel >= 0;
-  text(x + 10, ry, "<", picked ? kHot : kDim, 2, 2);
-  textRight(x + w - 10, ry, ">", picked ? kHot : kDim, 2, 2);
+  text(x + 10, ry, "<", picked ? kHot : kBright, 2, 2);
+  textRight(x + w - 10, ry, ">", picked ? kHot : kBright, 2, 2);
   if (picked) {
     char reply[32];
     snprintf(reply, sizeof reply, "SEND: %s", bc::nudgeReply(g_replySel));
     textCentered(cfg::kScreenW / 2, ry, reply, kHot, 2, 2);
   } else {
-    textCentered(cfg::kScreenW / 2, ry, "TURN TO REPLY, PRESS TO DISMISS", kDim);
+    textCentered(cfg::kScreenW / 2, ry, "TURN TO REPLY, PRESS TO DISMISS", kBright);
   }
 }
 
