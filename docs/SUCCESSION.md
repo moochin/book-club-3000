@@ -1,7 +1,7 @@
-# If Pete can't look after it
+# If the owner can't look after it
 
-Everything the club uses runs on Pete's accounts. This page is for whoever
-takes over if he can't keep it going, for a while or for good. It holds no
+Everything the club uses runs on one person's accounts: the owner's. This
+page is for whoever takes over if they can't keep it going, for a while or for good. It holds no
 secrets: those live in the password manager (see the end).
 
 The units themselves need nobody. They keep the clock, the countdown and the
@@ -12,24 +12,24 @@ fetch a new one. What stops is the ability to *change* things.
 
 | Piece | Where it lives | If nobody looks after it |
 |---|---|---|
-| **The club file** (`bookclub.json`) | A secret gist on Pete's GitHub account | Units keep the last copy. No new meeting can be set, so exposure keeps climbing and they show DEBRIEF PENDING. |
-| **The nudge hub** | A Cloudflare Worker on Pete's Cloudflare account (free plan) | Keeps running on its own. It stops only if the account is closed. Then nudges, signals and UNITS stop; everything else carries on. |
-| **The firmware** | This public repository (`moochin/book-club-3000`) | Nothing breaks; there are just no new versions. |
+| **The club file** (`bookclub.json`) | A secret gist on the owner's GitHub account | Units keep the last copy. No new meeting can be set, so exposure keeps climbing and they show DEBRIEF PENDING. |
+| **The nudge hub** | A Cloudflare Worker on the owner's Cloudflare account (free plan) | Keeps running on its own. It stops only if the account is closed. Then nudges, signals and UNITS stop; everything else carries on. |
+| **The firmware** | This public repository | Nothing breaks; there are just no new versions. |
 
 Each unit is told two things on its own setup page, and keeps them: where the
 club file is, and its nudge token. The hub's address is *in the club file*.
 So a new club file can point the units at a new hub too.
 
-## Small jobs (Pete is away, his accounts still work)
+## Small jobs (the owner is away, their accounts still work)
 
-**Ask someone with access first.** If a second person is a member of Pete's
+**Ask someone with access first.** If a second person is a member of the owner's
 Cloudflare account, the hub is already covered. The gist can only be edited
-from Pete's GitHub login.
+from the owner's GitHub login.
 
 If you can't edit the gist, the units are fine for months. Nothing needs
 doing until the next meeting needs setting.
 
-## Taking over (Pete's accounts are gone or unreachable)
+## Taking over (the owner's accounts are gone or unreachable)
 
 You need: a GitHub account, a computer with Node.js 18+ (only for the hub),
 and a few minutes with each unit.
@@ -99,7 +99,7 @@ If a unit is ever truly stuck, it can be flashed over USB: see the top of
 
 ## What to keep in the password manager
 
-Stored by Pete, shared with the second person:
+Stored by the owner, shared with the second person:
 
 - The club gist's link (and its Raw link).
 - The hub's address and the `UNITS` token list (the JSON from
