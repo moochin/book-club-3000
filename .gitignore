@@ -8,3 +8,4 @@ firmware/src/art_data.h
 firmware/src/sound_data.h
 art/preview/
 .bookclub-gist
+.vscode/
