@@ -178,10 +178,15 @@ export const PAGE = `<!doctype html>
     <section>
       <div class="sec-row">
         <h2 class="bc-sec">Units</h2>
-        <button class="small" id="refreshUnits" type="button">Scan</button>
+        <div class="row">
+          <button class="small" id="refreshUnits" type="button" hidden>Scan</button>
+          <button class="small" id="toggleUnits" type="button" aria-expanded="false" aria-controls="unitsBody">Show</button>
+        </div>
       </div>
+      <div id="unitsBody" hidden>
       <ul id="units"></ul>
       <p class="hint">Each unit reports in about every 5 minutes; times here can be up to half an hour behind. Amber: an old version, on probation, rolled back or a bad restart.</p>
+      </div>
     </section>
   </div>
 </main>
@@ -366,7 +371,7 @@ export const PAGE = `<!doctype html>
     $("signin").hidden = true;
     $("app").hidden = false;
     loadSignals();
-    loadUnits();
+    showUnits(false);
     return true;
   }
 
@@ -454,6 +459,15 @@ export const PAGE = `<!doctype html>
   };
   $("refresh").onclick = loadSignals;
   $("refreshUnits").onclick = loadUnits;
+  // Units start folded away; opening them fetches a fresh report.
+  function showUnits(open) {
+    $("unitsBody").hidden = !open;
+    $("refreshUnits").hidden = !open;
+    $("toggleUnits").textContent = open ? "Hide" : "Show";
+    $("toggleUnits").setAttribute("aria-expanded", String(open));
+    if (open) loadUnits();
+  }
+  $("toggleUnits").onclick = () => showUnits($("unitsBody").hidden);
 
   // A link can carry the token after "#t=" (never sent to the server); it is
   // removed from the address bar straight away.
