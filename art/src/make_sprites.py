@@ -358,7 +358,7 @@ def build():
         out[f"birthday_{i}@400.png"] = f
 
     for i, fall in ((1, 0), (2, 3)):
-        f = convert(d("christmas.webp"), beer=True, festive=True)
+        f = convert(d("christmas.jpg"), beer=True, festive=True)
         snow(f, 25, fall)
         out[f"christmas_{i}@700.png"] = f
 
