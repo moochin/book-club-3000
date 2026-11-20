@@ -647,6 +647,18 @@ static BookClubData birthdayData() {
   return d;
 }
 
+void test_christmas_pose() {
+  BookClubData d = birthdayData();
+  auto s = computeState(d, at("2026-12-25"));
+  TEST_ASSERT_EQUAL((int)Pose::Christmas, (int)s.pose);
+  TEST_ASSERT_EQUAL((int)Pose::Christmas, (int)computeState(d, at("2031-12-25")).pose);  // every year
+  TEST_ASSERT_NOT_EQUAL((int)Pose::Christmas, (int)computeState(d, at("2026-12-24")).pose);
+  TEST_ASSERT_NOT_EQUAL((int)Pose::Christmas, (int)computeState(d, at("2026-12-26")).pose);
+  d.next.date = at("2026-12-25").date;  // a meeting on Christmas Day: still Santa
+  d.hasNext = true;
+  TEST_ASSERT_EQUAL((int)Pose::Christmas, (int)computeState(d, at("2026-12-25")).pose);
+}
+
 void test_birthdays_parsed() {
   BookClubData d = birthdayData();
   TEST_ASSERT_EQUAL(4, d.birthdayCount);  // "Bad" and "Worse" skipped
@@ -1143,6 +1155,7 @@ int main() {
   RUN_TEST(test_caps_before_clock_and_custom_rules);
   RUN_TEST(test_birthdays_parsed);
   RUN_TEST(test_birthday_pose_and_index);
+  RUN_TEST(test_christmas_pose);
   RUN_TEST(test_birthday_meeting_day_wins);
   RUN_TEST(test_birthday_leap_day);
   RUN_TEST(test_next_birthday_countdown);

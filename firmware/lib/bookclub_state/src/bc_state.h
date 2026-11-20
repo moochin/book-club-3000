@@ -58,6 +58,8 @@ enum class Pose : uint8_t {
   StatBanter,
   StatPunctuality,
   StatStamina,
+  // Seasonal, chosen by computeState(); after the stats so their numbers stay put.
+  Christmas,   // 25 December, every year
 };
 
 // Tunable thresholds. Change the defaults here, nowhere else.
