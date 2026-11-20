@@ -34,6 +34,26 @@ jobs:
         run: pio test -e native
       - name: Build ILI9341 and ST7789 firmware
         run: pio run -e cyd -e cyd_st7789
+      # Each build must fit an OTA app slot (app0 in partitions.csv). Warn from
+      # 90% so there's time to slim the art or sounds; fail from 95%, before a
+      # build too big to install over the air can reach a release.
+      - name: Check the firmware fits its OTA slot
+        run: |
+          slot=$(( $(awk -F, '$1 ~ /^app0/ {gsub(/ /, "", $5); print $5}' partitions.csv) ))
+          [ "$slot" -gt 0 ] || { echo "::error::couldn't read app0's size from partitions.csv"; exit 1; }
+          rc=0
+          for env in cyd cyd_st7789; do
+            size=$(stat -c %s .pio/build/$env/firmware.bin)
+            pct=$(( size * 100 / slot ))
+            echo "$env: $size of $slot bytes ($pct%), $(( slot - size )) bytes free"
+            if [ $(( size * 100 )) -gt $(( slot * 95 )) ]; then
+              echo "::error::$env firmware is $pct% of its OTA slot (limit 95%). Slim the baked-in sounds or art, or drop CORE_DEBUG_LEVEL; see firmware/README.md."
+              rc=1
+            elif [ $(( size * 100 )) -gt $(( slot * 90 )) ]; then
+              echo "::warning::$env firmware is $pct% of its OTA slot; the build fails at 95%."
+            fi
+          done
+          exit $rc
       - name: Render UI and mascot previews
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
