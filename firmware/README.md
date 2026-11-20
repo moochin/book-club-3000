@@ -300,8 +300,10 @@ every unit rather than sending it to all; `[]` is the same as leaving it out.
 
 - Never ship a change to `partitions.csv`: an update can't change the
   partition table, and a mismatched build won't boot.
-- The app slots are 1.9 MB; builds are about 1.47 MB. Keep an eye on the
-  "Flash:" line in the build output.
+- The app slots are 1.9 MB; builds are about 1.47 MB. The Firmware workflow
+  prints each build's share of a slot, warns from 90% and fails from 95%. If
+  it gets tight, the baked-in sounds are the biggest thing to slim, then
+  `CORE_DEBUG_LEVEL` (logging strings); resizing partitions isn't an option.
 - The HTTPS fetches trust the Mozilla CA bundle compiled into the Arduino
   core. Newer cores bring newer roots, so release now and then even without
   features, well before any root GitHub uses expires.
