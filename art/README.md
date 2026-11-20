@@ -19,6 +19,8 @@ do them one at a time.
 | `meeting_day` | It's meeting day | Celebrating |
 | `no_date` | No next date, while still healthy (levels 0–1) | Waiting for orders, a bit lost |
 | `syncing` | Before the clock is set, after power-on | Anything patient: an hourglass is fine |
+| `birthday` | Someone in the club has a birthday today (a meeting still wins) | Party hat, a drink |
+| `christmas` | 25 December, every year. It beats every other pose | Santa hat and beard, holding a present, in the snow |
 
 **Owner-card stat pages.** Each stat on the owner card has its own page
 with a mascot. Until a stat's pose is drawn, its page borrows a pose that

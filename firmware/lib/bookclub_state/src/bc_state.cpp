@@ -88,6 +88,9 @@ DisplayState computeState(const BookClubData& data, const LocalNow& now, const T
     }
   }
 
+  // Christmas Day: the Santa mascot, every year. It beats everything else.
+  if (now.date.month == 12 && now.date.day == 25) s.pose = Pose::Christmas;
+
   // The next birthday, today included, and how many share that day.
   for (int i = 0; i < data.birthdayCount && i < kMaxBirthdays; ++i) {
     const Date when = nextBirthdayFrom(data.birthdays[i], now.date);
@@ -156,6 +159,7 @@ const char* poseName(Pose p) {
     case Pose::StatBanter: return "BANTER";
     case Pose::StatPunctuality: return "PUNCTUAL";
     case Pose::StatStamina: return "STAMINA";
+    case Pose::Christmas: return "CHRISTMAS";
   }
   return "?";
 }

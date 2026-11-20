@@ -9,7 +9,8 @@ Each drawing is full-colour line art on a white background. This script:
    removes the background, keeps the black ink as outlines, maps colours to
    brightness, and adds the floor shadow;
 2. adds the small extras that don't survive the shrink: the watch face, the
-   question mark, confetti, the jump's bounce, the gamepad, the popcorn, the laughter;
+   question mark, confetti, the jump's bounce, the gamepad, the popcorn, the laughter,
+   the Christmas snow;
 3. applies hand touch-ups: clean faces for the two sickest poses and a
    deeper slump for "very sick".
 
@@ -38,7 +39,7 @@ CLEAR, INK, SKIN_SH, SKIN, WDIM, WARN, HOT = 0, 2, 10, 11, 13, 14, 15
 # ---- Conversion --------------------------------------------------------------
 
 def convert(src, k=5, ink_thresh=120, height=90, lift=0, boost=0, edge=False,
-            sick=False, sick_sat=0.18, sick_col=WDIM, beer=False, confetti=0):
+            sick=False, sick_sat=0.18, sick_col=WDIM, beer=False, confetti=0, festive=False):
     """Returns a 96 x 64 grid of palette indices.
 
     k: how much the ink lines are thickened before shrinking (odd, 1 = none).
@@ -50,6 +51,9 @@ def convert(src, k=5, ink_thresh=120, height=90, lift=0, boost=0, edge=False,
     sick: turn green-tinged skin into a warning-colour speckle.
     beer: turn amber liquid into the warning colour.
     confetti: random seed for confetti dots (0 = none).
+    festive: turn bright reds (a Santa hat, wrapping paper) into the warning
+    colour, so they stand out from the darker hoodie, and whites (the beard,
+    the hat's fur) into the near-white highlight.
     """
     im = Image.open(src).convert("RGB")
     alpha = Image.new("L", im.size, 255)
@@ -103,6 +107,10 @@ def convert(src, k=5, ink_thresh=120, height=90, lift=0, boost=0, edge=False,
                     c = sick_col
                 if beer and 0.04 < h < 0.15 and s > 0.45 and v > 0.45:
                     c = WARN
+                if festive and (h < 0.03 or h > 0.95) and s > 0.55 and v > 0.62:
+                    c = WARN
+                if festive and s < 0.12 and v > 0.84:
+                    c = HOT
             idx[oy + y][ox + x] = c
 
     if edge:
@@ -140,6 +148,17 @@ def put(f, pts, c):
     for x, y in pts:
         if 0 <= x < 64 and 0 <= y < 96:
             f[y][x] = c
+
+
+def snow(f, seed, fall):
+    """Snowflakes round him, drifting down `fall` pixels between frames."""
+    rnd = random.Random(seed)
+    for _ in range(16):
+        x, y = rnd.randint(1, 62), rnd.randint(0, 84) + fall
+        if 0 <= y < 96 and f[y][x] == CLEAR:
+            f[y][x] = HOT
+            if rnd.random() < 0.4 and y + 1 < 96 and f[y + 1][x] == CLEAR:
+                f[y + 1][x] = 12  # a bigger flake
 
 
 def watch(f, sx, sy, hand):
@@ -337,6 +356,11 @@ def build():
         f = convert(d("birthday.png"), beer=True, confetti=seed)
         hat_stripes(f)
         out[f"birthday_{i}@400.png"] = f
+
+    for i, fall in ((1, 0), (2, 3)):
+        f = convert(d("christmas.webp"), beer=True, festive=True)
+        snow(f, 25, fall)
+        out[f"christmas_{i}@700.png"] = f
 
     for i, hand in ((1, (0, -1)), (2, (1, 0))):
         f = convert(d("waiting.jpg"))

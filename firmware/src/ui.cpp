@@ -252,7 +252,8 @@ void drawPortal(const Model& m) {
 
 void drawCelebration(const Model& m, uint32_t t) {
   const auto& s = m.state;
-  mascot::draw(12, 36, bc::Pose::MeetingDay, t, false);
+  // The party pose, or Santa if the meeting falls on Christmas Day.
+  mascot::draw(12, 36, m.state.pose == bc::Pose::Christmas ? bc::Pose::Christmas : bc::Pose::MeetingDay, t, false);
   const bool flash = (t / 600) % 2;
   textCentered(200, 34, "** PERK UNLOCKED **", flash ? kHot : kBright, 1, 2);
   textCentered(200, 60, "BOOK CLUB", kHot, 3, 4);
@@ -285,8 +286,8 @@ void drawStat(const Model& m, uint32_t t) {
     return;
   }
   mascot::draw(12, 34, s.pose, t);
-  if (s.quest == bc::Quest::Scheduled) {
-    // Hopeful badge on the mascot.
+  if (s.quest == bc::Quest::Scheduled && s.pose != bc::Pose::Christmas) {
+    // Hopeful badge on the mascot (not on Santa: it would cover his hat).
     c.fillRoundRect(52, 32, 30, 14, 3, kBright);
     text(55, 35, "HOPE", kBg, 1, 1);
   }

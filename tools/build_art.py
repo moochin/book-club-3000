@@ -14,7 +14,8 @@ optional @<ms> to set how long that frame shows (default 500 ms):
 
 Poses: level0 level1 level2 level3 level4 final_week meeting_day no_date syncing
 birthday, and the owner-card stat pages: stat_gaming stat_trivia stat_beer
-stat_snacks stat_banter stat_punctuality stat_stamina
+stat_snacks stat_banter stat_punctuality stat_stamina, and christmas
+(25 December).
 Each frame is exactly 64 x 96 pixels. Transparent pixels (or the palette's
 background colour, index 0) let the screen show through.
 """
@@ -37,7 +38,7 @@ DEFAULT_MS = 500
 POSES = ["level0", "level1", "level2", "level3", "level4",
          "final_week", "meeting_day", "no_date", "syncing", "birthday",
          "stat_gaming", "stat_trivia", "stat_beer", "stat_snacks", "stat_banter",
-         "stat_punctuality", "stat_stamina"]
+         "stat_punctuality", "stat_stamina", "christmas"]
 
 # Keep in step with buildPalette() in firmware/src/display.cpp.
 CURVE = [0, 8, 18, 30, 44, 60, 78, 98, 120, 150, 185, 220, 255]

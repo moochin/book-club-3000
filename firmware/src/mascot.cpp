@@ -51,6 +51,7 @@ void drawPlaceholder(int x, int y, Pose pose, uint32_t t, bool label) {
     case Pose::NoDate: k.sign = true; k.blink = blinkNow; k.armR = 3; break;
     case Pose::Syncing: k.hourglass = true; break;
     case Pose::Birthday: k.grin = true; k.armL = 4; k.armR = 3; k.confetti = true; break;
+    case Pose::Christmas: k.grin = true; k.armL = 2; k.armR = 2; k.confetti = true; break;
     default: k.blink = blinkNow; k.armL = 1; k.armR = 1; break;  // stat poses: idle
   }
 
