@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.33"
+#define BC_FW_VERSION "1.5.34"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -61,6 +61,9 @@ constexpr int kEncCountsPerDetent = 4;  // EC11 full-quadrature: 4 counts per cl
 constexpr uint32_t kDebounceMs = 30;
 constexpr uint32_t kLongPressMs = 2000;
 constexpr uint32_t kKnobArmMs = 500;  // switch must read released this long first
+// Pressing the knob can nudge it round: turns are ignored while it is pressed
+// and for this long after (see bc_knob.h, which also adds a one-click dead zone).
+constexpr uint32_t kKnobPressLockoutMs = 150;
 // Touch: tap tabs, menu items and buttons directly; hold anywhere 2 s for a
 // long press. Raw XPT2046 range: calibrate if taps land in the wrong place
 // (input.cpp logs each tap's screen position).
