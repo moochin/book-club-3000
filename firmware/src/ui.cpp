@@ -1976,7 +1976,10 @@ void render(const Model& m, uint32_t t) {
   }
   if (m.portal) {
     drawPortal(m);
-  } else if (m.clockFace) {
+  } else if (m.clockFace && !m.incoming && !m.incomingSignal) {
+    // A nudge or signal that arrives in quiet hours doesn't wake the screen:
+    // it waits on screen, so it's drawn over the normal picture, not hidden
+    // under the clock.
     drawClockFace(m, t);
     previewBanner(m);
     present(m.effects, 0);  // scanlines, but no sweep: at 1 fps it would jump
