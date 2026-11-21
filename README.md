@@ -134,13 +134,14 @@ The unit joins your network, sets its clock and fetches the file. If your
 Wi-Fi drops it carries on counting from the dates it already has and keeps
 retrying in the background.
 
-**Touch screen:** tap STAT, DATA, LOG or SET to switch tabs, tap the clock (or the SET tab) for
+**Touch screen:** tap STAT, DATA, LOG or RADIO to switch tabs, tap the clock for
 settings, tap the mascot for your owner card (tap a stat there for its own
 page), and tap a screen's title to go
 back. On LOG, tap the top or bottom half of the list to page through it. A
 stylus works best.
 **Knob:** everything works with the knob alone. Turn to switch between STAT,
-DATA, LOG and SET. On SET, press for settings; every list ends in **< BACK**.
+DATA, LOG and RADIO. On RADIO, press for the radio list, which ends in
+**SETTINGS >**; every list ends in **< BACK**.
 On STAT, press for your owner card: turn to pick a stat and press for its
 page, or turn onto **< BACK** (top right) and press to leave. On LOG, press to
 switch between changing tabs and scrolling. On DATA, press for **SYNC STATUS**:
@@ -148,8 +149,7 @@ if a ⚠ shows by the clock, it says what went wrong fetching the club file (a
 typo in the gist, a firmware update that couldn't install, no Wi-Fi...) and
 what to do, with a REFRESH NOW button. Tapping the ⚠ opens it too. A 2 s hold is a shortcut: it opens
 settings from the tabs and goes back from anywhere else (in a settings group,
-up one level). Settings has refresh, send nudge, signals and send from phone,
-then three groups:
+up one level). Settings has refresh, then three groups:
 
 - **SCREEN >** brightness, theme, scanlines, screen off at night, idle
   after, when idle (dim or clock), dark room off
@@ -174,9 +174,20 @@ fragmented for secure connections. Both are silent and normal. **SETTINGS →
 THIS UNIT → ABOUT** shows why it last started; WATCHDOG, CRASH or BROWNOUT there (in
 amber) is a real problem worth reporting, along with the MEMORY line.
 
+## The RADIO tab
+
+From 1.5.35 nudges and signals have their own tab, **RADIO** (it replaced
+SET). It shows the newest signal on the air (or static when there's none) and
+the last nudge you got since the unit started. Under those are three buttons:
+**NUDGE**, **SIGNALS** and **PHONE**. Tap one, or press the knob for the same
+choices as a list. The tab's name lights up from the other tabs while a
+friend's signal is on the air. Settings are at the end of that list
+(**SETTINGS >**) and in the button at the bottom right. As before, a 2 s hold
+or a tap on the clock opens them straight away.
+
 ## Nudges
 
-Poke a friend from your desk: **SETTINGS → SEND NUDGE**, pick a friend (or
+Poke a friend from your desk: **RADIO → NUDGE**, pick a friend (or
 EVERYONE), then a message. It lands on their unit within 5 minutes, with a
 chirp, a flashing blue light and the message in big letters until they press
 or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → SOUND → QUIET HOURS**) it arrives silently and waits on screen.
@@ -204,7 +215,7 @@ the setup page.
 A signal from the wasteland: a quote you broadcast to every unit in the club.
 It stays on the air for 24 hours, then it's gone for good.
 
-**SETTINGS → SIGNALS** shows what's on the air, one quote at a time, with
+**RADIO → SIGNALS** shows what's on the air, one quote at a time, with
 who sent it and a signal-strength bar that fades as its 24 hours run out.
 Turn past the last one to **BROADCAST YOURS**, press, turn to pick a quote and
 press to send. Each person gets one signal a day (the day starts at midnight,
@@ -230,7 +241,7 @@ the club file, e.g. `https://bookclub-nudge.<something>.workers.dev`). Sign
 in with your nudge token, then send a nudge or broadcast a signal **in your
 own words**: nudges up to 40 characters, signals up to 100. The same limits
 apply as on the units. To skip typing the address and the token, scan the
-QR code in **SETTINGS → SEND FROM PHONE** on your unit: it carries the unit's
+QR code in **RADIO → PHONE** on your unit: it carries the unit's
 token, so the page signs straight in as that unit (and remembers it on that
 phone). Only let friends scan it. A unit without a token shows the plain page. It also shows what's on the air. Tick *Remember on
 this phone* to stay signed in; the hub owner can also send someone a link

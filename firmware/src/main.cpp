@@ -72,6 +72,7 @@ bool g_dirty = true;
 // Nudges: the one on screen, the LED flash, and the note after sending.
 bc::Nudge g_nudge;
 bool g_nudgeShown = false;
+bc::Nudge g_lastNudge;  // the last one from a friend, for the RADIO tab
 bool g_nudgeWake = false;       // wake the screen on the next tick
 uint32_t g_ledUntilMs = 0;
 nudge::SendState g_seenSend = nudge::SendState::Idle;
@@ -511,6 +512,7 @@ void loop() {
   // LED and wake the screen. In quiet hours it waits on screen, silently.
   if (!g_nudgeShown && nudge::takeIncoming(g_nudge)) {
     g_nudgeShown = true;
+    g_lastNudge = g_nudge;
     Serial.printf("[main] showing nudge from %s: %s\n", g_nudge.from, g_nudge.msg);
     g_dirty = true;
     if (!quietHours(liveNow)) {
@@ -521,7 +523,7 @@ void loop() {
   }
   // A friend's new signal: after each check, the newest one we haven't
   // announced tunes in on screen (silently in quiet hours). Older new ones
-  // are marked seen too; they're all in SETTINGS > SIGNALS.
+  // are marked seen too; they're all in RADIO > SIGNALS.
   const int signalCount = nudge::signals(g_signals, bc::kMaxSignals, now);
   const uint32_t sv = nudge::signalsVersion();
   if (sv != g_signalsSeenVersion && !g_nudgeShown && !g_signalShown) {
@@ -645,6 +647,7 @@ void loop() {
     m.friends[i] = friendNames[i];
   }
   m.incoming = g_nudgeShown ? &g_nudge : nullptr;
+  m.lastNudge = g_lastNudge.from[0] ? &g_lastNudge : nullptr;
   m.toast = g_toast[0] ? g_toast : nullptr;
   m.signalCount = signalCount;
   m.signals = g_signals;
@@ -656,7 +659,7 @@ void loop() {
   m.nudgeToken = u.nudgeToken;
   m.toastWarn = g_toastWarn;
 
-  // Left on SET or in settings, go back to STAT after a while.
+  // Left on RADIO or in settings, go back to STAT after a while.
   if (!ev.any() && !m.portal && now - g_lastInputMs >= cfg::kSettingsIdleReturnMs && ui::returnToStat())
     g_dirty = true;
   const ui::View viewWas = ui::view();
