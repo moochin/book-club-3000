@@ -42,6 +42,8 @@ struct Model {
   bool effects = true;
   uint8_t nightPreset = 1;
   uint8_t idlePreset = 2;
+  uint8_t idleFace = 0;
+  bool clockFace = false;   // idle: draw the clock face instead of the screen
   uint8_t darkPreset = 0;
   uint8_t quietPreset = 1;
   bool knobReversed = false;
@@ -78,6 +80,7 @@ enum class Action : uint8_t {
   ToggleEffects,
   CycleNight,
   CycleIdleDim,
+  CycleIdleFace,
   CycleDark,
   CycleQuiet,
   ToggleKnob,

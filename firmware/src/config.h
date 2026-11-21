@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define BC_FW_VERSION "1.5.31"
+#define BC_FW_VERSION "1.5.32"
 
 #if !defined(BC_PANEL_ILI9341) && !defined(BC_PANEL_ST7789)
 #define BC_PANEL_ILI9341
@@ -92,6 +92,10 @@ constexpr uint32_t kMenuPortalTimeoutS = 15 * 60;       // portal opened from th
 // ---- Power and comfort --------------------------------------------------------
 constexpr uint8_t kBacklightFloor = 24;   // 0..255; keeps the screen readable
 constexpr uint8_t kBacklightMax = 255;
+// The idle clock face (SETTINGS > SCREEN > WHEN IDLE: CLOCK): lit low enough to
+// spare the backlight, bright enough to read across a room. Never brighter
+// than the screen is otherwise.
+constexpr uint8_t kBacklightClock = 72;
 // LDR: on the CYD the reading falls as the room gets brighter. Calibrate at
 // bring-up (the bring-up build logs raw readings).
 constexpr bool kLdrBrightIsLow = true;

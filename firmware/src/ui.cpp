@@ -55,6 +55,7 @@ enum MenuItem : uint8_t {
   kMiEffects,
   kMiNight,
   kMiIdle,
+  kMiIdleFace,
   kMiDark,
   kMiKnob,
   kMiOwner,
@@ -73,7 +74,8 @@ enum MenuItem : uint8_t {
 enum MenuGroup : uint8_t { kGroupTop, kGroupScreen, kGroupSound, kGroupUnit, kGroupCount };
 constexpr MenuItem kTopItems[] = {kMiRefresh,     kMiNudge,      kMiSignals,   kMiPhone,
                                   kMiGroupScreen, kMiGroupSound, kMiGroupUnit, kMiBack};
-constexpr MenuItem kScreenItems[] = {kMiBrightness, kMiTheme, kMiEffects, kMiNight, kMiIdle, kMiDark, kMiBack};
+constexpr MenuItem kScreenItems[] = {kMiBrightness, kMiTheme, kMiEffects, kMiNight, kMiIdle, kMiIdleFace,
+                                     kMiDark, kMiBack};
 constexpr MenuItem kSoundItems[] = {kMiSound, kMiVolume, kMiQuiet, kMiBack};
 constexpr MenuItem kUnitItems[] = {kMiOwner, kMiKnob, kMiHelp, kMiAbout, kMiWifi, kMiBack};
 struct MenuDef {
@@ -622,7 +624,8 @@ void menuItemLabel(MenuItem i, const Model& m, char* buf, int len) {
     case kMiTheme: snprintf(buf, len, "THEME: %s", m.theme == 1 ? "AMBER" : "GREEN"); break;
     case kMiEffects: snprintf(buf, len, "SCANLINES: %s", m.effects ? "ON" : "OFF"); break;
     case kMiNight: snprintf(buf, len, "SCREEN OFF: %s", bc::nightPreset(m.nightPreset).label); break;
-    case kMiIdle: snprintf(buf, len, "DIM WHEN IDLE: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
+    case kMiIdle: snprintf(buf, len, "IDLE AFTER: %s", bc::idleDimPresetLabel(m.idlePreset)); break;
+    case kMiIdleFace: snprintf(buf, len, "WHEN IDLE: %s", bc::idleFaceLabel(m.idleFace)); break;
     case kMiDark: snprintf(buf, len, "DARK ROOM OFF: %s", bc::darkPresetLabel(m.darkPreset)); break;
     case kMiKnob: snprintf(buf, len, "KNOB: %s", m.knobReversed ? "REVERSED" : "NORMAL"); break;
     case kMiOwner: snprintf(buf, len, "OWNER CARD"); break;
@@ -923,7 +926,8 @@ const HelpPage kHelp[] = {
     {"THE SCREEN",
      {"It switches off at night (SETTINGS > SCREEN > SCREEN OFF). It can also switch off after "
       "10 min in a dark room (SCREEN > DARK ROOM OFF; off by default). Turn the knob or tap to wake it.",
-      "Left untouched it dims (SCREEN > DIM WHEN IDLE).",
+      "Left untouched (SCREEN > IDLE AFTER) it dims, or shows a big clock if SCREEN > WHEN IDLE is "
+      "CLOCK.",
       "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
       nullptr}},
 };
@@ -1424,6 +1428,7 @@ bool returnToStat() {
 
 bool animating(const Model& m) {
   if (m.portal || m.updatePct >= 0) return false;
+  if (m.clockFace) return false;  // once a second is plenty
   if (m.incoming || m.incomingSignal) return false;
   if (g_screen == Screen::Signals && m.signalCount == 0) return true;  // the static
   return (g_screen == Screen::Tabs && g_tab == kStat) || g_screen == Screen::StatDetail;
@@ -1519,6 +1524,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiEffects: r.action = Action::ToggleEffects; break;
           case kMiNight: r.action = Action::CycleNight; break;
           case kMiIdle: r.action = Action::CycleIdleDim; break;
+          case kMiIdleFace: r.action = Action::CycleIdleFace; break;
           case kMiDark: r.action = Action::CycleDark; break;
           case kMiKnob: r.action = Action::ToggleKnob; break;
           case kMiOwner: g_screen = Screen::OwnerCard; g_cardReturn = Screen::Menu; g_cardSel = 0; break;
@@ -1886,6 +1892,80 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
   return r;
 }
 
+// The idle clock face (SETTINGS > SCREEN > WHEN IDLE: CLOCK): the time in
+// big seven-segment digits over their own unlit ghosts, in the theme's
+// colour, with the date and the club's next meeting underneath.
+static void drawClockFace(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  textCentered(cfg::kScreenW / 2, 12, "BOOK-CLUB 3000", kDim);
+  c.drawFastHLine(40, 34, cfg::kScreenW - 80, kFaint);
+
+  char hhmm[6] = "--:--";
+  if (m.now.valid) bc::formatTime(m.now.minuteOfDay, hhmm, sizeof hhmm);
+  c.setFont(&fonts::Font7);
+  c.setTextSize(1.6f);
+  c.setTextDatum(textdatum_t::top_center);
+  const int y = 56;
+  c.setTextColor(kFaint);
+  c.drawString("88:88", cfg::kScreenW / 2, y);
+  c.setTextColor(kBright);
+  // The colon blinks with the seconds; the digits stay lit.
+  char digits[6];
+  memcpy(digits, hhmm, sizeof digits);
+  if ((t / 1000) % 2) digits[2] = ' ';
+  if (!m.now.valid) {
+    c.setTextColor(kDim);
+    memcpy(digits, "  :  ", sizeof digits);
+  }
+  // Draw each glyph in the ghost's cell, so a blank colon or a '1' doesn't
+  // shift the others.
+  const int total = c.textWidth("88:88");
+  int x = cfg::kScreenW / 2 - total / 2;
+  c.setTextDatum(textdatum_t::top_left);
+  for (int i = 0; i < 5; ++i) {
+    const char cell[2] = {i == 2 ? ':' : '8', 0};
+    const char ch[2] = {digits[i], 0};
+    const int w = c.textWidth(cell);
+    if (ch[0] != ' ') c.drawString(ch, x + w - c.textWidth(ch), y);
+    x += w;
+  }
+  c.setTextDatum(textdatum_t::top_left);
+  c.setTextSize(1);
+  c.setFont(&fonts::Font0);
+
+  char buf[48];
+  if (m.now.valid) {
+    char d[16];
+    bc::formatDateShort(m.now.date, d, sizeof d);
+    snprintf(buf, sizeof buf, "%s %s", bc::weekdayName(m.now.date), d);
+    textCentered(cfg::kScreenW / 2, 150, buf, kText, 2, 2);
+  } else {
+    textCentered(cfg::kScreenW / 2, 150, "SETTING THE CLOCK...", kDim, 2, 2);
+  }
+
+  buf[0] = 0;
+  if (m.data && m.state.clockValid) {
+    const bc::DisplayState& s = m.state;
+    if (s.quest == bc::Quest::MeetingDay) {
+      if (s.hasMeetingTime) {
+        char tm[6];
+        bc::formatTime(s.meetingMinute, tm, sizeof tm);
+        snprintf(buf, sizeof buf, "BOOK CLUB TODAY AT %s", tm);
+      } else {
+        snprintf(buf, sizeof buf, "BOOK CLUB TODAY");
+      }
+    } else if (s.quest == bc::Quest::FinalWeek || s.quest == bc::Quest::Scheduled) {
+      if (s.daysToNext == 1) snprintf(buf, sizeof buf, "BOOK CLUB TOMORROW");
+      else snprintf(buf, sizeof buf, "BOOK CLUB IN %ld DAYS", (long)s.daysToNext);
+    }
+  }
+  if (buf[0]) {
+    c.drawFastHLine(40, 186, cfg::kScreenW - 80, kFaint);
+    textCentered(cfg::kScreenW / 2, 194, buf, m.state.quest == bc::Quest::MeetingDay ? kHot : kText, 1, 2);
+  }
+  textCentered(cfg::kScreenW / 2, 220, "TURN OR TAP TO WAKE", kFaint);
+}
+
 void render(const Model& m, uint32_t t) {
   auto& c = canvas();
   c.fillScreen(kBg);
@@ -1896,6 +1976,11 @@ void render(const Model& m, uint32_t t) {
   }
   if (m.portal) {
     drawPortal(m);
+  } else if (m.clockFace) {
+    drawClockFace(m, t);
+    previewBanner(m);
+    present(m.effects, 0);  // scanlines, but no sweep: at 1 fps it would jump
+    return;
   } else if (g_screen == Screen::Tabs) {
     header(m);
     if (g_tab == kSet) {
