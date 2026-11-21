@@ -27,6 +27,7 @@ struct Unit {
   uint8_t quietPreset = 1;        // bc::quietPreset(): 0 never, 1 = no sound 22:00-08:00
   bool knobReversed = false;      // knob wired the other way round: flip its direction
   uint8_t idlePreset = 2;         // bc::idleDimPresetMs(): 0 never, 2 = dim after 30 min
+  uint8_t idleFace = 0;           // bc::idleFaceLabel(): 0 = dim when idle, 1 = show the clock
   uint8_t darkPreset = 0;         // bc::darkPresetLabel(): 0 never (default), 1 = very dark, 2 = dark
   char nudgeToken[64] = "";       // this unit's token for the nudge hub; never logged
 };

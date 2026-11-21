@@ -179,6 +179,7 @@ void doAction(const ui::Result& r) {
     case ui::Action::CycleNight: u.nightPreset = (uint8_t)((u.nightPreset + 1) % bc::kNightPresets); break;
     case ui::Action::CycleQuiet: u.quietPreset = (uint8_t)((u.quietPreset + 1) % bc::kQuietPresets); break;
     case ui::Action::CycleIdleDim: u.idlePreset = (uint8_t)((u.idlePreset + 1) % bc::kIdlePresets); break;
+    case ui::Action::CycleIdleFace: u.idleFace = (uint8_t)((u.idleFace + 1) % bc::kIdleFaces); break;
     case ui::Action::CycleDark: u.darkPreset = (uint8_t)((u.darkPreset + 1) % bc::kDarkPresets); break;
     case ui::Action::OpenPortal: net::openPortal(); return;
     case ui::Action::CancelPortal: net::closePortal(); return;
@@ -392,8 +393,8 @@ void loop() {
   const uint32_t now = millis();
   input::Events ev = input::poll(now);
 
-  // A knob event on a blank screen only wakes it.
-  const bool wasBlank = backlight::blanked();
+  // A knob event on a blank screen (or the idle clock) only wakes it.
+  const bool wasBlank = backlight::blanked() || backlight::clockFace();
   backlight::holdAwake(net::portalActive());
   const bc::LocalNow localForScreen = clockmod::localNow();
   backlight::tick(now, ev.any() || g_nudgeWake, localForScreen);
@@ -621,6 +622,13 @@ void loop() {
   m.effects = u.effects;
   m.nightPreset = u.nightPreset;
   m.idlePreset = u.idlePreset;
+  m.idleFace = u.idleFace;
+  m.clockFace = backlight::clockFace();
+  {
+    static bool wasClock = false;
+    if (m.clockFace != wasClock) g_dirty = true;  // into or out of the clock face
+    wasClock = m.clockFace;
+  }
   m.darkPreset = u.darkPreset;
   m.quietPreset = u.quietPreset;
   m.knobReversed = u.knobReversed;

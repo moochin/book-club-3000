@@ -327,6 +327,15 @@ int main(int argc, char** argv) {
   shot("syncing_clock", clock);
   ui::Model upd = m; upd.updatePct = 42;
   shot("updating", upd);
+  // The idle clock face (WHEN IDLE: CLOCK), green, colon lit and blinked off.
+  ui::Model face = m; face.clockFace = true;
+  g_simMillis = 4000;
+  shot("clock_face", face);
+  g_simMillis = 5000;
+  face.effects = true;
+  shot("clock_face_blink_fx", face);
+  ui::Model faceNoTime = model(&d, unsynced); faceNoTime.clockFace = true;
+  shot("clock_face_no_time", faceNoTime);
 
   // Amber theme, critical, with scanlines.
   display::setTheme(settings::kThemeAmber);
@@ -338,5 +347,7 @@ int main(int argc, char** argv) {
   scenarios::build(5, d, now);
   amber = model(&d, now);
   shot("amber_meeting_day", amber);
+  amber.clockFace = true;
+  shot("amber_clock_face", amber);
   return 0;
 }

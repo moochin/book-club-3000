@@ -16,6 +16,7 @@ static uint32_t g_darkSinceMs = 0;
 static bool g_dark = false;
 static uint32_t g_lastActivityMs = 0;
 static bool g_blanked = false;
+static bool g_clock = false;
 static bool g_hold = false;
 static int g_currentDuty = -1;
 
@@ -61,8 +62,10 @@ void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
   in.nightFrom = w.from;
   in.nightTo = w.to;
   in.idleDimMs = bc::idleDimPresetMs(u.idlePreset);
+  in.idleClock = u.idleFace == 1;
   const bc::ScreenPower power = bc::screenPower(in);
   g_blanked = power == bc::ScreenPower::Off;
+  g_clock = power == bc::ScreenPower::Clock;
 
   int duty;
   if (power == bc::ScreenPower::Off) {
@@ -74,6 +77,7 @@ void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
   } else {
     duty = max<int>(u.fixedBrightness, cfg::kBacklightFloor);
   }
+  if (power == bc::ScreenPower::Clock) duty = max<int>(min<int>(duty, cfg::kBacklightClock), cfg::kBacklightFloor);
   if (duty != g_currentDuty) {
     g_currentDuty = duty;
     display::setBrightness((uint8_t)duty);
@@ -81,6 +85,7 @@ void tick(uint32_t now, bool activity, const bc::LocalNow& local) {
 }
 
 bool blanked() { return g_blanked; }
+bool clockFace() { return g_clock; }
 void holdAwake(bool hold) { g_hold = hold; }
 int lightLevel() { return g_level; }
 int rawReading() { return g_raw; }

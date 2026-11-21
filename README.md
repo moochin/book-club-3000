@@ -151,8 +151,8 @@ settings from the tabs and goes back from anywhere else (in a settings group,
 up one level). Settings has refresh, send nudge, signals and send from phone,
 then three groups:
 
-- **SCREEN >** brightness, theme, scanlines, screen off at night, dim when
-  idle, dark room off
+- **SCREEN >** brightness, theme, scanlines, screen off at night, idle
+  after, when idle (dim or clock), dark room off
 - **SOUND >** sound, volume, quiet hours
 - **THIS UNIT >** owner card, knob direction, how to use, about, Wi-Fi reset
 
@@ -162,7 +162,10 @@ re-soldering it.
 after 30 minutes untouched; turn the knob or tap to wake it. It can also
 switch off after 10 minutes in a dark room (**DARK ROOM OFF**: never, very dark
 or dark), but that is off by default: the light sensors read very differently
-from unit to unit. All three are in **SETTINGS → SCREEN**. It's an LCD, so it
+from unit to unit. Instead of dimming when untouched, it can show a big clock
+in the theme's colour, with the date and days to the next meeting, at a low
+backlight (**WHEN IDLE: CLOCK**; **IDLE AFTER** sets how long). All of these
+are in **SETTINGS → SCREEN**. It's an LCD, so it
 can't burn in, but this saves its backlight, which slowly wears with use.
 **Factory reset:** hold the BOOT button while plugging in, for 10 seconds.
 **Staying up:** each unit restarts itself quietly once a day between 03:00

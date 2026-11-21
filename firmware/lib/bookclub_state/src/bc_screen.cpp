@@ -18,8 +18,10 @@ ScreenPower screenPower(const ScreenInputs& in, const ScreenRules& r) {
   }
   // A dark room, with nobody using it, for long enough.
   if (in.msDark >= r.darkBlankMs && in.msSinceActivity >= r.darkBlankMs) return ScreenPower::Off;
-  // Nobody has touched it for a while: dim, still readable at a glance.
-  if (in.idleDimMs && in.msSinceActivity >= in.idleDimMs) return ScreenPower::Dim;
+  // Nobody has touched it for a while: dim, still readable at a glance, or
+  // the clock face.
+  if (in.idleDimMs && in.msSinceActivity >= in.idleDimMs)
+    return in.idleClock ? ScreenPower::Clock : ScreenPower::Dim;
   return ScreenPower::On;
 }
 
@@ -64,6 +66,11 @@ uint32_t idleDimPresetMs(int i) {
 const char* idleDimPresetLabel(int i) {
   static const char* const kLabels[kIdlePresets] = {"NEVER", "10 MIN", "30 MIN", "60 MIN"};
   return kLabels[(i >= 0 && i < kIdlePresets) ? i : 0];
+}
+
+const char* idleFaceLabel(int i) {
+  static const char* const kLabels[kIdleFaces] = {"DIM", "CLOCK"};
+  return kLabels[(i >= 0 && i < kIdleFaces) ? i : 0];
 }
 
 }  // namespace bc

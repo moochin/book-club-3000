@@ -3,8 +3,8 @@
 // Pure (no hardware), so the rules are unit-tested on the PC. The LCD can't
 // burn in, but its LED backlight slowly wears with hours lit, and a picture
 // held for weeks can leave a faint, temporary ghost. So the unit turns the
-// backlight off at night and in a dark room, dims it when nobody has touched
-// the knob for a while, and nudges the whole picture by a pixel each hour.
+// backlight off at night and in a dark room, dims it (or, if set, shows a
+// low-lit clock) when nobody has touched the knob for a while, and nudges the whole picture by a pixel each hour.
 #pragma once
 
 #include <stdint.h>
@@ -13,7 +13,9 @@
 
 namespace bc {
 
-enum class ScreenPower : uint8_t { On, Dim, Off };
+// Clock: idle, with IDLE SCREEN set to CLOCK: a big clock at low backlight
+// instead of the dimmed picture.
+enum class ScreenPower : uint8_t { On, Dim, Off, Clock };
 
 struct ScreenRules {
   uint32_t darkBlankMs = 10UL * 60 * 1000;  // off after this long in a dark room
@@ -29,6 +31,7 @@ struct ScreenInputs {
   int16_t nightFrom = 23 * 60;   // minutes after midnight; may wrap past midnight
   int16_t nightTo = 7 * 60;
   uint32_t idleDimMs = 0;        // 0 = never dim
+  bool idleClock = false;        // idle shows the clock face rather than dimming
 };
 
 ScreenPower screenPower(const ScreenInputs& in, const ScreenRules& rules = ScreenRules());
@@ -63,5 +66,9 @@ const char* darkPresetLabel(int i);
 constexpr int kIdlePresets = 4;  // index 0 = never
 uint32_t idleDimPresetMs(int i);
 const char* idleDimPresetLabel(int i);
+
+// What the screen does once idle: 0 = dim (the default), 1 = clock face.
+constexpr int kIdleFaces = 2;
+const char* idleFaceLabel(int i);
 
 }  // namespace bc

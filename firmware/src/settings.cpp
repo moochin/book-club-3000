@@ -48,6 +48,8 @@ void begin() {
   u.effects = p.getBool("fx", true);
   u.nightPreset = p.getUChar("night", 1);
   u.idlePreset = p.getUChar("idle", 2);
+  u.idleFace = p.getUChar("idleface", 0);
+  if (u.idleFace >= bc::kIdleFaces) u.idleFace = 0;
   // A new key: "dark" (1.5.16-1.5.21) defaulted to VERY DARK and was saved
   // with every other setting, so it can't tell a choice from the default.
   // The sensors differ too much between units for any fixed level, so every
@@ -82,6 +84,7 @@ void save() {
   p.putBool("fx", u.effects);
   p.putUChar("night", u.nightPreset);
   p.putUChar("idle", u.idlePreset);
+  p.putUChar("idleface", u.idleFace);
   p.putUChar("dark2", u.darkPreset);
   if (p.isKey("dark")) p.remove("dark");
   p.putUChar("quiet", u.quietPreset);

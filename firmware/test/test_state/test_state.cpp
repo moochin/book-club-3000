@@ -729,6 +729,24 @@ void test_screen_day_on_then_dim() {
   TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(never));
 }
 
+void test_screen_idle_clock() {
+  ScreenInputs in = screenAt(14, 0, 30);
+  in.idleClock = true;
+  TEST_ASSERT_EQUAL((int)ScreenPower::Clock, (int)screenPower(in));
+  in.msSinceActivity = 5 * MIN;
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(in));
+  ScreenInputs night = screenAt(23, 30, 60);  // night still switches it off
+  night.idleClock = true;
+  TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(night));
+  ScreenInputs never = screenAt(14, 0, 600);
+  never.idleClock = true;
+  never.idleDimMs = 0;
+  TEST_ASSERT_EQUAL((int)ScreenPower::On, (int)screenPower(never));
+  TEST_ASSERT_EQUAL_STRING("DIM", idleFaceLabel(0));
+  TEST_ASSERT_EQUAL_STRING("CLOCK", idleFaceLabel(1));
+  TEST_ASSERT_EQUAL_STRING("DIM", idleFaceLabel(9));
+}
+
 void test_screen_night_off_and_wake() {
   TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(screenAt(23, 30, 5)));
   TEST_ASSERT_EQUAL((int)ScreenPower::Off, (int)screenPower(screenAt(3, 0, 5)));   // wraps midnight
@@ -1162,6 +1180,7 @@ int main() {
   RUN_TEST(test_next_birthday_shared_and_none);
   RUN_TEST(test_same_name);
   RUN_TEST(test_screen_day_on_then_dim);
+  RUN_TEST(test_screen_idle_clock);
   RUN_TEST(test_screen_night_off_and_wake);
   RUN_TEST(test_screen_dark_room_and_hold);
   RUN_TEST(test_minute_window_and_shift);
