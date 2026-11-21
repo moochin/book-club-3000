@@ -11,6 +11,7 @@
 #include "bc_date.h"
 #include "bc_nudge.h"
 #include "bc_health.h"
+#include "bc_knob.h"
 #include "bc_signal.h"
 #include "bc_sync_help.h"
 #include "bc_screen.h"
@@ -832,6 +833,38 @@ void test_nudge_roster_parsing() {
   TEST_ASSERT_EQUAL(-1, parseRoster("{}", 2, friends, kMaxFriends, me, sizeof me));
 }
 
+void test_knob_whole_clicks_and_dead_zone() {
+  KnobFilter f;
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 0, false, 0, 4, 150));
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 3, false, 10, 4, 150));   // most of a click: nothing yet
+  TEST_ASSERT_EQUAL(1, knobTurns(f, 4, false, 20, 4, 150));   // the click lands
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 5, false, 30, 4, 150));   // wobble forward...
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 3, false, 40, 4, 150));   // ...and back: still no turn
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 4, false, 50, 4, 150));
+  TEST_ASSERT_EQUAL(-1, knobTurns(f, 0, false, 60, 4, 150));  // a click back
+  TEST_ASSERT_EQUAL(3, knobTurns(f, 12, false, 70, 4, 150));  // a quick spin of three
+  // The knob starts wherever it sits: a power-on count of 3 is a resting click.
+  KnobFilter g;
+  TEST_ASSERT_EQUAL(0, knobTurns(g, 3, false, 0, 4, 150));
+  TEST_ASSERT_EQUAL(0, knobTurns(g, 4, false, 10, 4, 150));   // a one-count nudge isn't a turn
+  TEST_ASSERT_EQUAL(1, knobTurns(g, 7, false, 20, 4, 150));
+}
+
+void test_knob_press_lockout() {
+  KnobFilter f;
+  knobTurns(f, 0, false, 1000, 4, 150);
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 4, true, 1010, 4, 150));  // a full click while pressed: ignored
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 4, false, 1100, 4, 150)); // released, still in the lockout
+  TEST_ASSERT_EQUAL(0, knobTurns(f, 8, false, 1150, 4, 150)); // 140 ms after the last press poll
+  TEST_ASSERT_EQUAL(1, knobTurns(f, 12, false, 1170, 4, 150));// lockout over: and no delayed turns
+  // The lockout survives millis() wrapping round.
+  KnobFilter w;
+  knobTurns(w, 0, false, 0xFFFFFF00u, 4, 150);
+  TEST_ASSERT_EQUAL(0, knobTurns(w, 0, true, 0xFFFFFFF0u, 4, 150));
+  TEST_ASSERT_EQUAL(0, knobTurns(w, 4, false, 0x00000050u, 4, 150));  // 0x60 ms later: quiet
+  TEST_ASSERT_EQUAL(1, knobTurns(w, 8, false, 0x000000A0u, 4, 150));  // 0xB0 ms later: free
+}
+
 void test_phone_link() {
   char buf[96];
   TEST_ASSERT_TRUE(phoneLink("https://hub.example.workers.dev/", "tok-pete", buf, sizeof buf));
@@ -1188,6 +1221,8 @@ int main() {
   RUN_TEST(test_nudge_roster_parsing);
   RUN_TEST(test_nudge_messages_from_club_file);
   RUN_TEST(test_phone_link);
+  RUN_TEST(test_knob_whole_clicks_and_dead_zone);
+  RUN_TEST(test_knob_press_lockout);
   RUN_TEST(test_nudge_replies);
   RUN_TEST(test_poll_path);
   RUN_TEST(test_signal_parsing);

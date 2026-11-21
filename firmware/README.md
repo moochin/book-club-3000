@@ -97,7 +97,8 @@ src/ui         draws the model it is given; turns knob events into actions
 src/mascot     draws ../art/mascot PNGs (baked into src/art_data.h by
                scripts/art.py before each build); placeholders for the rest
 src/display    LovyanGFX panel + one 320x240 4-bit palette canvas, scanlines
-src/input      EC11 on the hardware pulse counter, debounced push switch
+src/input      EC11 on the hardware pulse counter, debounced push switch;
+               whole clicks only, none while pressed (lib/.../bc_knob.h)
 src/audio      generated Geiger ticks, knob clicks, meeting-day jingle, and
                recorded clips from ../art/sounds via the DAC; src/audio_gen
                has the machine noises (see "Sounds" below)

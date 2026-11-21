@@ -3,13 +3,14 @@
 #include <Arduino.h>
 #include <ESP32Encoder.h>
 
+#include "bc_knob.h"
 #include "config.h"
 #include "display.h"
 
 namespace input {
 
 static ESP32Encoder g_enc;
-static int64_t g_lastDetentCount = 0;
+static bc::KnobFilter g_knob;
 
 static bool g_rawDown = false;
 static bool g_down = false;
@@ -100,19 +101,16 @@ Events poll(uint32_t now) {
   Events e = g_injected;
   g_injected = Events();
 
-  // Turn: count whole detents, keep the remainder for next time.
-  const int64_t count = g_enc.getCount();
-  const int64_t detents = count / cfg::kEncCountsPerDetent;
-  if (detents != g_lastDetentCount) {
-    int64_t d = detents - g_lastDetentCount;
-    if (d > 100) d = 100;
-    if (d < -100) d = -100;
-    e.turn = (int8_t)(e.turn + (g_reversed ? -d : d));
-    g_lastDetentCount = detents;
-  }
+  const bool raw = digitalRead(cfg::kPinEncSw) == LOW;
+
+  // Turn: whole clicks only, and none while the knob is pressed (the raw
+  // switch state, so the lockout starts the moment it closes). A switch that
+  // hasn't armed yet (see below) may be an unwired, floating pin: not a press.
+  const int d = bc::knobTurns(g_knob, g_enc.getCount(), g_swArmed && raw, now, cfg::kEncCountsPerDetent,
+                              cfg::kKnobPressLockoutMs);
+  if (d) e.turn = (int8_t)(e.turn + (g_reversed ? -d : d));
 
   // Press: debounce, short on release, long while held.
-  const bool raw = digitalRead(cfg::kPinEncSw) == LOW;
   if (raw != g_rawDown) {
     g_rawDown = raw;
     g_changeMs = now;
