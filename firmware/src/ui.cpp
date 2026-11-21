@@ -39,9 +39,11 @@ enum class Screen : uint8_t {
   Tabs, Menu, OwnerCard, StatDetail, Help, About, Debug, ConfirmPortal, NudgeTo, NudgeMsg, NudgeSetup,
   Signals, SignalQuote, SyncStatus, PhoneQr
 };
-enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kSet = 3, kTabCount = 4 };
-// Tab boxes in the header: x of the first, step, width.
-constexpr int kTabX = 4, kTabStep = 54, kTabW = 50;
+enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kRadio = 3, kTabCount = 4 };
+// Tab boxes in the header, each sized to its name (12 px a letter), so the
+// four fit left of the quiet-hours icon at x = 224.
+constexpr int kTabXs[kTabCount] = {2, 56, 110, 152};
+constexpr int kTabWs[kTabCount] = {52, 52, 40, 64};
 
 enum MenuItem : uint8_t {
   kMiRefresh,
@@ -67,17 +69,20 @@ enum MenuItem : uint8_t {
   kMiGroupScreen,  // the groups: each opens a list of its own
   kMiGroupSound,
   kMiGroupUnit,
+  kMiSettings,     // RADIO's way into SETTINGS
 };
 
 // SETTINGS is a short top-level list, with the rest in groups, so no list
 // needs more than one page. A hold or BACK in a group goes up to the top.
-enum MenuGroup : uint8_t { kGroupTop, kGroupScreen, kGroupSound, kGroupUnit, kGroupCount };
-constexpr MenuItem kTopItems[] = {kMiRefresh,     kMiNudge,      kMiSignals,   kMiPhone,
-                                  kMiGroupScreen, kMiGroupSound, kMiGroupUnit, kMiBack};
+// RADIO (a press on the RADIO tab) is the club's comms: nudges, signals,
+// the phone page, and the way on into SETTINGS.
+enum MenuGroup : uint8_t { kGroupTop, kGroupScreen, kGroupSound, kGroupUnit, kGroupRadio, kGroupCount };
+constexpr MenuItem kTopItems[] = {kMiRefresh, kMiGroupScreen, kMiGroupSound, kMiGroupUnit, kMiBack};
 constexpr MenuItem kScreenItems[] = {kMiBrightness, kMiTheme, kMiEffects, kMiNight, kMiIdle, kMiIdleFace,
                                      kMiDark, kMiBack};
 constexpr MenuItem kSoundItems[] = {kMiSound, kMiVolume, kMiQuiet, kMiBack};
 constexpr MenuItem kUnitItems[] = {kMiOwner, kMiKnob, kMiHelp, kMiAbout, kMiWifi, kMiBack};
+constexpr MenuItem kRadioItems[] = {kMiNudge, kMiSignals, kMiPhone, kMiSettings, kMiBack};
 struct MenuDef {
   const char* title;
   const MenuItem* items;
@@ -90,6 +95,7 @@ const MenuDef kMenus[kGroupCount] = {
     BC_MENU("SCREEN", kScreenItems, kMiGroupScreen),
     BC_MENU("SOUND", kSoundItems, kMiGroupSound),
     BC_MENU("THIS UNIT", kUnitItems, kMiGroupUnit),
+    BC_MENU("RADIO", kRadioItems, kMiBack),
 };
 #undef BC_MENU
 
@@ -106,6 +112,9 @@ int g_msgSel = 0;    // SAY WHAT?
 int g_sigSel = 0;    // SIGNALS: -1 = BACK, 0.. = signals, then BROADCAST
 int g_quoteSel = 0;  // BROADCAST: -1 = BACK, 0.. = quotes
 Screen g_sigReturn = Screen::Menu;  // where SIGNALS goes back to
+Screen g_nudgeReturn = Screen::Menu;  // where NUDGE WHO? goes back to
+Screen g_qrReturn = Screen::Menu;     // where SEND FROM PHONE goes back to
+bool g_settingsFromRadio = false;     // SETTINGS was opened from RADIO: BACK returns there
 Screen g_setupReturn = Screen::Menu;  // where "not set up" goes back to
 bool g_syncBack = false;              // SYNC STATUS: BACK picked (else REFRESH NOW)
 bool g_setupSignals = false;          // it was opened from SIGNALS
@@ -122,6 +131,8 @@ uint8_t g_aboutPresses = 0;
 uint32_t g_aboutFirstPressMs = 0;
 
 constexpr int kLogRows = 4;
+// The RADIO tab's three tiles: NUDGE, SIGNALS, PHONE.
+constexpr int kRadioTileY = 166, kRadioTileH = 36, kRadioTileW = 96;
 constexpr int kLogRowH = 36;
 constexpr int kContentTop = 30;
 
@@ -175,15 +186,19 @@ void quietIcon(int x, int y) {
 
 void header(const Model& m) {
   auto& c = canvas();
-  static const char* const kNames[kTabCount] = {"STAT", "DATA", "LOG", "SET"};
+  static const char* const kNames[kTabCount] = {"STAT", "DATA", "LOG", "RADIO"};
+  // A friend's signal on the air lights RADIO up from the other tabs.
+  bool onAir = false;
+  for (int i = 0; i < m.signalCount; ++i)
+    if (!m.me[0] || strcmp(m.signals[i].from, m.me) != 0) onAir = true;
   for (int i = 0; i < kTabCount; ++i) {
-    const int x = kTabX + i * kTabStep;
+    const int x = kTabXs[i], w = kTabWs[i];
     const bool cur = i == g_tab && g_screen == Screen::Tabs;
     if (cur) {
-      c.drawRect(x, 2, kTabW, 22, kBright);
-      textCentered(x + kTabW / 2, 5, kNames[i], kHot, 2, 2);
+      c.drawRect(x, 2, w, 22, kBright);
+      textCentered(x + w / 2, 5, kNames[i], kHot, 2, 2);
     } else {
-      textCentered(x + kTabW / 2, 5, kNames[i], kDim, 2, 2);
+      textCentered(x + w / 2, 5, kNames[i], i == kRadio && onAir ? kBright : kDim, 2, 2);
     }
   }
   c.drawFastHLine(0, 26, cfg::kScreenW, kMid);
@@ -524,30 +539,6 @@ void clampLogTop(const Model& m) {
   g_logTop = constrain(g_logTop, 0, maxTop);
 }
 
-// The SET tab: a way into settings with the knob alone, and a glance at
-// the sound settings.
-void drawSet(const Model& m) {
-  auto& c = canvas();
-  frame(16, 44, cfg::kScreenW - 32, 48, kBright);
-  textCentered(cfg::kScreenW / 2, 60, "PRESS FOR SETTINGS", kHot, 2, 2);
-  text(16, 104, "(or tap here)", kDim);
-  char buf[48];
-  int y = 128;
-  auto line = [&](const char* k, const char* v, uint8_t ink = kText) {
-    text(16, y, k, kDim);
-    text(130, y, v, ink);
-    y += 18;
-  };
-  snprintf(buf, sizeof buf, "%s", m.sound ? "ON" : "OFF");
-  line("SOUND", buf, m.sound ? kText : kWarn);
-  snprintf(buf, sizeof buf, "%d/4", m.volume + 1);
-  line("VOLUME", buf);
-  snprintf(buf, sizeof buf, "%s%s", bc::quietPreset(m.quietPreset).label, m.quietNow ? " (NOW)" : "");
-  line("QUIET HOURS", buf, m.quietNow ? kWarn : kText);
-  line("WI-FI", m.wifiUp ? "CONNECTED" : "OFFLINE", m.wifiUp ? kText : kWarn);
-  line("FIRMWARE", BC_FW_VERSION);
-}
-
 void drawLog(const Model& m) {
   auto& c = canvas();
   const bc::BookClubData& d = *m.data;
@@ -637,6 +628,7 @@ void menuItemLabel(MenuItem i, const Model& m, char* buf, int len) {
     case kMiGroupScreen: snprintf(buf, len, "SCREEN >"); break;
     case kMiGroupSound: snprintf(buf, len, "SOUND >"); break;
     case kMiGroupUnit: snprintf(buf, len, "THIS UNIT >"); break;
+    case kMiSettings: snprintf(buf, len, "SETTINGS >"); break;
     default: buf[0] = 0;
   }
 }
@@ -656,12 +648,33 @@ void openMenu() {
   g_screen = Screen::Menu;
   g_menuGroup = kGroupTop;
   g_menuSel = 0;
+  g_settingsFromRadio = false;
+}
+
+// Opens the RADIO list.
+void openRadio() {
+  g_screen = Screen::Menu;
+  g_menuGroup = kGroupRadio;
+  g_menuSel = 0;
 }
 
 // BACK or a hold in SETTINGS: from a group up to the top (on that group's
-// row), from the top out to the tabs.
+// row), from the top out to the tabs, or back to RADIO (on SETTINGS >) if
+// that's where it was opened. From RADIO, out to the tabs.
 void menuUp() {
+  if (g_menuGroup == kGroupRadio) {
+    g_screen = Screen::Tabs;
+    return;
+  }
   if (g_menuGroup == kGroupTop) {
+    if (g_settingsFromRadio) {
+      g_settingsFromRadio = false;
+      g_menuGroup = kGroupRadio;
+      g_menuSel = 0;
+      for (int k = 0; k < kMenus[kGroupRadio].count; ++k)
+        if (kMenus[kGroupRadio].items[k] == kMiSettings) g_menuSel = k;
+      return;
+    }
     g_screen = Screen::Tabs;
     return;
   }
@@ -894,8 +907,8 @@ struct HelpPage {
 
 const HelpPage kHelp[] = {
     {"GETTING AROUND",
-     {"TABS: tap STAT, DATA, LOG or SET, or turn the knob.",
-      "SETTINGS: turn to SET and press, tap the clock, or hold 2 s.",
+     {"TABS: tap STAT, DATA, LOG or RADIO, or turn.",
+      "SETTINGS: hold 2 s, tap the clock, or via RADIO.",
       "BACK: pick < BACK, tap the title, or hold 2 s. In a settings group: up a level.",
       "LOG: tap the top or bottom half to page.",
       "OWNER CARD: press the knob on STAT, or tap the mascot. Turn or tap for a stat's page."}},
@@ -911,15 +924,15 @@ const HelpPage kHelp[] = {
       "tap the triangle, to see why and what to do.",
       "Factory reset: hold BOOT while plugging in, for 10 s.", nullptr}},
     {"NUDGES",
-     {"SETTINGS > SEND NUDGE: pick a friend (or EVERYONE), then a message.",
+     {"RADIO > NUDGE: pick a friend (or EVERYONE), then a message.",
       "A friend's nudge chirps, flashes and waits on screen (silently in quiet hours). "
       "Turn to pick a reply; press sends it or dismisses.",
-      "From a phone: SETTINGS > SEND FROM PHONE shows a QR code that signs into the hub's page as you.",
+      "From a phone: RADIO > PHONE shows a QR code that signs into the hub's page as you.",
       "Setting up: the club file needs the hub's address, and this unit its token (setup page).",
       nullptr}},
     {"SIGNALS",
      {"A quote for the whole club, on the air for 24 hours and then gone.",
-      "SETTINGS > SIGNALS: turn through what's on the air. The last page broadcasts yours: "
+      "RADIO > SIGNALS: turn through what's on the air. The last page broadcasts yours: "
       "turn to pick a quote, press to send. A new one replaces your old one.",
       "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
       "Your own quotes: \"signals\" in the club file.", nullptr}},
@@ -1293,6 +1306,64 @@ void drawSignalQuote(const Model& m) {
 }
 
 // A friend's new signal, over whatever is on screen until someone dismisses it.
+// ---- RADIO ------------------------------------------------------------------
+
+// The RADIO tab: the newest signal on the air, the last nudge in, and big
+// targets for NUDGE, SIGNALS and PHONE. A press opens the RADIO list, which
+// also leads on to SETTINGS.
+void drawRadio(const Model& m, uint32_t t) {
+  auto& c = canvas();
+  char buf[64], who[bc::kNameLen], left[16];
+  const int n = m.signalCount;
+  text(8, 32, "ON THE AIR", kDim);
+  if (n > 1) {
+    snprintf(buf, sizeof buf, "+%d MORE", n - 1);
+    textRight(cfg::kScreenW - 8, 32, buf, kDim);
+  }
+  frame(8, 50, cfg::kScreenW - 16, 72, n ? kBright : kMid);
+  if (!m.nudgesConfigured) {
+    textCentered(cfg::kScreenW / 2, 66, "THE NUDGE HUB ISN'T SET UP YET", kWarn);
+    textCentered(cfg::kScreenW / 2, 90, "Tap a tile below to see what it needs.", kDim);
+  } else if (n) {
+    const bc::Signal& s = m.signals[0];
+    senderName(s, m, who, sizeof who);
+    bc::signalLeftText(s.left, left, sizeof left);
+    snprintf(buf, sizeof buf, "FROM %s", who);
+    text(16, 54, buf, kHot, 1, 1);
+    textRight(cfg::kScreenW - 16, 54, left, kDim, 1, 1);
+    quoteText(16, 68, cfg::kScreenW - 32, 50, s.msg, kText);
+  } else {
+    radioStatic(10, 52, cfg::kScreenW - 20, 68, t);
+    c.fillRect(56, 76, cfg::kScreenW - 112, 20, kBg);
+    textCentered(cfg::kScreenW / 2, 78, "THE AIRWAVES ARE SILENT", kHot);
+  }
+
+  // The last nudge in (since start-up).
+  if (m.lastNudge && m.lastNudge->from[0]) {
+    char age[16];
+    bc::asciiFold(m.lastNudge->from, who, sizeof who);
+    bc::upperAscii(who);
+    clockmod::formatAge((uint32_t)(m.lastNudge->at / 1000), age, sizeof age);
+    snprintf(buf, sizeof buf, "LAST NUDGE: %s%s, %s", m.lastNudge->re ? "REPLY FROM " : "", who, age);
+    text(8, 128, buf, kDim, 1, 1);
+    folded(8, 142, m.lastNudge->msg, kText, 51);
+  } else {
+    text(8, 128, "LAST NUDGE", kDim, 1, 1);
+    text(8, 142, m.nudgesConfigured ? "Nothing in yet. Start something." : "-", kText);
+  }
+
+  static const char* const kTiles[3] = {"NUDGE", "SIGNALS", "PHONE"};
+  for (int i = 0; i < 3; ++i) {
+    const int x = 8 + i * (kRadioTileW + 8);
+    frame(x, kRadioTileY, kRadioTileW, kRadioTileH, kBright);
+    textCentered(x + kRadioTileW / 2, kRadioTileY + 9, kTiles[i], kHot, 2, 2);
+  }
+
+  text(8, 218, "PRESS: RADIO MENU", kDim);
+  frame(196, 210, 116, 26, kMid);
+  textCentered(254, 215, "SETTINGS >", kText);
+}
+
 void drawIncomingSignal(const Model& m, uint32_t t) {
   auto& c = canvas();
   const bc::Signal& s = *m.incomingSignal;
@@ -1374,6 +1445,19 @@ void openSignals(const Model& m, Screen from) {
   g_screen = m.nudgesConfigured ? Screen::Signals : Screen::NudgeSetup;
 }
 
+void openNudge(const Model& m, Screen from) {
+  g_setupReturn = from;
+  g_setupSignals = false;
+  g_nudgeReturn = from;
+  g_nudgeSel = 0;
+  g_screen = m.nudgesConfigured ? Screen::NudgeTo : Screen::NudgeSetup;
+}
+
+void openPhone(Screen from) {
+  g_qrReturn = from;
+  g_screen = Screen::PhoneQr;
+}
+
 }  // namespace
 
 void begin() {}
@@ -1418,7 +1502,7 @@ View view() {
 }
 
 bool returnToStat() {
-  if (!view().settings && !(g_screen == Screen::Tabs && g_tab == kSet)) return false;
+  if (!view().settings && !(g_screen == Screen::Tabs && g_tab == kRadio)) return false;
   g_screen = Screen::Tabs;
   g_tab = kStat;
   g_menuGroup = kGroupTop;
@@ -1431,6 +1515,7 @@ bool animating(const Model& m) {
   if (m.clockFace) return false;  // once a second is plenty
   if (m.incoming || m.incomingSignal) return false;
   if (g_screen == Screen::Signals && m.signalCount == 0) return true;  // the static
+  if (g_screen == Screen::Tabs && g_tab == kRadio && m.nudgesConfigured && m.signalCount == 0) return true;
   return (g_screen == Screen::Tabs && g_tab == kStat) || g_screen == Screen::StatDetail;
 }
 
@@ -1474,8 +1559,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
   switch (g_screen) {
     case Screen::Tabs:
-      if (e.longPress || (g_tab == kSet && e.shortPress)) {
+      if (e.longPress) {
         openMenu();
+        break;
+      }
+      if (g_tab == kRadio && e.shortPress) {
+        openRadio();
         break;
       }
       if (g_tab == kStat && e.shortPress) {
@@ -1509,12 +1598,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       if (e.shortPress) {
         switch (curMenu().items[g_menuSel]) {
           case kMiRefresh: r.action = Action::RefreshNow; g_screen = Screen::Tabs; g_tab = kData; break;
-          case kMiNudge:
-            g_setupReturn = Screen::Menu;
-            g_setupSignals = false;
-            g_screen = m.nudgesConfigured ? Screen::NudgeTo : Screen::NudgeSetup;
-            g_nudgeSel = 0;
-            break;
+          case kMiNudge: openNudge(m, Screen::Menu); break;
           case kMiSignals: openSignals(m, Screen::Menu); break;
           case kMiSound: r.action = Action::ToggleSound; break;
           case kMiVolume: r.action = Action::CycleVolume; break;
@@ -1531,7 +1615,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           case kMiHelp: g_screen = Screen::Help; g_helpPage = 0; break;
           case kMiAbout: g_screen = Screen::About; g_aboutPresses = 0; break;
           case kMiWifi: g_screen = Screen::ConfirmPortal; g_confirmYes = false; break;
-          case kMiPhone: g_screen = Screen::PhoneQr; break;
+          case kMiPhone: openPhone(Screen::Menu); break;
+          case kMiSettings:
+            g_menuGroup = kGroupTop;
+            g_menuSel = 0;
+            g_settingsFromRadio = true;
+            break;
           case kMiGroupScreen: g_menuGroup = kGroupScreen; g_menuSel = 0; break;
           case kMiGroupSound: g_menuGroup = kGroupSound; g_menuSel = 0; break;
           case kMiGroupUnit: g_menuGroup = kGroupUnit; g_menuSel = 0; break;
@@ -1541,7 +1630,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       break;
 
     case Screen::PhoneQr:
-      if (e.shortPress || e.longPress || e.turn) g_screen = Screen::Menu;
+      if (e.shortPress || e.longPress || e.turn) g_screen = g_qrReturn;
       break;
 
     case Screen::OwnerCard: {
@@ -1596,12 +1685,12 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
 
     case Screen::NudgeTo:
       if (e.longPress) {
-        g_screen = Screen::Menu;
+        g_screen = g_nudgeReturn;
         break;
       }
       g_nudgeSel = constrain(g_nudgeSel + e.turn, 0, m.friendCount + 1);
       if (e.shortPress && g_nudgeSel > m.friendCount) {
-        g_screen = Screen::Menu;  // BACK
+        g_screen = g_nudgeReturn;  // BACK
         break;
       }
       if (e.shortPress) {
@@ -1735,8 +1824,8 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
     case Screen::Tabs:
       if (title) {
         for (int i = 0; i < kTabCount; ++i) {
-          const int tx = kTabX + i * kTabStep;  // as drawn by header()
-          if (x >= tx - 2 && x < tx + kTabW + 2) {
+          const int tx = kTabXs[i], tw = kTabWs[i];  // as drawn by header()
+          if (x >= tx - 1 && x < tx + tw + 1) {
             g_tab = (uint8_t)i;
             g_logScroll = false;
             return r;
@@ -1750,7 +1839,22 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
         if (x >= 220) return handle(hold, m, now);  // clock corner: settings
         return r;
       }
-      if (g_tab == kSet) return handle(press, m, now);
+      // RADIO: its tiles open their screens; the bottom right, SETTINGS.
+      if (g_tab == kRadio) {
+        if (y >= kRadioTileY && y < kRadioTileY + kRadioTileH) {
+          const int tile = (x - 8) / (kRadioTileW + 8);
+          if (tile <= 0) openNudge(m, Screen::Tabs);
+          else if (tile == 1) openSignals(m, Screen::Tabs);
+          else openPhone(Screen::Tabs);
+        } else if (y >= 206 && x >= 160) {
+          openMenu();
+        } else if (y >= 30 && y < 124) {
+          openSignals(m, Screen::Tabs);  // the signal box
+        } else if (y >= 124 && y < kRadioTileY) {
+          openNudge(m, Screen::Tabs);  // the last-nudge lines
+        }
+        return r;
+      }
       // DATA: the sync line at the bottom opens SYNC STATUS.
       if (g_tab == kData && m.data && m.state.clockValid && y >= 206) {
         openSyncStatus();
@@ -1986,13 +2090,13 @@ void render(const Model& m, uint32_t t) {
     return;
   } else if (g_screen == Screen::Tabs) {
     header(m);
-    if (g_tab == kSet) {
-      drawSet(m);
+    if (g_tab == kRadio) {
+      drawRadio(m, t);
     } else if (!m.data) {
       drawCentredScreen("NO DATA YET",
                         m.wifiUp ? "Fetching the club file..." : "Waiting for Wi-Fi...",
                         m.syncError[0] ? m.syncError : nullptr,
-                        "Turn to SET and press for settings.", t);
+                        "Hold the knob 2 s, or tap the clock, for settings.", t);
     } else if (!m.state.clockValid) {
       drawCentredScreen("SYNCING CLOCK",
                         m.wifiUp ? "Asking the time servers..." : "Waiting for Wi-Fi to set the time.",

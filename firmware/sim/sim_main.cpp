@@ -123,13 +123,16 @@ int main(int argc, char** argv) {
   ev(m, +1); shot("data", m);
   ev(m, +1); shot("log", m);
   ev(m, 0, true); ev(m, +2); shot("log_scrolled", m);
-  ev(m, 0, true); ev(m, +1); shot("set", m);  // SET: the way into settings
-  ev(m, +1);                                     // round to STAT
+  ev(m, 0, true); ev(m, +1); shot("radio_unset", m);  // RADIO, no hub yet
+  ev(m, 0, true); shot("radio_menu", m);                   // press: the RADIO list
+  ev(m, +3); ev(m, 0, true); shot("radio_settings", m);    // SETTINGS >
+  ev(m, 0, false, true); shot("radio_menu_back", m);       // hold: back on SETTINGS >
+  ev(m, 0, false, true); ev(m, +1);                        // out, round to STAT
 
-  // Settings menu, its groups and their screens. Top level: REFRESH, NUDGE,
-  // SIGNALS, PHONE, SCREEN >, SOUND >, THIS UNIT >, BACK.
+  // Settings menu, its groups and their screens. Top level: REFRESH,
+  // SCREEN >, SOUND >, THIS UNIT >, BACK.
   ev(m, 0, false, true); shot("menu", m);
-  ev(m, +4); ev(m, 0, true); shot("menu_screen", m);   // SCREEN >
+  ev(m, +1); ev(m, 0, true); shot("menu_screen", m);   // SCREEN >
   ev(m, 0, false, true); shot("menu_back_on_screen", m);  // hold: up to the top, on SCREEN >
   ev(m, +1); ev(m, 0, true); ev(m, +2); shot("menu_quiet", m);  // SOUND > QUIET HOURS
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("menu_unit", m);  // THIS UNIT >
@@ -158,7 +161,7 @@ int main(int argc, char** argv) {
   {
     ui::Model pm = m;
     pm.hubUrl = "https://bookclub-nudge.example.workers.dev/";
-    ev(pm, 0, false, true); ev(pm, +3); shot("menu_phone", pm);
+    ev(pm, -1); ev(pm, 0, true); ev(pm, +2); shot("menu_phone", pm);  // RADIO > PHONE
     ev(pm, 0, true); shot("phone_qr", pm);
     pm.nudgeToken = "pete-7f3a9c2e41b84d0e9a6c5b2f1e8d7c40";
     shot("phone_qr_token", pm);
@@ -173,7 +176,7 @@ int main(int argc, char** argv) {
       ui::handle(tap, pm, g_simMillis += 100);
       shot("phone_qr_tapped_back", pm);
     }
-    ev(pm, 0, false, true);                                // back to the tabs
+    ev(pm, 0, false, true); ev(pm, +1);                    // back to the tabs, STAT
   }
 
   // A knob press on STAT opens the owner card; a hold goes back.
@@ -214,7 +217,7 @@ int main(int argc, char** argv) {
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;
-    ev(cm, 0, false, true); ev(cm, +6); ev(cm, 0, true); ev(cm, 0, true);  // THIS UNIT > OWNER CARD
+    ev(cm, 0, false, true); ev(cm, +3); ev(cm, 0, true); ev(cm, 0, true);  // THIS UNIT > OWNER CARD
     cm.caps.adjust = -4;
     strcpy(cm.caps.note, "Forgot the anniversary");
     cm.caps.balance = 6;
@@ -233,11 +236,12 @@ int main(int argc, char** argv) {
     nm.nudgesConfigured = true;
     nm.friendCount = 3;
     for (int i = 0; i < 3; ++i) nm.friends[i] = kFriends[i];
-    ev(nm, 0, false, true); ev(nm, +1); ev(nm, 0, true);  // menu > SEND NUDGE
+    ev(nm, -1); ev(nm, 0, true); ev(nm, 0, true);         // RADIO > SEND NUDGE
     ev(nm, +1); shot("nudge_who", nm);                      // highlight DAVE
     ev(nm, 0, true); ev(nm, +1); shot("nudge_what", nm);    // TO DAVE:, 2nd message
     nm.toast = "NUDGE SENT TO DAVE";
-    ev(nm, 0, true); shot("nudge_sent", nm);                // sends, back to the tabs
+    ev(nm, 0, true); shot("nudge_sent", nm);                // sends, back to RADIO
+    ev(nm, +1);                                             // round to STAT
     nm.toast = nullptr;
     bc::Nudge in;
     strcpy(in.from, "Sam");
@@ -249,10 +253,14 @@ int main(int argc, char** argv) {
     strcpy(in.msg, "I'M ON. YOU'RE NOT. SHAME.");
     shot("nudge_incoming_long", nm);
     nm.incoming = nullptr;
+    in.at = 1794996400000ULL;  // an hour before the sim's clock
+    nm.lastNudge = &in;
+    ev(nm, -1); g_simMillis = 5000; shot("radio_silent", nm);  // RADIO: no signals, the last nudge
+    nm.lastNudge = nullptr;
     nm.nudgesConfigured = false;
-    ev(nm, 0, false, true); ev(nm, +1); ev(nm, 0, true);
+    ev(nm, 0, true); ev(nm, 0, true);
     shot("nudge_setup", nm);
-    ev(nm, 0, true); ev(nm, 0, false, true);                // back to the tabs
+    ev(nm, 0, true); ev(nm, 0, false, true); ev(nm, +1);    // back to the tabs, STAT
   }
 
   // Signals: the arrival screen, the viewer, BROADCAST, the quote picker.
@@ -280,7 +288,18 @@ int main(int argc, char** argv) {
     sm.incomingSignal = &sigs[2];
     shot("signal_incoming_long", sm);
     sm.incomingSignal = nullptr;
-    ev(sm, 0, false, true); ev(sm, +2); shot("signal_menu", sm);  // SETTINGS > SIGNALS
+    ev(sm, -1); shot("radio", sm);                           // RADIO: Dave's on top
+    {
+      input::Events tap;  // tap the SIGNALS tile: straight in; a hold goes back to RADIO
+      tap.tap = true;
+      tap.x = 160;
+      tap.y = 184;
+      ui::handle(tap, sm, g_simMillis += 100);
+      shot("radio_tap_signals", sm);
+      ev(sm, 0, false, true);
+      shot("radio_tap_back", sm);
+    }
+    ev(sm, 0, true); ev(sm, +1); shot("signal_menu", sm);    // RADIO > SIGNALS
     ev(sm, 0, true); shot("signal_view", sm);                // Dave's
     ev(sm, +2); shot("signal_view_long", sm);                 // Sam's, fading
     ev(sm, +1); shot("signal_broadcast", sm);                // BROADCAST (yours is on)
@@ -290,10 +309,10 @@ int main(int argc, char** argv) {
     sm.toast = nullptr;
     sm.signalCount = 0;
     sm.signalsError = "the hub needs updating for signals";
-    ev(sm, 0, false, true); ev(sm, +2); ev(sm, 0, true);
+    ev(sm, 0, true); ev(sm, +1); ev(sm, 0, true);
     g_simMillis = 5000;
     shot("signal_silent", sm);                               // nothing on the air
-    ev(sm, 0, false, true); ev(sm, 0, false, true);          // back to the tabs
+    ev(sm, 0, false, true); ev(sm, 0, false, true); ev(sm, +1);  // back to the tabs, STAT
     sm.signalsError = "";
   }
 

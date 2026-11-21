@@ -4,8 +4,8 @@ A tiny [Cloudflare Worker](https://developers.cloudflare.com/workers/) that
 passes nudges ("GET YOUR ASS ONLINE") between the club's units, and keeps the
 club's signals: quotes broadcast to everyone that vanish after 24 hours. Each
 unit checks in every 5 minutes with one `/poll` (nudges, signals and the
-friends list together); sending goes through the knob menu (**SETTINGS → SEND
-NUDGE** and **SETTINGS → SIGNALS**) or the hub's web page.
+friends list together); sending goes through the unit's RADIO tab (**RADIO → NUDGE**
+and **RADIO → SIGNALS**) or the hub's web page.
 
 One person sets it up once, on their own free Cloudflare account. It needs no
 server and costs nothing at this size. Four units checking every 5 minutes

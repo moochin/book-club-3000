@@ -57,6 +57,7 @@ struct Model {
   int friendCount = 0;
   const char* friends[bc::kMaxFriends] = {};
   const bc::Nudge* incoming = nullptr;     // a received nudge waiting to be seen
+  const bc::Nudge* lastNudge = nullptr;    // the last friend's nudge in since start-up (RADIO)
   const char* toast = nullptr;             // a short note at the bottom ("NUDGE SENT")
   bool toastWarn = false;
   // Signals: quotes on the air for 24 hours.
@@ -122,7 +123,7 @@ struct View {
   int cursor = -100;
 };
 View view();
-// From the SET tab or any settings screen, back to the STAT tab (the main
+// From the RADIO tab or any settings screen, back to the STAT tab (the main
 // loop calls this after a long idle). True if the screen changed.
 bool returnToStat();
 const char* screenName();  // for the test console
