@@ -191,6 +191,10 @@ Poke a friend from your desk: **RADIO → NUDGE**, pick a friend (or
 EVERYONE), then a message. It lands on their unit within 5 minutes, with a
 chirp, a flashing blue light and the message in big letters until they press
 or tap. In quiet hours (22:00–08:00 unless changed in **SETTINGS → SOUND → QUIET HOURS**) it arrives silently and waits on screen.
+A nudge to EVERYONE also comes back to your own unit, from the unit or the
+phone page, as **YOUR NUDGE**, so you see what everyone else sees. A nudge to
+one friend doesn't. (This needs the hub updated once, see below; units before
+1.5.36 show it as from you and offer replies that won't send.)
 
 **Replying** (from 1.5.25): turn the knob while a friend's nudge is on screen
 to pick a reply (*ON MY WAY*, *5 MINS*, *LATER*, *NOT TONIGHT*, *NO.*, *LOL*,
@@ -219,9 +223,10 @@ It stays on the air for 24 hours, then it's gone for good.
 who sent it and a signal-strength bar that fades as its 24 hours run out.
 Turn past the last one to **BROADCAST YOURS**, press, turn to pick a quote and
 press to send. Each person gets one signal a day (the day starts at midnight,
-UK time), from their unit or the web page below; the next day's replaces it. When a friend's new signal arrives,
+UK time), from their unit or the web page below; the next day's replaces it. When a new signal arrives,
 units tune in with a sweep of the radio dial and show it until someone presses
-or taps. In quiet hours it arrives silently. STAT mentions what's on the air,
+or taps. From 1.5.36 that includes the sender's own unit, wherever it was sent
+from. In quiet hours it arrives silently. STAT mentions what's on the air,
 and tapping that line opens the signals.
 
 The built-in quotes come from books old enough to belong to everyone

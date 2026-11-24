@@ -252,6 +252,13 @@ int main(int argc, char** argv) {
     strcpy(in.from, "Jonno");
     strcpy(in.msg, "I'M ON. YOU'RE NOT. SHAME.");
     shot("nudge_incoming_long", nm);
+    strcpy(in.from, "Pete");  // your own nudge to everyone, back from the hub
+    strcpy(in.msg, "GET YOUR ASS ONLINE");
+    nm.me = "Pete";
+    shot("nudge_incoming_own", nm);
+    nm.me = "";
+    strcpy(in.from, "Jonno");
+    strcpy(in.msg, "I'M ON. YOU'RE NOT. SHAME.");
     nm.incoming = nullptr;
     in.at = 1794996400000ULL;  // an hour before the sim's clock
     nm.lastNudge = &in;

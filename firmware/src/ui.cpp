@@ -934,7 +934,7 @@ const HelpPage kHelp[] = {
      {"A quote for the whole club, on the air for 24 hours and then gone.",
       "RADIO > SIGNALS: turn through what's on the air. The last page broadcasts yours: "
       "turn to pick a quote, press to send. A new one replaces your old one.",
-      "A friend's new signal tunes in on screen. Press or tap to dismiss it.",
+      "A new signal (yours too) tunes in on screen. Press or tap to dismiss it.",
       "Your own quotes: \"signals\" in the club file.", nullptr}},
     {"THE SCREEN",
      {"It switches off at night (SETTINGS > SCREEN > SCREEN OFF). It can also switch off after "
@@ -1096,6 +1096,11 @@ void drawToast(const Model& m) {
   textCentered(cfg::kScreenW / 2, cfg::kScreenH - 18, f, m.toastWarn ? kWarn : kHot);
 }
 
+// Your own nudge to everyone comes back to your unit too: shown as yours,
+// with nothing to reply to.
+bool ownNudge(const bc::Nudge& n, const Model& m) { return m.me[0] && strcmp(n.from, m.me) == 0; }
+bool replyable(const bc::Nudge& n, const Model& m) { return bc::canReply(n) && !ownNudge(n, m); }
+
 // A received nudge, over whatever is on screen until someone dismisses it.
 void drawIncoming(const Model& m, uint32_t t) {
   auto& c = canvas();
@@ -1108,7 +1113,8 @@ void drawIncoming(const Model& m, uint32_t t) {
   char from[bc::kNameLen], title[40];
   bc::asciiFold(m.incoming->from, from, sizeof from);
   bc::upperAscii(from);
-  if (from[0]) snprintf(title, sizeof title, m.incoming->re ? "REPLY FROM %s" : "NUDGE FROM %s", from);
+  if (ownNudge(*m.incoming, m)) strlcpy(title, "YOUR NUDGE", sizeof title);
+  else if (from[0]) snprintf(title, sizeof title, m.incoming->re ? "REPLY FROM %s" : "NUDGE FROM %s", from);
   else strlcpy(title, "BOOK CLUB", sizeof title);  // a reminder from the unit itself
   textCentered(cfg::kScreenW / 2, y + 12, title, kHot, 2, 2);
   c.drawFastHLine(x + 10, y + 40, w - 20, kMid);
@@ -1133,7 +1139,7 @@ void drawIncoming(const Model& m, uint32_t t) {
     p += n;
     ++row;
   }
-  if (!bc::canReply(*m.incoming)) {
+  if (!replyable(*m.incoming, m)) {
     textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO DISMISS", kDim);
     return;
   }
@@ -1305,7 +1311,6 @@ void drawSignalQuote(const Model& m) {
   textCentered(cfg::kScreenW / 2, 218, "ON THE AIR 24 HOURS, THEN GONE", kDim);
 }
 
-// A friend's new signal, over whatever is on screen until someone dismisses it.
 // ---- RADIO ------------------------------------------------------------------
 
 // The RADIO tab: the newest signal on the air, the last nudge in, and big
@@ -1343,6 +1348,7 @@ void drawRadio(const Model& m, uint32_t t) {
     char age[16];
     bc::asciiFold(m.lastNudge->from, who, sizeof who);
     bc::upperAscii(who);
+    if (ownNudge(*m.lastNudge, m)) strlcpy(who, "YOU", sizeof who);
     clockmod::formatAge((uint32_t)(m.lastNudge->at / 1000), age, sizeof age);
     snprintf(buf, sizeof buf, "LAST NUDGE: %s%s, %s", m.lastNudge->re ? "REPLY FROM " : "", who, age);
     text(8, 128, buf, kDim, 1, 1);
@@ -1364,6 +1370,8 @@ void drawRadio(const Model& m, uint32_t t) {
   textCentered(254, 215, "SETTINGS >", kText);
 }
 
+// A new signal (a friend's, or your own coming back from the hub), over
+// whatever is on screen until someone dismisses it.
 void drawIncomingSignal(const Model& m, uint32_t t) {
   auto& c = canvas();
   const bc::Signal& s = *m.incomingSignal;
@@ -1533,7 +1541,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
   // bottom to pick, the middle to send, anywhere else to dismiss. Any other
   // nudge: any knob or touch event dismisses it.
   if (m.incoming) {
-    if (bc::canReply(*m.incoming)) {
+    if (replyable(*m.incoming, m)) {
       syncReply(*m.incoming);
       if (e.turn) {
         stepReply(e.turn);

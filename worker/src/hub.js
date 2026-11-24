@@ -12,6 +12,9 @@
 //   GET  /roster   -> {"me": "Pete", "friends": ["Dave", "Sam"]}
 //   GET  /inbox    -> {"nudges": [{"from","msg","at"}]}  (and empties it)
 //   POST /nudge    {"to": "Dave" | "*", "msg": "...", "re": true?} -> {"sent": ["Dave"]}
+//                  A nudge to everyone ("*") lands in the sender's inbox too,
+//                  so their own unit shows it like everyone else's ("sent"
+//                  still lists only the friends).
 //                  "re" marks a reply to a nudge; units show it as one and
 //                  offer no reply to it, so two units can't ping-pong.
 //   GET  /         the web page for sending from a phone (no token needed;
@@ -225,7 +228,8 @@ export async function handle(request, env, now) {
 
     const nudge = { from: me, msg, at: now };
     if (body.re === true) nudge.re = true;
-    for (const name of to) {
+    const inboxes = body.to === "*" ? [...to, me] : to;
+    for (const name of inboxes) {
       const key = `inbox:${name}`;
       const inbox = (await env.NUDGES.get(key, "json")) || [];
       inbox.push(nudge);
