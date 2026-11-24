@@ -69,11 +69,19 @@ test("an empty inbox check costs no KV writes", async () => {
   assert.equal(env.NUDGES.writes, 0);
 });
 
-test("everyone (*) reaches all friends but not the sender", async () => {
+test("everyone (*) reaches all friends and the sender's own unit", async () => {
   const env = setup();
   const r = await req(env, "Sam", "POST", "/nudge", { to: "*", msg: "THINKING OF YOU, LOSER" });
   assert.deepEqual(r.body.sent, ["Pete", "Dave"]);
   assert.equal((await req(env, "Pete", "GET", "/inbox")).body.nudges.length, 1);
+  const own = (await req(env, "Sam", "GET", "/inbox")).body.nudges;
+  assert.equal(own.length, 1);
+  assert.equal(own[0].from, "Sam");
+});
+
+test("a nudge to one friend isn't copied to the sender", async () => {
+  const env = setup();
+  await req(env, "Sam", "POST", "/nudge", { to: "Dave", msg: "GET YOUR ASS ONLINE" });
   assert.equal((await req(env, "Sam", "GET", "/inbox")).body.nudges.length, 0);
 });
 

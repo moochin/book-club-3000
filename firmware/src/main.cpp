@@ -521,9 +521,10 @@ void loop() {
       g_nudgeWake = true;
     }
   }
-  // A friend's new signal: after each check, the newest one we haven't
-  // announced tunes in on screen (silently in quiet hours). Older new ones
-  // are marked seen too; they're all in RADIO > SIGNALS.
+  // A new signal, a friend's or (from 1.5.36) your own: after each check,
+  // the newest one we haven't announced tunes in on screen (silently in
+  // quiet hours). Older new ones are marked seen too; they're all in
+  // RADIO > SIGNALS.
   const int signalCount = nudge::signals(g_signals, bc::kMaxSignals, now);
   const uint32_t sv = nudge::signalsVersion();
   if (sv != g_signalsSeenVersion && !g_nudgeShown && !g_signalShown) {
@@ -532,7 +533,7 @@ void loop() {
     int newest = -1;
     uint32_t seen = g_signalSeenAt;
     for (int i = 0; me[0] && i < signalCount; ++i) {
-      if (strcmp(g_signals[i].from, me) == 0 || g_signals[i].at <= g_signalSeenAt) continue;
+      if (g_signals[i].at <= g_signalSeenAt) continue;
       if (newest < 0 || g_signals[i].at > g_signals[newest].at) newest = i;
       if (g_signals[i].at > seen) seen = g_signals[i].at;
     }

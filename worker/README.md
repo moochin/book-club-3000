@@ -70,7 +70,8 @@ You need Node.js 18 or later and a free Cloudflare account.
 
 ## Updating the hub
 
-When `src/hub.js` changes (signals were added after the first version), run
+When `src/hub.js` changes (signals were added after the first version, and
+nudges to everyone started coming back to the sender in 1.5.36), run
 `npx wrangler deploy` from this folder again. The storage and the `UNITS`
 secret are kept.
 
@@ -98,7 +99,8 @@ unit token" until they're updated.
   and the token says which unit is calling.
 - **Messages:** plain text, 40 characters at most. Curly quotes are
   straightened for the units' font.
-- **Inboxes:** each keeps the newest 20.
+- **Inboxes:** each keeps the newest 20. A nudge to everyone goes in the
+  sender's inbox too.
 - **Signals:** plain text, 100 characters at most. Each is stored with a
   24-hour expiry, so Cloudflare deletes it, and `/signals` skips any copy
   older than that it hasn't deleted yet. A unit can broadcast one a day (the
