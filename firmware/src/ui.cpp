@@ -140,8 +140,13 @@ int g_advSel = 0;
 bool g_advPick = false;
 int g_advOpening = 0;
 uint32_t g_advOpenedMs = 0;
+int g_advCard = 0;  // the door whose card is up over the calendar (0: none)
 constexpr uint32_t kAdvSwingMs = 700;
 int adventDoorSel() { return g_advSel; }
+// The card is up once its door has finished swinging open.
+bool adventCardUp(uint32_t now) {
+  return g_advCard && !(g_advOpening == g_advCard && now - g_advOpenedMs < kAdvSwingMs);
+}
 uint32_t g_aboutFirstPressMs = 0;
 
 constexpr int kLogRows = 4;
@@ -1034,11 +1039,10 @@ const HelpPage kHelp[] = {
       "The picture moves a pixel each hour, so nothing sits still long enough to ghost.",
       nullptr}},
     {"ADVENT CALENDAR",
-     {"In December a present joins the tabs: the advent calendar. It lights up while a door is waiting.",
-      "Press to open today's door, or tap it. A door you missed can still be opened later; "
-      "tomorrow's can't. Press again, then turn, to read the open ones.",
-      "From Christmas Day to New Year's Eve every door opens. Each unit keeps its own doors.",
-      "The club's own lines: \"advent\" in the club file.", nullptr}},
+     {"In December a present joins the tabs. It lights up while a door is waiting.",
+      "Press (or tap the door) to open today's: what's behind it pops up. Press to close.",
+      "Missed one? Open it later. To reread: tap it, or press, turn, press.",
+      "From 25 Dec every door opens. Own lines: \"advent\" in the club file.", nullptr}},
 };
 constexpr int kHelpPages = sizeof kHelp / sizeof kHelp[0];
 
@@ -1412,7 +1416,7 @@ void drawSignalQuote(const Model& m) {
 // The doors, shuffled as on a real calendar: kAdvGrid[row * 6 + col] is the
 // door in that place.
 constexpr int kAdvCols = 6, kAdvRows = 4;
-constexpr int kAdvX = 8, kAdvY = 31, kAdvW = 48, kAdvH = 26, kAdvGapX = 3, kAdvGapY = 3;
+constexpr int kAdvX = 6, kAdvY = 31, kAdvW = 49, kAdvH = 46, kAdvGapX = 2, kAdvGapY = 3;
 constexpr uint8_t kAdvGrid[kAdvCols * kAdvRows] = {
     7,  15, 2,  22, 11, 18,
     4,  20, 13, 1,  24, 9,
@@ -1445,8 +1449,8 @@ void drawAdvent(const Model& m, uint32_t t) {
       // Swung open on its left hinge: the leaf edge-on, the picture behind.
       c.fillRect(x, y, 3, kAdvH, kMid);
       c.drawRect(x, y, kAdvW, kAdvH, kFaint);
-      adventIcon(x + kAdvW / 2 + 5, y + kAdvH / 2, bc::adventIcon(door), kBright);
-      text(x + 5, y + 2, buf, kDim, 1, 1);
+      adventIcon(x + kAdvW / 2 + 2, y + kAdvH / 2 + 3, bc::adventIcon(door), kBright);
+      text(x + 6, y + 3, buf, kDim, 1, 1);
       // Still swinging: the leaf narrows towards the hinge.
       const uint32_t since = t - g_advOpenedMs;
       if (door == g_advOpening && since < kAdvSwingMs) {
@@ -1464,43 +1468,57 @@ void drawAdvent(const Model& m, uint32_t t) {
         ink = kHot;
       }
       c.drawRect(x, y, kAdvW, kAdvH, edge);
-      textCentered(x + kAdvW / 2, y + 5, buf, ink, 2, 2);
+      textCentered(x + kAdvW / 2, y + 11, buf, ink, 2, 3);
     }
-    if (door == sel && (g_advPick || g_advSel)) {
-      c.drawRect(x - 2, y - 2, kAdvW + 4, kAdvH + 4, kHot);
-    }
+    if (door == sel && g_advPick) c.drawRect(x - 1, y - 1, kAdvW + 2, kAdvH + 2, kHot);
   }
 
-  // Below: the picked door (or today's).
-  const int y0 = kAdvY + kAdvRows * (kAdvH + kAdvGapY) + 2;
-  c.drawFastHLine(0, y0, cfg::kScreenW, kFaint);
+  // One line along the bottom: what a press does, and how many are open.
+  const int by = cfg::kScreenH - 10;
+  const bool waiting = bc::adventCanOpen(sel, today) && !bc::adventIsOpen(m.adventOpened, sel);
+  text(6, by, g_advPick ? "TURN: PICK   PRESS: OPEN OR READ"
+              : waiting ? "PRESS OR TAP: OPEN THE DOOR"
+                        : "PRESS: PICK A DOOR TO READ AGAIN",
+       kDim, 1, 1);
+  if (today > bc::kAdventDoors) {
+    textRight(cfg::kScreenW - 6, by, "MERRY CHRISTMAS", kHot, 1, 1);
+  } else {
+    snprintf(buf, sizeof buf, "%d/%d OPEN", bc::adventOpenCount(m.adventOpened), bc::kAdventDoors);
+    textRight(cfg::kScreenW - 6, by, buf, kDim, 1, 1);
+  }
+}
+
+// What's behind a door, over the calendar like an incoming signal: as a
+// door finishes swinging open, or when an open one is picked again. A door
+// that isn't due says so instead.
+void drawAdventCard(const Model& m) {
+  auto& c = canvas();
+  const int door = g_advCard, today = adventToday(m);
+  const int x = 6, y = 34, w = cfg::kScreenW - 12, h = 196;
+  c.fillRect(0, 28, cfg::kScreenW, cfg::kScreenH - 28, kBg);
+  c.drawRect(x, y, w, h, kBright);
+  c.drawRect(x + 2, y + 2, w - 4, h - 4, kMid);
   bc::Date day;
   day.year = m.now.date.year;
   day.month = 12;
-  day.day = (int8_t)sel;
-  snprintf(buf, sizeof buf, "DOOR %d   %s %d DEC", sel, bc::weekdayName(day), sel);
-  text(8, y0 + 4, buf, kBright);
-  if (today > bc::kAdventDoors) {
-    textRight(cfg::kScreenW - 8, y0 + 4, "MERRY CHRISTMAS", kHot);
+  day.day = (int8_t)door;
+  char buf[48];
+  snprintf(buf, sizeof buf, "DOOR %d", door);
+  textCentered(cfg::kScreenW / 2, y + 8, buf, kHot, 2, 2);
+  snprintf(buf, sizeof buf, "- %s %d DECEMBER -", bc::weekdayName(day), door);
+  textCentered(cfg::kScreenW / 2, y + 28, buf, kBright);
+  c.drawFastHLine(x + 10, y + 48, w - 20, kMid);
+  if (bc::adventIsOpen(m.adventOpened, door)) {
+    adventIcon(x + 22, y + 30, bc::adventIcon(door), kBright);
+    adventIcon(x + w - 22, y + 30, bc::adventIcon(door), kBright);
+    quoteText(x + 14, y + 58, w - 28, 104, bc::adventText(m.data, door), kText);
   } else {
-    snprintf(buf, sizeof buf, "%d/%d OPEN", bc::adventOpenCount(m.adventOpened), bc::kAdventDoors);
-    textRight(cfg::kScreenW - 8, y0 + 4, buf, kDim);
+    const int wait = door - today;
+    textCentered(cfg::kScreenW / 2, y + 86, "NO PEEKING", kWarn, 2, 2);
+    snprintf(buf, sizeof buf, "THIS DOOR OPENS IN %d DAY%s", wait, wait == 1 ? "" : "S");
+    textCentered(cfg::kScreenW / 2, y + 112, buf, kText);
   }
-  const int ty = y0 + 20;
-  if (bc::adventIsOpen(m.adventOpened, sel)) {
-    textWrapped(8, ty, bc::adventText(m.data, sel), 50, 3, kText);
-  } else if (bc::adventCanOpen(sel, today)) {
-    textCentered(cfg::kScreenW / 2, ty + 10, "PRESS TO OPEN THIS DOOR", flash ? kHot : kBright, 1, 2);
-  } else {
-    const int wait = sel - today;
-    snprintf(buf, sizeof buf, "NO PEEKING. IT OPENS IN %d DAY%s.", wait, wait == 1 ? "" : "S");
-    textCentered(cfg::kScreenW / 2, ty + 10, buf, kWarn);
-  }
-  const char* hint = g_advPick ? "TURN: PICK A DOOR   PRESS: OPEN IT / DONE"
-                     : bc::adventCanOpen(sel, today) && !bc::adventIsOpen(m.adventOpened, sel)
-                         ? "PRESS: OPEN THE DOOR   (OR TAP IT)"
-                         : "PRESS: LOOK BACK AT THE DOORS";
-  text(8, cfg::kScreenH - 10, hint, kDim, 1, 1);
+  textCentered(cfg::kScreenW / 2, y + h - 22, "PRESS OR TAP TO CLOSE", kDim);
 }
 
 // Opens `door` if it may open and is still shut: starts it swinging and asks
@@ -1510,6 +1528,7 @@ bool openAdventDoor(const Model& m, int door, uint32_t now, Result& r) {
   g_advSel = door;
   g_advOpening = door;
   g_advOpenedMs = now;
+  g_advCard = door;  // up once it has swung open
   r.action = Action::OpenAdventDoor;
   r.arg = door;
   return true;
@@ -1740,7 +1759,10 @@ bool animating(const Model& m) {
 Result handle(const input::Events& e, const Model& m, uint32_t now) {
   Result r;
   fixTab(m);
-  if (g_advOpening && now - g_advOpenedMs >= kAdvSwingMs) g_advOpening = 0;
+  if (g_advOpening && now - g_advOpenedMs >= kAdvSwingMs) {
+    g_advOpening = 0;
+    r.redraw = true;  // the card comes up
+  }
   if (!e.any()) return r;
   r.redraw = true;
 
@@ -1795,14 +1817,24 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
       }
       if (g_tab == kLog && e.shortPress) g_logScroll = !g_logScroll;
       if (g_tab == kAdvent && e.shortPress) {
-        // Open the picked (or today's) door if it's waiting; else start or
-        // stop moving through the doors.
-        if (!openAdventDoor(m, adventDoor(m), now, r)) {
-          g_advPick = !g_advPick;
-          if (g_advPick && !g_advSel) g_advSel = adventDoor(m);
+        // A card up: close it (and stop picking). Else open the picked (or
+        // today's) door if it's waiting; while picking, show the picked
+        // door's card; else start picking.
+        if (g_advCard) {
+          g_advCard = 0;
+          g_advOpening = 0;
+          g_advPick = false;
+        } else if (!openAdventDoor(m, adventDoor(m), now, r)) {
+          if (g_advPick) {
+            g_advCard = adventDoor(m);
+          } else {
+            g_advPick = true;
+            if (!g_advSel) g_advSel = adventDoor(m);
+          }
         }
         break;
       }
+      if (g_tab == kAdvent && g_advCard && e.turn) break;  // the card stays until a press
       if (g_tab == kData && e.shortPress) {
         openSyncStatus();
         break;
@@ -1821,6 +1853,7 @@ Result handle(const input::Events& e, const Model& m, uint32_t now) {
           g_logScroll = false;
           g_advPick = false;
           g_advSel = 0;
+          g_advCard = 0;
         }
       }
       break;
@@ -2066,6 +2099,7 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
             g_logScroll = false;
             g_advPick = false;
             g_advSel = 0;
+            g_advCard = 0;
             return r;
           }
         }
@@ -2095,8 +2129,17 @@ Result handleTap(int x, int y, const Model& m, uint32_t now) {
       }
       // ADVENT: tap a door to open it (if it may open) or to read it again.
       if (g_tab == kAdvent) {
+        if (g_advCard) {  // a tap anywhere below the tabs closes the card
+          g_advCard = 0;
+          g_advOpening = 0;
+          g_advPick = false;
+          return r;
+        }
         const int door = adventDoorAt(x, y);
-        if (door && !openAdventDoor(m, door, now, r)) g_advSel = door;
+        if (door && !openAdventDoor(m, door, now, r)) {
+          g_advSel = door;
+          g_advCard = door;
+        }
         return r;
       }
       // DATA: the sync line at the bottom opens SYNC STATUS.
@@ -2339,6 +2382,7 @@ void render(const Model& m, uint32_t t) {
       drawRadio(m, t);
     } else if (g_tab == kAdvent) {
       drawAdvent(m, t);
+      if (adventCardUp(t)) drawAdventCard(m);
     } else if (!m.data) {
       drawCentredScreen("NO DATA YET",
                         m.wifiUp ? "Fetching the club file..." : "Waiting for Wi-Fi...",
