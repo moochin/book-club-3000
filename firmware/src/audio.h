@@ -41,6 +41,7 @@ void geigerClick();
 void jingle();      // meeting day fanfare, ~1.5 s
 void birthday();    // on this unit owner's birthday (the jingle unless a clip is given)
 void confirmBeep();
+void adventChime();  // an advent door opening: a bar of Jingle Bells
 void nudgeChirp();  // an incoming nudge: a quick "bip-bip-BWEEP"
 
 // Power-on: a soft beep as each line of the boot log prints, then a quiet

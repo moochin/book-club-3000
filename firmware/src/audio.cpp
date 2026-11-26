@@ -27,6 +27,13 @@ static const Note kJingle[] = {
     {0, 20, 0},     {1047, 220, 90}, {0, 60, 0}, {784, 110, 90}, {0, 20, 0},
     {1047, 420, 90},
 };
+// "Jingle bells, jingle bells, jingle all the way" (traditional), quick.
+static const Note kAdvent[] = {
+    {659, 110, 80}, {0, 25, 0}, {659, 110, 80}, {0, 25, 0}, {659, 230, 80}, {0, 50, 0},
+    {659, 110, 80}, {0, 25, 0}, {659, 110, 80}, {0, 25, 0}, {659, 230, 80}, {0, 50, 0},
+    {659, 110, 80}, {0, 25, 0}, {784, 110, 80}, {0, 25, 0}, {523, 160, 80}, {0, 15, 0},
+    {587, 60, 80},  {0, 15, 0}, {659, 380, 90},
+};
 static const Note kConfirm[] = {{880, 50, 60}, {0, 20, 0}, {1320, 70, 60}};
 static const Note kNudge[] = {{1568, 45, 70}, {0, 40, 0}, {1568, 45, 70}, {0, 60, 0},
                               {1047, 60, 80}, {1397, 60, 80}, {2093, 160, 90}};
@@ -495,6 +502,9 @@ void birthday() {
 void confirmBeep() {
   if (playClip(Clip::Confirm)) return;
   play(kConfirm, sizeof kConfirm / sizeof kConfirm[0]);
+}
+void adventChime() {
+  play(kAdvent, sizeof kAdvent / sizeof kAdvent[0]);
 }
 void nudgeChirp() {
   if (playClip(Clip::Nudge)) return;

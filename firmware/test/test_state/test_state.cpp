@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "bc_advent.h"
 #include "bc_data.h"
 #include "bc_date.h"
 #include "bc_nudge.h"
@@ -648,6 +649,132 @@ static BookClubData birthdayData() {
   return d;
 }
 
+
+// The display's word wrap, as display::wrappedLines() does it (src/display.cpp).
+static int wrappedLinesForTest(const char* s, int maxChars) {
+  int lines = 0;
+  while (*s) {
+    while (*s == ' ') ++s;
+    if (!*s) break;
+    int n = (int)strlen(s);
+    if (n > maxChars) {
+      n = maxChars;
+      int cut = n;
+      while (cut > 0 && s[cut] != ' ') --cut;
+      if (cut > maxChars / 3) n = cut;
+    }
+    s += n;
+    ++lines;
+  }
+  return lines;
+}
+
+// ---- Advent calendar ----------------------------------------------------------
+
+void test_advent_day() {
+  TEST_ASSERT_EQUAL(0, adventDay(at("2026-11-30")));
+  TEST_ASSERT_EQUAL(1, adventDay(at("2026-12-01")));
+  TEST_ASSERT_EQUAL(24, adventDay(at("2026-12-24")));
+  TEST_ASSERT_EQUAL(25, adventDay(at("2026-12-25")));
+  TEST_ASSERT_EQUAL(25, adventDay(at("2026-12-31", 23, 59)));
+  TEST_ASSERT_EQUAL(0, adventDay(at("2027-01-01", 0, 0)));
+  LocalNow unset = at("2026-12-05");
+  unset.valid = false;
+  TEST_ASSERT_EQUAL(0, adventDay(unset));
+}
+
+void test_advent_can_open() {
+  TEST_ASSERT_TRUE(adventCanOpen(1, 1));
+  TEST_ASSERT_FALSE(adventCanOpen(2, 1));   // no peeking
+  TEST_ASSERT_TRUE(adventCanOpen(3, 10));   // a missed door, later
+  TEST_ASSERT_TRUE(adventCanOpen(24, 25));  // after Christmas, every door
+  TEST_ASSERT_FALSE(adventCanOpen(0, 10));
+  TEST_ASSERT_FALSE(adventCanOpen(25, 25));
+  TEST_ASSERT_FALSE(adventCanOpen(1, 0));   // not December
+}
+
+void test_advent_record() {
+  uint32_t m = 0;
+  m = adventWithOpen(m, 1);
+  m = adventWithOpen(m, 24);
+  m = adventWithOpen(m, 25);  // out of range: ignored
+  TEST_ASSERT_TRUE(adventIsOpen(m, 1));
+  TEST_ASSERT_TRUE(adventIsOpen(m, 24));
+  TEST_ASSERT_FALSE(adventIsOpen(m, 2));
+  TEST_ASSERT_EQUAL(2, adventOpenCount(m));
+  TEST_ASSERT_EQUAL_UINT32(m, adventOpenedThisYear(2026, m, 2026));
+  TEST_ASSERT_EQUAL_UINT32(0, adventOpenedThisYear(2025, m, 2026));  // last year's
+  TEST_ASSERT_EQUAL_UINT32(0, adventOpenedThisYear(0, 0xFFFFFFFF, 2026));
+  TEST_ASSERT_EQUAL(24, adventOpenCount(adventOpenedThisYear(2026, 0xFFFFFFFF, 2026)));
+  // Waiting: a door that may open is still shut.
+  TEST_ASSERT_TRUE(adventWaiting(0, 1));
+  TEST_ASSERT_FALSE(adventWaiting(adventWithOpen(0, 1), 1));
+  TEST_ASSERT_TRUE(adventWaiting(adventWithOpen(0, 2), 2));  // door 1 was missed
+  TEST_ASSERT_FALSE(adventWaiting(0, 0));
+}
+
+void test_advent_defaults() {
+  for (int d = 1; d <= kAdventDoors; ++d) {
+    const char* s = adventDefaultText(d);
+    TEST_ASSERT_TRUE(strlen(s) > 0);
+    TEST_ASSERT_TRUE_MESSAGE(strlen(s) <= (size_t)kAdventTextLen - 1, s);
+    for (const char* p = s; *p; ++p) TEST_ASSERT_TRUE_MESSAGE((uint8_t)*p >= 32 && (uint8_t)*p < 127, s);
+    // It fits the tab: three lines of 50.
+    TEST_ASSERT_TRUE_MESSAGE(wrappedLinesForTest(s, 50) <= 3, s);
+    TEST_ASSERT_EQUAL_STRING(s, adventText(nullptr, d));
+  }
+  TEST_ASSERT_EQUAL_STRING("", adventText(nullptr, 0));
+  TEST_ASSERT_EQUAL_STRING("", adventText(nullptr, 25));
+}
+
+void test_advent_parse() {
+  std::string json =
+      "{\"version\":1,\"last\":{\"date\":\"2026-08-15\"},\"advent\":{"
+      "\"7\":\"Bring a jumper to the Xmas do\","
+      "\"20\":\"Caf\\u00e9 night!\","
+      "\"03\":\"Leading zero is fine\","
+      "\"0\":\"no such door\",\"25\":\"nor this\",\"x\":\"nor this\",\"5\":42,\"6\":\"\","
+      "\"9\":\"" + std::string(101, 'a') + "\"}}";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(json.c_str(), json.size(), d));
+  TEST_ASSERT_EQUAL(3, d.advent.count);
+  TEST_ASSERT_EQUAL_STRING("Bring a jumper to the Xmas do", adventText(&d, 7));
+  TEST_ASSERT_EQUAL_STRING("Cafe night!", adventText(&d, 20));
+  TEST_ASSERT_EQUAL_STRING("Leading zero is fine", adventText(&d, 3));
+  TEST_ASSERT_EQUAL_STRING(adventDefaultText(5), adventText(&d, 5));
+  TEST_ASSERT_EQUAL_STRING(adventDefaultText(6), adventText(&d, 6));
+  TEST_ASSERT_EQUAL_STRING(adventDefaultText(9), adventText(&d, 9));  // too long
+  TEST_ASSERT_EQUAL_STRING(adventDefaultText(1), adventText(&d, 1));
+  // Not an object: ignored, and the file is still good.
+  const char* bad = "{\"version\":1,\"last\":{\"date\":\"2026-08-15\"},\"advent\":[\"a\"]}";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(bad, strlen(bad), d));
+  TEST_ASSERT_EQUAL(0, d.advent.count);
+}
+
+void test_advent_pool_full() {
+  // All 24 at 100 characters don't fit the pool: the ones that do are kept,
+  // the rest fall back to the built-in lines, and nothing overflows.
+  std::string json = "{\"version\":1,\"last\":{\"date\":\"2026-08-15\"},\"advent\":{";
+  for (int i = 1; i <= 24; ++i) {
+    if (i > 1) json += ",";
+    json += "\"" + std::to_string(i) + "\":\"" + std::string(100, (char)('a' + i % 26)) + "\"";
+  }
+  json += "}}";
+  BookClubData d;
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(json.c_str(), json.size(), d));
+  TEST_ASSERT_EQUAL(kAdventPoolLen / 101, d.advent.count);
+  TEST_ASSERT_EQUAL(100, (int)strlen(adventText(&d, 1)));
+  TEST_ASSERT_EQUAL_STRING(adventDefaultText(24), adventText(&d, 24));
+  // A door given twice (JSON allows it): the last one wins.
+  const char* twice = "{\"version\":1,\"last\":{\"date\":\"2026-08-15\"},\"advent\":{\"2\":\"one\",\"2\":\"two\"}}";
+  TEST_ASSERT_EQUAL((int)ParseError::None, (int)parseBookClub(twice, strlen(twice), d));
+  TEST_ASSERT_EQUAL(1, d.advent.count);
+}
+
+void test_advent_icons() {
+  for (int d = 1; d <= kAdventDoors; ++d) TEST_ASSERT_TRUE((int)adventIcon(d) < (int)AdventIcon::Count);
+}
+
 void test_christmas_pose() {
   BookClubData d = birthdayData();
   auto s = computeState(d, at("2026-12-25"));
@@ -1206,6 +1333,13 @@ int main() {
   RUN_TEST(test_caps_before_clock_and_custom_rules);
   RUN_TEST(test_birthdays_parsed);
   RUN_TEST(test_birthday_pose_and_index);
+  RUN_TEST(test_advent_day);
+  RUN_TEST(test_advent_can_open);
+  RUN_TEST(test_advent_record);
+  RUN_TEST(test_advent_defaults);
+  RUN_TEST(test_advent_parse);
+  RUN_TEST(test_advent_pool_full);
+  RUN_TEST(test_advent_icons);
   RUN_TEST(test_christmas_pose);
   RUN_TEST(test_birthday_meeting_day_wins);
   RUN_TEST(test_birthday_leap_day);

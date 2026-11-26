@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "audio.h"
+#include "bc_advent.h"
 #include "backlight.h"
 #include "bc_data.h"
 #include "bc_screen.h"
@@ -86,6 +87,12 @@ bc::Signal g_signal;
 bool g_signalShown = false;
 uint32_t g_signalsSeenVersion = 0;
 uint32_t g_signalSeenAt = 0;  // newest signal already announced (its send time)
+
+// The advent calendar's opened doors (bc_advent.h), as kept in NVS. A preview
+// opens doors in a copy of its own, so trying it doesn't spoil the real ones.
+int16_t g_adventYear = 0;
+uint32_t g_adventMask = 0;
+uint32_t g_previewAdvent = 0;
 
 void ledsOff() {
   for (int pin : {cfg::kPinLedR, cfg::kPinLedG, cfg::kPinLedB}) {
@@ -186,6 +193,7 @@ void doAction(const ui::Result& r) {
     case ui::Action::CancelPortal: net::closePortal(); return;
     case ui::Action::Preview:
       if (scenarios::build(r.arg, g_previewData, g_previewNow)) g_preview = r.arg;
+      g_previewAdvent = 0;
       return;
     case ui::Action::ExitPreview: g_preview = -1; return;
     case ui::Action::SendNudge: {
@@ -214,6 +222,20 @@ void doAction(const ui::Result& r) {
       g_signalShown = false;
       Serial.println("[main] signal dismissed");
       return;
+    case ui::Action::OpenAdventDoor: {
+      audio::adventChime();
+      if (g_preview >= 0) {
+        g_previewAdvent = bc::adventWithOpen(g_previewAdvent, r.arg);
+        return;
+      }
+      const bc::LocalNow n = clockmod::localNow();
+      if (!n.valid) return;
+      g_adventMask = bc::adventWithOpen(bc::adventOpenedThisYear(g_adventYear, g_adventMask, n.date.year), r.arg);
+      g_adventYear = n.date.year;
+      settings::saveAdvent(g_adventYear, g_adventMask);
+      Serial.printf("[main] advent door %d opened\n", r.arg);
+      return;
+    }
   }
   settings::save();
 }
@@ -380,6 +402,7 @@ void setup() {
   datasync::begin();
   nudge::begin();  // after datasync: shares its TLS lock
   g_signalSeenAt = settings::signalSeenAt();
+  settings::loadAdvent(g_adventYear, g_adventMask);
   g_jingledOn = loadDay("jingled");
   g_remindedOn = loadDay("reminded");
   ui::begin();
@@ -659,6 +682,7 @@ void loop() {
   m.hubUrl = g_hasData ? g_data.nudges.url : "";
   m.nudgeToken = u.nudgeToken;
   m.toastWarn = g_toastWarn;
+  m.adventOpened = preview ? g_previewAdvent : bc::adventOpenedThisYear(g_adventYear, g_adventMask, now_.date.year);
 
   // Left on RADIO or in settings, go back to STAT after a while.
   if (!ev.any() && !m.portal && now - g_lastInputMs >= cfg::kSettingsIdleReturnMs && ui::returnToStat())

@@ -214,6 +214,38 @@ int main(int argc, char** argv) {
     g_simMillis = 1000;
   }
 
+  // The advent calendar, 7 December: doors 1-5 open (6 was missed), today's
+  // waiting; open it; look back at door 2; try a door that isn't due.
+  {
+    bc::BookClubData ad;
+    bc::LocalNow an;
+    scenarios::build(scenarios::count() - 3, ad, an);  // ADVENT (7 DEC)
+    ui::Model am = model(&ad, an);
+    for (int d = 1; d <= 5; ++d) am.adventOpened |= 1UL << (d - 1);
+    g_simMillis = 1000;
+    shot("stat_advent_header", am);
+    ev(am, -1);              // STAT -> ADVENT (the last tab)
+    g_simMillis = 1500;
+    shot("advent", am);
+    ev(am, 0, true);         // press: door 7 starts to swing
+    am.adventOpened |= 1UL << 6;
+    g_simMillis += 300;
+    shot("advent_swinging", am);
+    g_simMillis += 1000;
+    ev(am, 0);
+    shot("advent_opened", am);
+    ev(am, 0, true); ev(am, -5); shot("advent_pick_door2", am);  // look back at door 2
+    ev(am, +4); shot("advent_pick_missed", am);                   // door 6: missed, still shut
+    ev(am, +6); shot("advent_no_peeking", am);                    // door 12: not yet
+    ev(am, 0, true); ev(am, +1);                                  // done; round to STAT
+    // Christmas week: every door may open, the record full.
+    ui::Model xm = am;
+    xm.now.date.day = 27;
+    xm.adventOpened = 0xFFFFFF;
+    ev(xm, -1); shot("advent_christmas_week", xm); ev(xm, +1);
+    g_simMillis = 1000;
+  }
+
   // Fun Caps on the owner card: a penalty, and the doghouse.
   {
     ui::Model cm = m;

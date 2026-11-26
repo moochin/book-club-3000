@@ -50,6 +50,10 @@ void setLastSyncEpoch(uint32_t epoch);
 // restart doesn't announce it again. 0 = none yet.
 uint32_t signalSeenAt();
 void setSignalSeenAt(uint32_t at);
+// The advent calendar's opened doors (bc_advent.h: one bit per door) and the
+// year they belong to. Year 0: none on record.
+void loadAdvent(int16_t& year, uint32_t& mask);
+void saveAdvent(int16_t year, uint32_t mask);
 
 // Clears settings, cache and saved Wi-Fi, then restarts.
 [[noreturn]] void factoryReset();

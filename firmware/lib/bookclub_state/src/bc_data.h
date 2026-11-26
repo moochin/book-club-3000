@@ -82,6 +82,22 @@ struct SignalConfig {
   char quotes[kMaxSignalQuotes][kSignalTextLen] = {};
 };
 
+// The optional "advent" block: the club's own lines for some of the advent
+// calendar's doors ("advent": {"7": "..."}); the rest keep their built-in
+// ones. The lines share one pool, so a few long ones don't cost 24 slots.
+constexpr int kAdventDoors = 24;
+constexpr int kAdventTextLen = 101;  // 100 characters, as the screen fits
+constexpr int kAdventPoolLen = 1600;
+struct AdventConfig {
+  static constexpr uint16_t kNone = 0xFFFF;
+  uint16_t offset[kAdventDoors];  // into pool, or kNone: the built-in line
+  char pool[kAdventPoolLen] = "";
+  int count = 0;                  // doors with the club's own line
+  AdventConfig() {
+    for (auto& o : offset) o = kNone;
+  }
+};
+
 struct BookClubData {
   int version = 0;
   Meeting last;           // always has a valid date after a successful parse
@@ -100,6 +116,7 @@ struct BookClubData {
   FirmwareInfo firmware;  // optional "firmware" block for over-the-air updates
   NudgeConfig nudges;     // optional "nudges" block
   SignalConfig signals;   // optional "signals" block
+  AdventConfig advent;    // optional "advent" block
 };
 
 enum class ParseError : uint8_t {

@@ -109,6 +109,19 @@ runs on your computer.
   day still gets its own celebration. A 29 February birthday is marked on
   28 February in other years. The DATA tab always shows whose birthday is
   next, e.g. `BDAY  DAVE  22 OCT (12D)`.
+- **Advent calendar** (from 1.5.37): each door has a built-in line, so
+  this is optional. To put the club's own line behind a door (a hint about
+  the Xmas do, say), add `advent` with the door's number, up to 100
+  characters each:
+
+  ```json
+  "advent": { "7": "Bring a jumper to the Xmas do", "20": "Pete's house, 14:00. Families welcome." },
+  ```
+
+  Doors not listed keep their built-in lines. Units keep about 1,600
+  characters of these in all, so a handful is fine but all 24 at full
+  length isn't. A change reaches each unit at its next sync, doors already
+  open included.
 - `plan` is what's on (games, a film, food, the pub...) and shows on the
   DATA and LOG tabs. `next`, `time`, `plan` and `location` are
   all optional. Older files that say `book` instead of `plan` still work.
@@ -184,6 +197,25 @@ choices as a list. The tab's name lights up from the other tabs while a
 friend's signal is on the air. Settings are at the end of that list
 (**SETTINGS >**) and in the button at the bottom right. As before, a 2 s hold
 or a tap on the clock opens them straight away.
+
+## The advent calendar
+
+From 1.5.37, every December a little present appears at the end of the tabs,
+after RADIO: the advent calendar. Its 24 doors are shuffled across the screen
+like a real one, and the present lights up while a door is waiting.
+
+- **Press** the knob (or tap the door) to open today's door. It swings open
+  with a bar of Jingle Bells (outside quiet hours) and the line behind it
+  shows underneath.
+- **Missed a day?** Open that door later. Tomorrow's won't open: NO PEEKING.
+- **Press again, then turn** to read any door that's already open; press once
+  more when you're done.
+- From Christmas Day to New Year's Eve every door may open, for anyone who was
+  away. On 1 January the tab goes until next December.
+
+Each unit keeps track of its own doors, so opening one on your unit doesn't
+open it on anyone else's. The lines behind the doors are built in; the club
+file can swap any of them for its own (see `advent` above).
 
 ## Nudges
 

@@ -217,6 +217,34 @@ ParseError parseBookClub(const char* json, size_t len, BookClubData& out) {
     }
   }
 
+  // Advent: "1".."24" -> the club's own line for that door (ASCII, 100
+  // characters). Anything else, or a line that doesn't fit, keeps the
+  // built-in one.
+  for (JsonPairConst kv : root["advent"].as<JsonObjectConst>()) {
+    const char* key = kv.key().c_str();
+    int door = 0;
+    bool digits = key[0] != 0 && strlen(key) <= 2;
+    for (const char* p = key; digits && *p; ++p) {
+      if (*p < '0' || *p > '9') digits = false;
+      else door = door * 10 + (*p - '0');
+    }
+    if (!digits || door < 1 || door > kAdventDoors) continue;
+    const char* s = kv.value().is<const char*>() ? kv.value().as<const char*>() : nullptr;
+    if (!s) continue;
+    char folded[kAdventTextLen + 8];
+    asciiFold(s, folded, sizeof folded);
+    const size_t n = strlen(folded);
+    if (!n || n > kAdventTextLen - 1) continue;
+    AdventConfig& a = d->advent;
+    size_t used = 0;
+    for (int i = 0; i < kAdventDoors; ++i)
+      if (a.offset[i] != AdventConfig::kNone) used = std::max(used, a.offset[i] + strlen(a.pool + a.offset[i]) + 1);
+    if (used + n + 1 > sizeof a.pool) continue;  // the pool is full
+    if (a.offset[door - 1] == AdventConfig::kNone) ++a.count;
+    memcpy(a.pool + used, folded, n + 1);
+    a.offset[door - 1] = (uint16_t)used;
+  }
+
   JsonVariantConst fw = root["firmware"];
   if (fw.is<JsonObjectConst>()) {
     copyText(fw["version"], d->firmware.version, sizeof d->firmware.version);
