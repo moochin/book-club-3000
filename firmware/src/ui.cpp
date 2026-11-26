@@ -48,7 +48,7 @@ enum Tab : uint8_t { kStat = 0, kData = 1, kLog = 2, kRadio = 3, kAdvent = 4, kT
 constexpr int kTabXs[kTabCount] = {2, 56, 110, 152};
 constexpr int kTabWs[kTabCount] = {52, 52, 40, 64};
 constexpr int kTabXsAdvent[kTabMax] = {1, 52, 103, 142, 205};
-constexpr int kTabWsAdvent[kTabMax] = {50, 50, 38, 62, 18};
+constexpr int kTabWsAdvent[kTabMax] = {50, 50, 38, 62, 21};
 
 enum MenuItem : uint8_t {
   kMiRefresh,
@@ -275,8 +275,15 @@ void header(const Model& m) {
     if (cur) c.drawRect(x, 2, w, 22, kBright);
     if (i == kAdvent) {
       // A door waiting to be opened lights the present up.
+      // A small present, with room around it inside the box.
       const bool waiting = bc::adventWaiting(m.adventOpened, adventToday(m));
-      adventIcon(x + w / 2, 14, bc::AdventIcon::Present, cur ? kHot : waiting ? kBright : kDim);
+      const uint8_t ink = cur ? kHot : waiting ? kBright : kDim;
+      const int cx = x + w / 2, top = 9;
+      c.fillRect(cx - 5, top + 3, 11, 9, ink);   // the box
+      c.fillRect(cx - 1, top + 3, 3, 9, kBg);    // ribbon, down
+      c.drawFastHLine(cx - 5, top + 6, 11, kBg); // ribbon, across
+      c.drawCircle(cx - 2, top + 1, 2, ink);     // the bow
+      c.drawCircle(cx + 2, top + 1, 2, ink);
     } else if (cur) {
       textCentered(x + w / 2, 5, kNames[i], kHot, 2, 2);
     } else {
@@ -292,7 +299,8 @@ void header(const Model& m) {
   wifiIcon(cfg::kScreenW - 54, 6, m.wifiUp);
   if (m.syncStale || m.sync == SyncInfo::Failed) warnIcon(cfg::kScreenW - 76, 5);
   if (m.sync == SyncInfo::Fetching) text(cfg::kScreenW - 72, 6, "~", kBright);
-  if (m.quietNow) quietIcon(cfg::kScreenW - 96, 6);
+  // In December the advent tab reaches x = 226: the speaker moves right.
+  if (m.quietNow) quietIcon(cfg::kScreenW - (adventToday(m) ? 92 : 96), 6);
 }
 
 void previewBanner(const Model& m) {
