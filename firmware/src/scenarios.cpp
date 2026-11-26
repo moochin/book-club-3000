@@ -42,6 +42,7 @@ static const Scenario kScenarios[] = {
     {"CLOCKS FORWARD 00:30", "2026-08-15", nullptr, nullptr, "2027-03-28", 0, 30},
     {"BIRTHDAY (YOURS)", "2026-08-15", "2027-04-10", nullptr, "2027-03-14", 12, 0},
     {"BIRTHDAY (DAVE'S)", "2026-08-15", "2026-12-05", "19:30", "2026-10-22", 12, 0},
+    {"ADVENT (7 DEC)", "2026-08-15", "2027-01-16", nullptr, "2026-12-07", 18, 0},
     {"CHRISTMAS DAY", "2026-08-15", "2027-01-16", nullptr, "2026-12-25", 10, 0},
     // Keep SIDE QUEST TODAY last: the simulator picks it as count() - 1.
     {"SIDE QUEST TODAY", "2026-08-15", "2027-01-16", nullptr, "2026-12-20", 11, 0},

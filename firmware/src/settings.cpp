@@ -149,6 +149,22 @@ void setSignalSeenAt(uint32_t at) {
   p.end();
 }
 
+void loadAdvent(int16_t& year, uint32_t& mask) {
+  Preferences p;
+  p.begin(kCacheNs, true);
+  year = (int16_t)p.getShort("advyr", 0);
+  mask = p.getULong("adv", 0);
+  p.end();
+}
+
+void saveAdvent(int16_t year, uint32_t mask) {
+  Preferences p;
+  if (!p.begin(kCacheNs, false)) return;
+  p.putShort("advyr", year);
+  p.putULong("adv", mask);
+  p.end();
+}
+
 void factoryReset() {
   Serial.println("[settings] factory reset");
   WiFi.disconnect(true, true);  // forget saved network

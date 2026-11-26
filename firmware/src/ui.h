@@ -68,7 +68,10 @@ struct Model {
   const bc::Signal* incomingSignal = nullptr;  // a new one waiting to be seen
   const char* hubError = "";
   const char* hubUrl = "";                 // the nudge hub's web page ("" if not set up)
-  const char* nudgeToken = "";             // this unit's hub token, for the QR sign-in link               // the nudge hub's last problem ("" if none)
+  const char* nudgeToken = "";             // this unit's hub token, for the QR sign-in link
+  // The advent calendar (bc_advent.h): this year's opened doors. The tab
+  // shows through December, by `now`.
+  uint32_t adventOpened = 0;
 };
 
 enum class Action : uint8_t {
@@ -94,6 +97,7 @@ enum class Action : uint8_t {
   ReplyNudge,   // arg = reply index (bc::nudgeReply)
   BroadcastSignal,  // arg = quote index
   DismissSignal,
+  OpenAdventDoor,   // arg = door, 1..24
 };
 
 struct Result {

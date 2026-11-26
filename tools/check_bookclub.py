@@ -166,6 +166,25 @@ def check(raw):
                 if len(quotes) > 16:
                     warnings.append("units offer at most 16 signal quotes; the rest will be ignored")
 
+        adv = doc.get("advent")
+        if adv is not None:
+            if not isinstance(adv, dict):
+                warnings.append('"advent" should be a { "7": "..." } object, by door number; it will be ignored')
+            else:
+                for k, v in adv.items():
+                    door = int(k) if isinstance(k, str) and k.isdigit() and len(k) <= 2 else 0
+                    if not 1 <= door <= 24:
+                        warnings.append(f'advent door "{k}" should be a number from 1 to 24; it will be ignored')
+                    elif not isinstance(v, str) or not v.strip():
+                        warnings.append(f"advent door {door} is empty or not text; it keeps its built-in line")
+                    elif len(v) > 100:
+                        warnings.append(f'advent door {door} ("{v[:20]}...") is over 100 characters; '
+                                        f'it keeps its built-in line')
+                total = sum(len(v) + 1 for v in adv.values() if isinstance(v, str) and 0 < len(v) <= 100)
+                if total > 1600:
+                    warnings.append(f"the advent lines add up to {total} characters; units keep about 1,600, "
+                                    f"so the last ones will keep their built-in lines")
+
         fw = doc.get("firmware")
         if fw is not None:
             urls = [str(fw.get(k, "")) for k in ("url", "url_st7789")] if isinstance(fw, dict) else []
