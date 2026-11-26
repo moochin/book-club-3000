@@ -193,6 +193,9 @@ void doAction(const ui::Result& r) {
     case ui::Action::CancelPortal: net::closePortal(); return;
     case ui::Action::Preview:
       if (scenarios::build(r.arg, g_previewData, g_previewNow)) g_preview = r.arg;
+      // The sample file has no advent lines: show the club's own, so the
+      // ADVENT preview checks what's really in the gist before December.
+      if (g_hasData) g_previewData.advent = g_data.advent;
       g_previewAdvent = 0;
       return;
     case ui::Action::ExitPreview: g_preview = -1; return;
