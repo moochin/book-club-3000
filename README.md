@@ -217,6 +217,12 @@ Each unit keeps track of its own doors, so opening one on your unit doesn't
 open it on anyone else's. The lines behind the doors are built in; the club
 file can swap any of them for its own (see `advent` above).
 
+To check the club's lines before December, use the hidden **PREVIEW STATES**
+menu (hold 2 s → THIS UNIT → ABOUT → press 5 times quickly), pick **ADVENT
+(7 DEC)** and open doors on the present tab. From 1.5.38 the preview shows the
+lines from the club file this unit last fetched (REFRESH NOW first after an
+edit); doors opened in a preview don't count.
+
 ## Nudges
 
 Poke a friend from your desk: **RADIO → NUDGE**, pick a friend (or
