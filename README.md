@@ -205,11 +205,10 @@ after RADIO: the advent calendar. Its 24 doors are shuffled across the screen
 like a real one, and the present lights up while a door is waiting.
 
 - **Press** the knob (or tap the door) to open today's door. It swings open
-  with a bar of Jingle Bells (outside quiet hours) and the line behind it
-  shows underneath.
+  with a bar of Jingle Bells (outside quiet hours), then what's behind it pops
+  up over the calendar, like a signal. Press or tap to close it.
 - **Missed a day?** Open that door later. Tomorrow's won't open: NO PEEKING.
-- **Press again, then turn** to read any door that's already open; press once
-  more when you're done.
+- **To reread a door,** tap it, or press, turn to it and press again.
 - From Christmas Day to New Year's Eve every door may open, for anyone who was
   away. On 1 January the tab goes until next December.
 

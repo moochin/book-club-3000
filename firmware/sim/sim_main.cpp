@@ -150,6 +150,7 @@ int main(int argc, char** argv) {
   shot("help_nudges", m);                                // page 4: NUDGES
   ev(m, +2);
   shot("help_screen", m);                                // page 6: THE SCREEN
+  ev(m, +1); shot("help_advent", m);                      // page 7: ADVENT CALENDAR
   ev(m, 0, false, true); ev(m, +1); ev(m, 0, true); shot("about", m);
   for (int i = 0; i < 5; ++i) ev(m, 0, true);
   shot("debug_menu", m);
@@ -233,11 +234,14 @@ int main(int argc, char** argv) {
     shot("advent_swinging", am);
     g_simMillis += 1000;
     ev(am, 0);
-    shot("advent_opened", am);
-    ev(am, 0, true); ev(am, -5); shot("advent_pick_door2", am);  // look back at door 2
-    ev(am, +4); shot("advent_pick_missed", am);                   // door 6: missed, still shut
-    ev(am, +6); shot("advent_no_peeking", am);                    // door 12: not yet
-    ev(am, 0, true); ev(am, +1);                                  // done; round to STAT
+    shot("advent_card", am);                                      // swung open: the card
+    ev(am, 0, true); shot("advent_opened", am);                   // press: closed
+    ev(am, 0, true); ev(am, -5); shot("advent_pick_door2", am);   // pick, turn to door 2
+    ev(am, 0, true); shot("advent_card_door2", am);               // press: its card
+    ev(am, 0, true); ev(am, 0, true); ev(am, +4);                 // close; pick door 6
+    shot("advent_pick_missed", am);                               // missed, still shut
+    ev(am, +6); ev(am, 0, true); shot("advent_no_peeking", am);   // door 12: not yet
+    ev(am, 0, true); ev(am, +1);                                  // close; round to STAT
     // Christmas week: every door may open, the record full.
     ui::Model xm = am;
     xm.now.date.day = 27;
